@@ -3,23 +3,46 @@ use regex;
 use csv;
 
 
+fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {
+    match input {
+        Some(a) => Ok(a),
+        None => Err(From::from(format!("invalid odds {}", message))),
+    }
+}
+
+fn parse_odds(input: &str) -> Result<(f64, f64), Box<std::error::Error>> {
+    lazy_static! {
+        static ref ODDS_REGEX: regex::Regex = regex::Regex::new(r"^([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)$").unwrap();
+    }
+
+    let capture = error(ODDS_REGEX.captures(input), input)?;
+    let left = error(capture.get(1), input)?.as_str();
+    let right = error(capture.get(2), input)?.as_str();
+
+    if left == "1" {
+        Ok((1.0, right.parse::<f64>()?))
+
+    } else if right == "1" {
+        Ok((left.parse::<f64>()?, 1.0))
+
+    } else {
+        Err(From::from(format!("invalid odds {}", input)))
+    }
+}
+
+
 #[derive(Debug)]
 pub enum Winner {
-    Left(f64),
-    Right(f64),
+    Left,
+    Right,
+    None,
 }
 
 impl Winner {
-    fn parse(input: &str, odds: &Odds) -> Result<Winner, Box<std::error::Error>> {
+    fn parse(input: &str) -> Result<Winner, Box<std::error::Error>> {
         match input {
-            "0" => Ok(match odds {
-                &Odds::Left(odds) => Winner::Left(1.0 / odds),
-                &Odds::Right(odds) => Winner::Left(odds),
-            }),
-            "1" => Ok(match odds {
-                &Odds::Right(odds) => Winner::Right(1.0 / odds),
-                &Odds::Left(odds) => Winner::Right(odds),
-            }),
+            "0" => Ok(Winner::Left),
+            "1" => Ok(Winner::Right),
             _ => Err(From::from(format!("invalid winner {}", input))),
         }
     }
@@ -67,51 +90,32 @@ impl Mode {
 
 
 #[derive(Debug)]
-pub enum Odds {
-    Left(f64),
-    Right(f64),
-}
-
-fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {
-    match input {
-        Some(a) => Ok(a),
-        None => Err(From::from(format!("invalid odds {}", message))),
-    }
-}
-
-impl Odds {
-    fn parse(input: &str) -> Result<Odds, Box<std::error::Error>> {
-        lazy_static! {
-            static ref ODDS_REGEX: regex::Regex = regex::Regex::new(r"^([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)$").unwrap();
-        }
-
-        let capture = error(ODDS_REGEX.captures(input), input)?;
-        let left = error(capture.get(1), input)?.as_str();
-        let right = error(capture.get(2), input)?.as_str();
-
-        if left == "1" {
-            Ok(Odds::Right(right.parse::<f64>()?))
-
-        } else if right == "1" {
-            Ok(Odds::Left(left.parse::<f64>()?))
-
-        } else {
-            Err(From::from(format!("invalid odds {}", input)))
-        }
-    }
+pub struct Character {
+    pub name: String,
+    pub bet_amount: f64,
 }
 
 
 #[derive(Debug)]
 pub struct Record {
-    pub character_left: String,
-    pub character_right: String,
+    pub left: Character,
+    pub right: Character,
     pub winner: Winner,
     pub tier: Tier,
     pub mode: Mode,
-    pub odds: Odds,
     pub duration: u32,
     //pub date: chrono::DateTime<chrono::Utc>,
+}
+
+impl Record {
+    // TODO better detection for whether the input matches or not
+    pub fn is_winner(&self, input: &str) -> bool {
+        match self.winner {
+            Winner::Left => self.left.name == input,
+            Winner::Right => self.right.name == input,
+            Winner::None => false
+        }
+    }
 }
 
 
@@ -152,16 +156,20 @@ pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
             continue;
         }
 
-        let odds = Odds::parse(&odds)?;
-        let winner = Winner::parse(&winner, &odds)?;
+        let (left_odds, right_odds) = parse_odds(&odds)?;
 
         output.push(Record {
-            character_left: character1,
-            character_right: character2,
-            winner: winner,
+            left: Character {
+                name: character1,
+                bet_amount: left_odds,
+            },
+            right: Character {
+                name: character2,
+                bet_amount: right_odds,
+            },
+            winner: Winner::parse(&winner)?,
             tier: Tier::parse(&tier)?,
             mode: Mode::parse(&mode)?,
-            odds: odds,
             duration: parse_duration(duration),
             //date: parse_date(&date)?
         });
