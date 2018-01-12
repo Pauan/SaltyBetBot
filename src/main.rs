@@ -19,9 +19,6 @@ mod record;
 mod genetic;
 
 
-const WEB_BUILD: bool = false;
-
-
 /*fn read_file(path: &str) -> std::io::Result<String> {
     let mut file = File::open(&Path::new(path))?;
 
@@ -61,7 +58,7 @@ fn main() {
     };
 
     let settings = genetic::SimulationSettings {
-        mode: record::Mode::Tournament,
+        mode: record::Mode::Matchmaking,
         records: &records,
     };
 

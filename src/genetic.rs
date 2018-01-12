@@ -15,18 +15,37 @@ use rayon::prelude::*;
 const MAX_VEC_LEN: f32 = 10000.0;
 const MAX_BET_AMOUNT: f64 = 1000000.0;
 const MUTATION_RATE: Percentage = Percentage(0.10);
+const MAX_RECURSION: u32 = 16;
 
 const SALT_MINE_AMOUNT: f64 = 258.0; // TODO verify that this is correct
 const TOURNAMENT_BALANCE: f64 = 1375.0; // TODO
 
 
-#[derive(Debug, Clone, Copy)]
+trait Diff {
+    fn diff(&self, other: &Self) -> Self;
+}
+
+
+impl Diff for f64 {
+    fn diff(&self, other: &Self) -> Self {
+        (self - other).abs()
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 struct Percentage(f64);
 
 impl Percentage {
     fn unwrap(&self) -> f64 {
         let Percentage(value) = *self;
         value
+    }
+}
+
+impl Diff for Percentage {
+    fn diff(&self, other: &Self) -> Self {
+        Percentage(self.unwrap().diff(&other.unwrap()))
     }
 }
 
@@ -38,12 +57,12 @@ enum Bet {
 }
 
 
-trait Strategy {
-    fn bet(&self, simulation: &Simulation, left: &str, right: &str) -> Bet;
+trait Strategy: Sized + std::fmt::Debug {
+    fn bet<A, B>(&self, simulation: &Simulation<A, B>, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy;
 }
 
 
-pub trait Creature<A>: PartialOrd {
+pub trait Creature<A>: Ord {
     fn new(data: &A) -> Self;
 
     fn breed(&self, other: &Self, data: &A) -> Self;
@@ -61,8 +80,8 @@ trait Gene {
 enum MoneyStrategy {
     AllIn,
     Fixed(BetAmount),
-    Percentage(Percentage),
-    Confidence(CubicBezierSegment),
+    Percentage(Percentage, Box<MoneyStrategy>),
+    Confidence(CubicBezierSegment, Box<MoneyStrategy>),
     Plus(Box<MoneyStrategy>, Box<MoneyStrategy>),
     Minus(Box<MoneyStrategy>, Box<MoneyStrategy>),
     Multiply(Box<MoneyStrategy>, Box<MoneyStrategy>),
@@ -70,15 +89,99 @@ enum MoneyStrategy {
 }
 
 impl MoneyStrategy {
-    fn calculate(&self, simulation: &Simulation, left: &str, right: &str) -> f64 {
+    // TODO auto-derive this
+    fn _new(depth: u32) -> Self {
+        if depth >= MAX_RECURSION {
+            let rand = gen_rand_index(2u32);
+
+            if rand == 0 {
+                MoneyStrategy::AllIn
+
+            } else {
+                MoneyStrategy::Fixed(Gene::new())
+            }
+
+        } else {
+            let rand = gen_rand_index(8u32);
+
+            if rand == 0 {
+                MoneyStrategy::AllIn
+
+            } else if rand == 1 {
+                MoneyStrategy::Fixed(Gene::new())
+
+            } else if rand == 2 {
+                MoneyStrategy::Percentage(Gene::new(), Box::new(Self::_new(depth + 1)))
+
+            } else if rand == 3 {
+                MoneyStrategy::Confidence(Gene::new(), Box::new(Self::_new(depth + 1)))
+
+            } else if rand == 4 {
+                MoneyStrategy::Plus(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
+
+            } else if rand == 5 {
+                MoneyStrategy::Minus(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
+
+            } else if rand == 6 {
+                MoneyStrategy::Multiply(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
+
+            } else {
+                MoneyStrategy::Divide(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
+            }
+        }
+    }
+
+    // TODO verify that this cannot exceed MAX_RECURSION
+    // TODO auto-derive this
+    fn _choose(&self, other: &Self, depth: u32) -> Self {
+        // Random mutation
+        if rand_is_percent(MUTATION_RATE) {
+            Self::_new(depth)
+
+        } else {
+            match *self {
+                MoneyStrategy::AllIn => choose2(self, other),
+                MoneyStrategy::Fixed(ref father) => match *other {
+                    MoneyStrategy::Fixed(ref mother) => MoneyStrategy::Fixed(father.choose(&mother)),
+                    _ => choose2(self, other),
+                },
+                MoneyStrategy::Percentage(father1, ref father2) => match *other {
+                    MoneyStrategy::Percentage(mother1, ref mother2) => MoneyStrategy::Percentage(father1.choose(&mother1), Box::new(father2._choose(&mother2, depth + 1))),
+                    _ => choose2(self, other),
+                },
+                MoneyStrategy::Confidence(father1, ref father2) => match *other {
+                    MoneyStrategy::Confidence(mother1, ref mother2) => MoneyStrategy::Confidence(father1.choose(&mother1), Box::new(father2._choose(&mother2, depth + 1))),
+                    _ => choose2(self, other),
+                },
+                MoneyStrategy::Plus(ref father1, ref father2) => match *other {
+                    MoneyStrategy::Plus(ref mother1, ref mother2) => MoneyStrategy::Plus(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
+                    _ => choose2(self, other),
+                },
+                MoneyStrategy::Minus(ref father1, ref father2) => match *other {
+                    MoneyStrategy::Minus(ref mother1, ref mother2) => MoneyStrategy::Minus(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
+                    _ => choose2(self, other),
+                },
+                MoneyStrategy::Multiply(ref father1, ref father2) => match *other {
+                    MoneyStrategy::Multiply(ref mother1, ref mother2) => MoneyStrategy::Multiply(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
+                    _ => choose2(self, other),
+                },
+                MoneyStrategy::Divide(ref father1, ref father2) => match *other {
+                    MoneyStrategy::Divide(ref mother1, ref mother2) => MoneyStrategy::Divide(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
+                    _ => choose2(self, other),
+                },
+            }
+        }
+    }
+
+    fn calculate<A, B>(&self, simulation: &Simulation<A, B>, left: &str, right: &str) -> f64 where A: Strategy, B: Strategy {
         match *self {
             MoneyStrategy::AllIn => simulation.sum(),
 
-            MoneyStrategy::Fixed(ref amount) => amount.unwrap(),
+            MoneyStrategy::Fixed(amount) => amount.unwrap(),
 
-            MoneyStrategy::Percentage(Percentage(percentage)) => simulation.sum() * percentage,
+            MoneyStrategy::Percentage(Percentage(percentage), ref a) => a.calculate(simulation, left, right) * percentage,
 
-            MoneyStrategy::Confidence(bezier) => simulation.sum() * {
+            MoneyStrategy::Confidence(bezier, ref a) => a.calculate(simulation, left, right) * {
                 let left_len = simulation.get_len(left);
                 let right_len = simulation.get_len(right);
 
@@ -95,211 +198,136 @@ impl MoneyStrategy {
 }
 
 impl Gene for MoneyStrategy {
-    // TODO auto-derive this
     fn new() -> Self {
-        let rand = gen_rand_index(8u32);
-
-        if rand == 0 {
-            MoneyStrategy::AllIn
-
-        } else if rand == 1 {
-            MoneyStrategy::Fixed(Gene::new())
-
-        } else if rand == 2 {
-            MoneyStrategy::Percentage(Gene::new())
-
-        } else if rand == 3 {
-            MoneyStrategy::Confidence(Gene::new())
-
-        } else if rand == 4 {
-            MoneyStrategy::Plus(Box::new(Gene::new()), Box::new(Gene::new()))
-
-        } else if rand == 5 {
-            MoneyStrategy::Minus(Box::new(Gene::new()), Box::new(Gene::new()))
-
-        } else if rand == 6 {
-            MoneyStrategy::Multiply(Box::new(Gene::new()), Box::new(Gene::new()))
-
-        } else {
-            MoneyStrategy::Divide(Box::new(Gene::new()), Box::new(Gene::new()))
-        }
+        MoneyStrategy::_new(0)
     }
 
-    // TODO is this correct ?
-    // TODO auto-derive this
     fn choose(&self, other: &Self) -> Self {
-        // Random mutation
-        if rand_is_percent(MUTATION_RATE) {
-            Gene::new()
-
-        } else {
-            match *self {
-                MoneyStrategy::AllIn => choose2(self, other),
-                MoneyStrategy::Fixed(ref father) => match *other {
-                    MoneyStrategy::Fixed(ref mother) => MoneyStrategy::Fixed(father.choose(&mother)),
-                    _ => choose2(self, other),
-                },
-                MoneyStrategy::Percentage(ref father) => match *other {
-                    MoneyStrategy::Percentage(ref mother) => MoneyStrategy::Percentage(father.choose(&mother)),
-                    _ => choose2(self, other),
-                },
-                MoneyStrategy::Confidence(father) => match *other {
-                    MoneyStrategy::Confidence(mother) => MoneyStrategy::Confidence(father.choose(&mother)),
-                    _ => choose2(self, other),
-                },
-                MoneyStrategy::Plus(ref father1, ref father2) => match *other {
-                    MoneyStrategy::Plus(ref mother1, ref mother2) => MoneyStrategy::Plus(Box::new(father1.choose(&mother1)), Box::new(father2.choose(&mother2))),
-                    _ => choose2(self, other),
-                },
-                MoneyStrategy::Minus(ref father1, ref father2) => match *other {
-                    MoneyStrategy::Minus(ref mother1, ref mother2) => MoneyStrategy::Minus(Box::new(father1.choose(&mother1)), Box::new(father2.choose(&mother2))),
-                    _ => choose2(self, other),
-                },
-                MoneyStrategy::Multiply(ref father1, ref father2) => match *other {
-                    MoneyStrategy::Multiply(ref mother1, ref mother2) => MoneyStrategy::Multiply(Box::new(father1.choose(&mother1)), Box::new(father2.choose(&mother2))),
-                    _ => choose2(self, other),
-                },
-                MoneyStrategy::Divide(ref father1, ref father2) => match *other {
-                    MoneyStrategy::Divide(ref mother1, ref mother2) => MoneyStrategy::Divide(Box::new(father1.choose(&mother1)), Box::new(father2.choose(&mother2))),
-                    _ => choose2(self, other),
-                },
-            }
-        }
+        self._choose(other, 0)
     }
 }
 
 
 #[derive(Debug, Clone)]
-enum ChooseStrategy {
-    Winrate,
-    Earnings(Option<f64>, Option<BetAmount>), // TODO should this use BetAmount ?
-    Upset(Option<Percentage>, Option<Percentage>),
-    Favored(Option<Percentage>, Option<Percentage>),
+enum LimitStrategy<A> {
+    True,
+    False,
+    Greater(A),
+    GreaterEqual(A),
+    Lesser(A),
+    LesserEqual(A),
+    And(Box<LimitStrategy<A>>, Box<LimitStrategy<A>>),
+    Or(Box<LimitStrategy<A>>, Box<LimitStrategy<A>>),
 }
 
-impl ChooseStrategy {
-    fn predict_winner(&self, simulation: &Simulation, left: &str, right: &str) -> Winner {
-        match *self {
-            ChooseStrategy::Winrate => {
-                let Percentage(left_amount) = simulation.get_winrate(left);
-                let Percentage(right_amount) = simulation.get_winrate(right);
-
-                if left_amount > right_amount {
-                    Winner::Left
-
-                } else if right_amount > left_amount {
-                    Winner::Right
-
-                } else {
-                    Winner::None
-                }
-            },
-
-            ChooseStrategy::Earnings(cap, diff) => {
-                let left_amount = simulation.get_sum(left);
-                let right_amount = simulation.get_sum(right);
-
-                if (left_amount - right_amount).abs() >= diff.unwrap_or_else(|| BetAmount(0.0)).unwrap() {
-                    if left_amount > right_amount {
-                        match cap {
-                            Some(amount) => if left_amount >= amount {
-                                return Winner::Left;
-                            },
-                            None => return Winner::Left,
-                        }
-
-                    } else if right_amount > left_amount {
-                        match cap {
-                            Some(amount) => if right_amount >= amount {
-                                return Winner::Right;
-                            },
-                            None => return Winner::Right,
-                        }
-                    }
-                }
-
-                return Winner::None;
-            },
-
-            ChooseStrategy::Upset(cap, diff) => {
-                let Percentage(left_amount) = simulation.get_upsets(left);
-                let Percentage(right_amount) = simulation.get_upsets(right);
-
-                if (left_amount - right_amount).abs() >= diff.unwrap_or_else(|| Percentage(0.0)).unwrap() {
-                    if left_amount > right_amount {
-                        if left_amount >= cap.unwrap_or_else(|| Percentage(0.0)).unwrap() {
-                            return Winner::Left;
-                        }
-
-                    } else if right_amount > left_amount {
-                        if right_amount >= cap.unwrap_or_else(|| Percentage(0.0)).unwrap() {
-                            return Winner::Right;
-                        }
-                    }
-                }
-
-                return Winner::None;
-            },
-
-            ChooseStrategy::Favored(cap, diff) => {
-                let Percentage(left_amount) = simulation.get_favored(left);
-                let Percentage(right_amount) = simulation.get_favored(right);
-
-                if (left_amount - right_amount).abs() >= diff.unwrap_or_else(|| Percentage(0.0)).unwrap() {
-                    if left_amount > right_amount {
-                        if left_amount >= cap.unwrap_or_else(|| Percentage(0.0)).unwrap() {
-                            return Winner::Left;
-                        }
-
-                    } else if right_amount > left_amount {
-                        if left_amount >= cap.unwrap_or_else(|| Percentage(0.0)).unwrap() {
-                            return Winner::Right;
-                        }
-                    }
-                }
-
-                return Winner::None;
-            },
+impl<A> LimitStrategy<A> where A: Gene, A: Clone {
+    fn _and(self, other: Self) -> Self {
+        match self {
+            LimitStrategy::True => other,
+            LimitStrategy::False => LimitStrategy::False,
+            left => match other {
+                LimitStrategy::True => left,
+                LimitStrategy::False => LimitStrategy::False,
+                right => LimitStrategy::And(Box::new(left), Box::new(right)),
+            }
         }
     }
-}
 
-impl Gene for ChooseStrategy {
-    fn new() -> Self {
-        let rand = gen_rand_index(4u32);
+    fn _or(self, other: Self) -> Self {
+        match self {
+            LimitStrategy::True => LimitStrategy::True,
+            LimitStrategy::False => other,
+            left => match other {
+                LimitStrategy::True => LimitStrategy::True,
+                LimitStrategy::False => left,
+                right => LimitStrategy::Or(Box::new(left), Box::new(right)),
+            }
+        }
+    }
 
-        if rand == 0 {
-            ChooseStrategy::Winrate
+    fn _new(depth: u32) -> Self {
+        if depth >= MAX_RECURSION {
+            let rand = gen_rand_index(6u32);
 
-        } else if rand == 1 {
-            ChooseStrategy::Earnings(Gene::new(), Gene::new())
+            if rand == 0 {
+                LimitStrategy::True
 
-        } else if rand == 2 {
-            ChooseStrategy::Upset(Gene::new(), Gene::new())
+            } else if rand == 1 {
+                LimitStrategy::False
+
+            } else if rand == 2 {
+                LimitStrategy::Greater(Gene::new())
+
+            } else if rand == 3 {
+                LimitStrategy::GreaterEqual(Gene::new())
+
+            } else if rand == 4 {
+                LimitStrategy::Lesser(Gene::new())
+
+            } else {
+                LimitStrategy::LesserEqual(Gene::new())
+            }
 
         } else {
-            ChooseStrategy::Favored(Gene::new(), Gene::new())
+            let rand = gen_rand_index(8u32);
+
+            if rand == 0 {
+                LimitStrategy::True
+
+            } else if rand == 1 {
+                LimitStrategy::False
+
+            } else if rand == 2 {
+                LimitStrategy::Greater(Gene::new())
+
+            } else if rand == 3 {
+                LimitStrategy::GreaterEqual(Gene::new())
+
+            } else if rand == 4 {
+                LimitStrategy::Lesser(Gene::new())
+
+            } else if rand == 5 {
+                LimitStrategy::LesserEqual(Gene::new())
+
+            } else if rand == 6 {
+                Self::_new(depth + 1)._and(Self::_new(depth + 1))
+
+            } else {
+                Self::_new(depth + 1)._or(Self::_new(depth + 1))
+            }
         }
     }
 
     // TODO is this correct ?
-    fn choose(&self, other: &Self) -> Self {
+    fn _choose(&self, other: &Self, depth: u32) -> Self {
         // Random mutation
         if rand_is_percent(MUTATION_RATE) {
-            Gene::new()
+            Self::_new(depth)
 
         } else {
             match *self {
-                ChooseStrategy::Earnings(ref father1, ref father2) => match *other {
-                    ChooseStrategy::Earnings(ref mother1, ref mother2) => ChooseStrategy::Earnings(father1.choose(&mother1), father2.choose(&mother2)),
+                LimitStrategy::Greater(ref father) => match *other {
+                    LimitStrategy::Greater(ref mother) => LimitStrategy::Greater(father.choose(&mother)),
                     _ => choose2(self, other),
                 },
-                ChooseStrategy::Upset(ref father1, ref father2) => match *other {
-                    ChooseStrategy::Upset(ref mother1, ref mother2) => ChooseStrategy::Upset(father1.choose(&mother1), father2.choose(&mother2)),
+                LimitStrategy::GreaterEqual(ref father) => match *other {
+                    LimitStrategy::GreaterEqual(ref mother) => LimitStrategy::GreaterEqual(father.choose(&mother)),
                     _ => choose2(self, other),
                 },
-                ChooseStrategy::Favored(ref father1, ref father2) => match *other {
-                    ChooseStrategy::Favored(ref mother1, ref mother2) => ChooseStrategy::Favored(father1.choose(&mother1), father2.choose(&mother2)),
+                LimitStrategy::Lesser(ref father) => match *other {
+                    LimitStrategy::Lesser(ref mother) => LimitStrategy::Lesser(father.choose(&mother)),
+                    _ => choose2(self, other),
+                },
+                LimitStrategy::LesserEqual(ref father) => match *other {
+                    LimitStrategy::LesserEqual(ref mother) => LimitStrategy::LesserEqual(father.choose(&mother)),
+                    _ => choose2(self, other),
+                },
+                LimitStrategy::And(ref father1, ref father2) => match *other {
+                    LimitStrategy::And(ref mother1, ref mother2) => father1._choose(&mother1, depth + 1)._and(father2._choose(&mother2, depth + 1)),
+                    _ => choose2(self, other),
+                },
+                LimitStrategy::Or(ref father1, ref father2) => match *other {
+                    LimitStrategy::Or(ref mother1, ref mother2) => father1._choose(&mother1, depth + 1)._or(father2._choose(&mother2, depth + 1)),
                     _ => choose2(self, other),
                 },
                 _ => choose2(self, other),
@@ -308,14 +336,156 @@ impl Gene for ChooseStrategy {
     }
 }
 
+impl<A> LimitStrategy<A> where A: PartialOrd {
+    fn is_match(&self, input: &A) -> bool {
+        match *self {
+            LimitStrategy::True => true,
+            LimitStrategy::False => false,
+            LimitStrategy::Greater(ref value) => value > input,
+            LimitStrategy::GreaterEqual(ref value) => value >= input,
+            LimitStrategy::Lesser(ref value) => value < input,
+            LimitStrategy::LesserEqual(ref value) => value <= input,
+            LimitStrategy::And(ref left, ref right) => left.is_match(input) && right.is_match(input),
+            LimitStrategy::Or(ref left, ref right) => left.is_match(input) || right.is_match(input),
+        }
+    }
+}
 
-#[derive(Debug, Clone, Copy)]
+impl<A> Gene for LimitStrategy<A> where A: Gene, A: Clone {
+    fn new() -> Self {
+        Self::_new(0)
+    }
+
+    fn choose(&self, other: &Self) -> Self {
+        self._choose(other, 0)
+    }
+}
+
+
+#[derive(Debug, Clone)]
+enum PredictionStrategy {
+    Winrate(LimitStrategy<Percentage>, LimitStrategy<Percentage>),
+    Earnings(LimitStrategy<f64>, LimitStrategy<BetAmount>), // TODO should this use BetAmount ?
+    Upset(LimitStrategy<Percentage>, LimitStrategy<Percentage>),
+    Favored(LimitStrategy<Percentage>, LimitStrategy<Percentage>),
+}
+
+impl PredictionStrategy {
+    fn calculate<A>(cap: &LimitStrategy<A>, diff: &LimitStrategy<A>, left_amount: A, right_amount: A) -> Winner
+        where A: PartialOrd,
+              A: Diff {
+        if diff.is_match(&left_amount.diff(&right_amount)) {
+            if left_amount > right_amount {
+                if cap.is_match(&left_amount) {
+                    return Winner::Left;
+                }
+
+            } else if right_amount > left_amount {
+                if cap.is_match(&right_amount) {
+                    return Winner::Right;
+                }
+            }
+        }
+
+        return Winner::None;
+    }
+
+    fn predict_winner<A, B>(&self, simulation: &Simulation<A, B>, left: &str, right: &str) -> Winner where A: Strategy, B: Strategy {
+        match *self {
+            PredictionStrategy::Winrate(ref cap, ref diff) =>
+                PredictionStrategy::calculate(cap, diff, simulation.get_winrate(left), simulation.get_winrate(right)),
+
+            PredictionStrategy::Earnings(ref cap, ref diff) => {
+                let left_amount = simulation.get_sum(left);
+                let right_amount = simulation.get_sum(right);
+
+                // TODO is using BetAmount correct ?
+                if diff.is_match(&BetAmount(left_amount.diff(&right_amount))) {
+                    if left_amount > right_amount {
+                        if cap.is_match(&left_amount) {
+                            return Winner::Left;
+                        }
+
+                    } else if right_amount > left_amount {
+                        if cap.is_match(&right_amount) {
+                            return Winner::Right;
+                        }
+                    }
+                }
+
+                return Winner::None;
+            },
+
+            PredictionStrategy::Upset(ref cap, ref diff) =>
+                PredictionStrategy::calculate(cap, diff, simulation.get_upsets(left), simulation.get_upsets(right)),
+
+            PredictionStrategy::Favored(ref cap, ref diff) =>
+                PredictionStrategy::calculate(cap, diff, simulation.get_favored(left), simulation.get_favored(right)),
+        }
+    }
+}
+
+impl Gene for PredictionStrategy {
+    fn new() -> Self {
+        let rand = gen_rand_index(4u32);
+
+        if rand == 0 {
+            PredictionStrategy::Winrate(Gene::new(), Gene::new())
+
+        } else if rand == 1 {
+            PredictionStrategy::Earnings(Gene::new(), Gene::new())
+
+        } else if rand == 2 {
+            PredictionStrategy::Upset(Gene::new(), Gene::new())
+
+        } else {
+            PredictionStrategy::Favored(Gene::new(), Gene::new())
+        }
+    }
+
+    // TODO is this correct ?
+    fn choose(&self, other: &Self) -> Self {
+        // Random mutation
+        if rand_is_percent(MUTATION_RATE) {
+            Gene::new()
+
+        } else {
+            match *self {
+                PredictionStrategy::Winrate(ref father1, ref father2) => match *other {
+                    PredictionStrategy::Winrate(ref mother1, ref mother2) => PredictionStrategy::Winrate(father1.choose(&mother1), father2.choose(&mother2)),
+                    _ => choose2(self, other),
+                },
+                PredictionStrategy::Earnings(ref father1, ref father2) => match *other {
+                    PredictionStrategy::Earnings(ref mother1, ref mother2) => PredictionStrategy::Earnings(father1.choose(&mother1), father2.choose(&mother2)),
+                    _ => choose2(self, other),
+                },
+                PredictionStrategy::Upset(ref father1, ref father2) => match *other {
+                    PredictionStrategy::Upset(ref mother1, ref mother2) => PredictionStrategy::Upset(father1.choose(&mother1), father2.choose(&mother2)),
+                    _ => choose2(self, other),
+                },
+                PredictionStrategy::Favored(ref father1, ref father2) => match *other {
+                    PredictionStrategy::Favored(ref mother1, ref mother2) => PredictionStrategy::Favored(father1.choose(&mother1), father2.choose(&mother2)),
+                    _ => choose2(self, other),
+                },
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 struct BetAmount(f64);
 
 impl BetAmount {
-    fn unwrap(self) -> f64 {
-        let BetAmount(value) = self;
+    fn unwrap(&self) -> f64 {
+        let BetAmount(value) = *self;
         value
+    }
+}
+
+impl Diff for BetAmount {
+    fn diff(&self, other: &Self) -> Self {
+        BetAmount(self.unwrap().diff(&other.unwrap()))
     }
 }
 
@@ -695,21 +865,23 @@ pub struct SimulationSettings<'a> {
 
 
 #[derive(Debug)]
-struct Simulation<'a> {
-    settings: &'a SimulationSettings<'a>,
+struct Simulation<'a, 'b, 'c, A, B> where A: Strategy, A: 'a, B: Strategy, B: 'b {
+    matchmaking_strategy: Option<&'a A>,
+    tournament_strategy: Option<&'b B>,
     sum: f64,
     tournament_sum: f64,
     in_tournament: bool,
     successes: f64,
     failures: f64,
     max_character_len: usize,
-    characters: HashMap<&'a str, Character<'a>>,
+    characters: HashMap<&'c str, Character<'c>>,
 }
 
-impl<'a> Simulation<'a> {
-    pub fn new(settings: &'a SimulationSettings<'a>) -> Self {
+impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strategy {
+    pub fn new() -> Self {
         Self {
-            settings: settings,
+            matchmaking_strategy: None,
+            tournament_strategy: None,
             sum: SALT_MINE_AMOUNT,
             tournament_sum: TOURNAMENT_BALANCE,
             in_tournament: false,
@@ -720,7 +892,7 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn insert_match(&mut self, key: &'a str, record: &'a Record) {
+    fn insert_match(&mut self, key: &'c str, record: &'c Record) {
         let character = self.characters.entry(key).or_insert_with(|| Character::new(key));
 
         character.matches.push(record);
@@ -732,19 +904,19 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn insert_record(&mut self, record: &'a Record) {
+    fn insert_record(&mut self, record: &'c Record) {
         self.insert_match(&record.left.name, record);
         self.insert_match(&record.right.name, record);
     }
 
-    fn get_sum(&self, key: &'a str) -> f64 {
+    fn get_sum(&self, key: &'c str) -> f64 {
         match self.characters.get(key) {
             Some(character) => character.sum(),
             None => 0.0,
         }
     }
 
-    fn get_upsets(&self, key: &'a str) -> Percentage {
+    fn get_upsets(&self, key: &'c str) -> Percentage {
         match self.characters.get(key) {
             Some(character) => character.upsets(),
             // TODO is 0.0 or 0.5 better ?
@@ -752,7 +924,7 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn get_favored(&self, key: &'a str) -> Percentage {
+    fn get_favored(&self, key: &'c str) -> Percentage {
         match self.characters.get(key) {
             Some(character) => character.favored(),
             // TODO is 0.0 or 0.5 better ?
@@ -760,14 +932,14 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn get_winrate(&self, key: &'a str) -> Percentage {
+    fn get_winrate(&self, key: &'c str) -> Percentage {
         match self.characters.get(key) {
             Some(character) => character.winrate(),
             None => Percentage(0.5),
         }
     }
 
-    fn get_len(&self, key: &'a str) -> f32 {
+    fn get_len(&self, key: &'c str) -> f32 {
         match self.characters.get(key) {
             // TODO what if the len is longer than MAX_VEC_LEN ?
             Some(character) => (character.matches.len() as f32) / MAX_VEC_LEN,
@@ -814,7 +986,7 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn pick_winner(&self, strategy: &Strategy, record: &Record) -> Bet {
+    fn pick_winner<C>(&self, strategy: &C, record: &Record) -> Bet where C: Strategy {
         match strategy.bet(self, &record.left.name, &record.right.name) {
             Bet::Left(bet_amount) => Bet::Left(self.clamp(bet_amount)),
 
@@ -834,8 +1006,8 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn calculate(&mut self, strategy: &Strategy, record: &Record) {
-        match record.mode {
+    fn calculate(&mut self, record: &Record) {
+        let winner = match record.mode {
             Mode::Matchmaking => {
                 if self.in_tournament {
                     self.in_tournament = false;
@@ -844,26 +1016,26 @@ impl<'a> Simulation<'a> {
                     self.tournament_sum = TOURNAMENT_BALANCE;
                 }
 
-                match self.settings.mode {
-                    Mode::Tournament => return,
-                    Mode::Matchmaking => {},
+                match self.matchmaking_strategy {
+                    Some(a) => self.pick_winner(a, record),
+                    None => return,
                 }
             },
             Mode::Tournament => {
                 self.in_tournament = true;
 
-                match self.settings.mode {
-                    Mode::Matchmaking => return,
-                    Mode::Tournament => {},
+                match self.tournament_strategy {
+                    Some(a) => self.pick_winner(a, record),
+                    None => return,
                 }
             },
-        }
+        };
 
         //println!("tournament: {}", self.in_tournament);
 
         //println!("sum: {}", self.sum());
 
-        let increase = match self.pick_winner(strategy, record) {
+        let increase = match winner {
             Bet::Left(bet_amount) => match record.winner {
                 Winner::Left => {
                     let odds = record.right.bet_amount / record.left.bet_amount;
@@ -932,11 +1104,19 @@ impl<'a> Simulation<'a> {
         //println!("----------------------");
     }
 
-    pub fn simulate(&mut self, strategy: &Strategy) {
+    pub fn simulate(&mut self, records: &'c Vec<Record>) {
         // shuffle(records);
 
-        for record in self.settings.records.iter() {
-            self.calculate(strategy, record);
+        for record in records.iter() {
+            self.calculate(record);
+            self.insert_record(record);
+        }
+    }
+
+    pub fn insert_records(&mut self, records: &'c Vec<Record>) {
+        // shuffle(records);
+
+        for record in records.iter() {
             self.insert_record(record);
         }
     }
@@ -952,7 +1132,7 @@ pub struct BetStrategy {
     max_character_len: usize,
 
     // Genes
-    choose_strategy: ChooseStrategy,
+    prediction_strategy: PredictionStrategy,
     money_strategy: MoneyStrategy,
 }
 
@@ -962,14 +1142,28 @@ impl<'a> BetStrategy {
     }*/
 
     fn calculate_fitness(mut self, settings: &SimulationSettings<'a>) -> Self {
-        let mut simulation = Simulation::new(settings);
+        let (sum, successes, failures, max_character_len) = {
+            let mut simulation = Simulation::new();
 
-        simulation.simulate(&self);
+            match settings.mode {
+                Mode::Matchmaking => simulation.matchmaking_strategy = Some(&self),
+                Mode::Tournament => simulation.tournament_strategy = Some(&self),
+            }
 
-        self.fitness = simulation.sum;
-        self.successes = simulation.successes;
-        self.failures = simulation.failures;
-        self.max_character_len = simulation.max_character_len;
+            simulation.simulate(settings.records);
+
+            (
+                simulation.sum,
+                simulation.successes,
+                simulation.failures,
+                simulation.max_character_len
+            )
+        };
+
+        self.fitness = sum;
+        self.successes = successes;
+        self.failures = failures;
+        self.max_character_len = max_character_len;
 
         self
     }
@@ -982,7 +1176,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             successes: 0.0,
             failures: 0.0,
             max_character_len: 0,
-            choose_strategy: Gene::new(),
+            prediction_strategy: Gene::new(),
             money_strategy: Gene::new(),
         }.calculate_fitness(settings)
     }
@@ -993,18 +1187,37 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             successes: 0.0,
             failures: 0.0,
             max_character_len: 0,
-            choose_strategy: self.choose_strategy.choose(&other.choose_strategy),
+            prediction_strategy: self.prediction_strategy.choose(&other.prediction_strategy),
             money_strategy: self.money_strategy.choose(&other.money_strategy),
         }.calculate_fitness(settings)
     }
 }
 
 impl Strategy for BetStrategy {
-    fn bet(&self, simulation: &Simulation, left: &str, right: &str) -> Bet {
-        match self.choose_strategy.predict_winner(simulation, left, right) {
+    fn bet<A, B>(&self, simulation: &Simulation<A, B>, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy {
+        match self.prediction_strategy.predict_winner(simulation, left, right) {
             Winner::Left => Bet::Left(self.money_strategy.calculate(simulation, left, right)),
             Winner::Right => Bet::Right(self.money_strategy.calculate(simulation, left, right)),
             Winner::None => Bet::None,
+        }
+    }
+}
+
+impl Ord for BetStrategy {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.fitness.is_nan() {
+            if other.fitness.is_nan() {
+                std::cmp::Ordering::Equal
+
+            } else {
+                std::cmp::Ordering::Less
+            }
+
+        } else if other.fitness.is_nan() {
+            std::cmp::Ordering::Greater
+
+        } else {
+            self.partial_cmp(other).unwrap()
         }
     }
 }
@@ -1020,6 +1233,8 @@ impl PartialEq for BetStrategy {
         self.fitness == other.fitness
     }
 }
+
+impl Eq for BetStrategy {}
 
 
 
@@ -1040,8 +1255,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
     }
 
     fn insert_creature(&mut self, creature: A) {
-        // TODO is unwrap correct ?
-        let index = self.populace.binary_search_by(|a| a.partial_cmp(&creature).unwrap());
+        let index = self.populace.binary_search(&creature);
 
         match index {
             Ok(index) => self.populace.insert(index, creature),
@@ -1077,7 +1291,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
                 }
             };
 
-            if super::WEB_BUILD {
+            if cfg!(target_arch = "wasm32") {
                 (self.populace.len()..self.amount).map(closure).collect()
 
             } else {
@@ -1096,7 +1310,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
 
     pub fn init(&mut self) {
         // TODO code duplication
-        let new_creatures: Vec<A> = if super::WEB_BUILD {
+        let new_creatures: Vec<A> = if cfg!(target_arch = "wasm32") {
             (0..self.amount).map(|_| A::new(self.data)).collect()
 
         } else {
