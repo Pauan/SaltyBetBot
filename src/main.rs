@@ -20,6 +20,7 @@ use std::fs::File;
 
 mod record;
 mod genetic;
+mod simulation;
 
 
 /*fn read_file(path: &str) -> std::io::Result<String> {
@@ -40,7 +41,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
     };
 
     let settings = genetic::SimulationSettings {
-        mode: record::Mode::Tournament,
+        mode: record::Mode::Matchmaking,
         records: &records,
     };
 
