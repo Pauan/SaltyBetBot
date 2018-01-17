@@ -1,6 +1,7 @@
 use std;
 use regex;
 use csv;
+use genetic;
 
 
 fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {
@@ -31,7 +32,7 @@ fn parse_odds(input: &str) -> Result<(f64, f64), Box<std::error::Error>> {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Winner {
     Left,
     Right,
@@ -39,6 +40,14 @@ pub enum Winner {
 }
 
 impl Winner {
+    fn swap(self) -> Self {
+        match self {
+            Winner::Left => Winner::Right,
+            Winner::Right => Winner::Left,
+            Winner::None => Winner::None,
+        }
+    }
+
     fn parse(input: &str) -> Result<Winner, Box<std::error::Error>> {
         match input {
             "0" => Ok(Winner::Left),
@@ -49,7 +58,7 @@ impl Winner {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Tier {
     X,
     S,
@@ -72,7 +81,7 @@ impl Tier {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Mode {
     Matchmaking,
     Tournament,
@@ -89,14 +98,14 @@ impl Mode {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Character {
     pub name: String,
     pub bet_amount: f64,
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Record {
     pub left: Character,
     pub right: Character,
@@ -108,6 +117,22 @@ pub struct Record {
 }
 
 impl Record {
+    pub fn shuffle(self) -> Self {
+        if genetic::Gene::new() {
+            self
+
+        } else {
+            Record {
+                left: self.right,
+                right: self.left,
+                winner: self.winner.swap(),
+                tier: self.tier,
+                mode: self.mode,
+                duration: self.duration,
+            }
+        }
+    }
+
     // TODO better detection for whether the input matches or not
     pub fn is_winner(&self, input: &str) -> bool {
         match self.winner {
@@ -141,7 +166,7 @@ pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
     let mut output: Vec<Record> = vec![];
 
     for result in reader.deserialize() {
-        let (character1, character2, winner, _strategy, _prediction, tier,   mode,   odds,   duration, _crowd_favorite, _illuminati_favorite, date):
+        let (character1, character2, winner, _strategy, _prediction, tier,   mode,   odds,   duration, _crowd_favorite, _illuminati_favorite, _date):
             (String,     String,     String, String,    String,      String, String, String, u32,      String,          String,               String) = result?;
 
         if tier == "U" {

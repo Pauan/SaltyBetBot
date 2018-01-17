@@ -12,8 +12,11 @@ extern crate rayon;
 use std::path::Path;
 use std::io::Read;*/
 
-use lyon_bezier::Point;
-use lyon_bezier::cubic_bezier::CubicBezierSegment;
+//use lyon_bezier::Point;
+//use lyon_bezier::cubic_bezier::CubicBezierSegment;
+use std::io::prelude::*;
+use std::io::BufWriter;
+use std::fs::File;
 
 mod record;
 mod genetic;
@@ -28,6 +31,51 @@ mod genetic;
 
     Ok(s)
 }*/
+
+
+fn write_file(filename: &str) -> Result<(), std::io::Error> {
+    let records = {
+        let data = include_str!("../../../../Salty Bet/saltyRecordsM--2018-1-16-14.29.txt");
+        record::parse_csv(&data).unwrap()
+    };
+
+    let settings = genetic::SimulationSettings {
+        mode: record::Mode::Tournament,
+        records: &records,
+    };
+
+    let mut population: genetic::Population<genetic::BetStrategy, genetic::SimulationSettings> = genetic::Population::new(1000, &settings);
+
+    println!("Initializing...");
+
+    population.init();
+
+    // TODO file an issue for Rust about adding in documentation to File encouraging people to use BufWriter
+    let mut buffer = BufWriter::new(File::create(filename)?);
+
+    {
+        let best = population.best();
+        write!(buffer, "{:#?}\n", population.populace)?;
+        write!(buffer, "<<<<<<<<<<<<<<<<<<<<<<<<<<\n")?;
+        buffer.flush()?;
+        println!("Initialized: {}", best.fitness);
+    }
+
+    for i in 0..100 {
+        population.next_generation();
+
+        let best = population.best();
+        write!(buffer, "{:#?}\n", best)?;
+        buffer.flush()?;
+        println!("Generation {}: {}", i + 1, best.fitness);
+    }
+
+    write!(buffer, ">>>>>>>>>>>>>>>>>>>>>>>>>>\n")?;
+    write!(buffer, "{:#?}\n", population.populace)?;
+    buffer.flush()?;
+
+    Ok(())
+}
 
 
 fn main() {
@@ -52,28 +100,7 @@ fn main() {
     println!("{:#?}", bezier.sample_y(0.9));
     println!("{:#?}", bezier.sample_y(1.0));*/
 
-    let records = {
-        let data = include_str!("../../../../Salty Bet/saltyRecordsM--2018-1-6-20.6.txt");
-        record::parse_csv(&data).unwrap()
-    };
-
-    let settings = genetic::SimulationSettings {
-        mode: record::Mode::Matchmaking,
-        records: &records,
-    };
-
-    let mut population: genetic::Population<genetic::BetStrategy, genetic::SimulationSettings> = genetic::Population::new(1000, &settings);
-
-    population.init();
-
-    println!("{:#?}", population.populace);
-
-    for _ in 0..100 {
-        population.next_generation();
-    }
-
-    println!("--------------------------");
-    println!("{:#?}", population.populace);
+    write_file("tmp").unwrap();
 
     /*js! {
         console.log(@{format!("{:#?}", records)});
