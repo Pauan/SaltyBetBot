@@ -3,7 +3,7 @@ use lyon_bezier::Point;
 use lyon_bezier::cubic_bezier::CubicBezierSegment;
 use rand;
 use rand::{ Rng, Closed01 };
-use record::{ Record, Mode };
+use record::{ Record, Mode, Tier };
 use rayon::prelude::*;
 use simulation::{ Simulation, Strategy, Bet, Lookup, Calculate };
 
@@ -89,7 +89,13 @@ impl Gene for Point {
     }
 
     fn choose(&self, other: &Self) -> Self {
-        Self::new(self.x.choose(&other.x), self.y.choose(&other.y))
+        // Random mutation
+        if rand_is_percent(MUTATION_RATE) {
+            Gene::new()
+
+        } else {
+            Self::new(self.x.choose(&other.x), self.y.choose(&other.y))
+        }
     }
 }
 
@@ -105,11 +111,17 @@ impl Gene for CubicBezierSegment {
     }
 
     fn choose(&self, other: &Self) -> Self {
-        CubicBezierSegment {
-            from: self.from.choose(&other.from),
-            ctrl1: self.ctrl1.choose(&other.ctrl1),
-            ctrl2: self.ctrl2.choose(&other.ctrl2),
-            to: self.to.choose(&other.to),
+        // Random mutation
+        if rand_is_percent(MUTATION_RATE) {
+            Gene::new()
+
+        } else {
+            CubicBezierSegment {
+                from: self.from.choose(&other.from),
+                ctrl1: self.ctrl1.choose(&other.ctrl1),
+                ctrl2: self.ctrl2.choose(&other.ctrl2),
+                to: self.to.choose(&other.to),
+            }
         }
     }
 }
@@ -184,8 +196,17 @@ enum NumericCalculator<A, B> where A: Calculate<B> {
     Minus(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
     Multiply(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
     Divide(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
+
     // TODO change to use BooleanCalculator<NumericCalculator<A, B>>
     IfThenElse(Box<BooleanCalculator<A>>, Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
+
+    Tier(
+        Box<NumericCalculator<A, B>>, // X
+        Box<NumericCalculator<A, B>>, // S
+        Box<NumericCalculator<A, B>>, // A
+        Box<NumericCalculator<A, B>>, // B
+        Box<NumericCalculator<A, B>>, // P
+    ),
 }
 
 impl<A> NumericCalculator<A, f64>
@@ -248,7 +269,7 @@ impl<A> NumericCalculator<A, f64>
             }
 
         } else {
-            let rand = gen_rand_index(13u32);
+            let rand = gen_rand_index(14u32);
 
             if rand == 0 {
                 NumericCalculator::Base(Gene::new())
@@ -286,8 +307,17 @@ impl<A> NumericCalculator<A, f64>
             } else if rand == 11 {
                 Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Divide, |a, b| a / b)
 
-            } else {
+            } else if rand == 12 {
                 Self::_if_then_else(Gene::new(), Self::_new(depth + 1), Self::_new(depth + 1))
+
+            } else {
+                NumericCalculator::Tier(
+                    Box::new(Self::_new(depth + 1)), // X
+                    Box::new(Self::_new(depth + 1)), // S
+                    Box::new(Self::_new(depth + 1)), // A
+                    Box::new(Self::_new(depth + 1)), // B
+                    Box::new(Self::_new(depth + 1)), // P
+                )
             }
         }
     }
@@ -354,6 +384,17 @@ impl<A> NumericCalculator<A, f64>
                     NumericCalculator::IfThenElse(ref mother1, ref mother2, ref mother3) => Self::_if_then_else(father1.choose(&mother1), father2._choose(&mother2, depth + 1), father3._choose(&mother3, depth + 1)),
                     _ => choose2(self, other),
                 },
+                NumericCalculator::Tier(ref father1, ref father2, ref father3, ref father4, ref father5) => match *other {
+                    NumericCalculator::Tier(ref mother1, ref mother2, ref mother3, ref mother4, ref mother5) =>
+                        NumericCalculator::Tier(
+                            Box::new(father1._choose(&mother1, depth + 1)), // X
+                            Box::new(father2._choose(&mother2, depth + 1)), // S
+                            Box::new(father3._choose(&mother3, depth + 1)), // A
+                            Box::new(father4._choose(&mother4, depth + 1)), // B
+                            Box::new(father5._choose(&mother5, depth + 1)), // P
+                        ),
+                    _ => choose2(self, other),
+                },
             }
         }
     }
@@ -361,33 +402,41 @@ impl<A> NumericCalculator<A, f64>
 
 impl<A> Calculate<f64> for NumericCalculator<A, f64>
     where A: Calculate<f64> {
-    fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, left: &'c str, right: &'c str) -> f64
+    fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, tier: &'c Tier, left: &'c str, right: &'c str) -> f64
         where C: Strategy,
               D: Strategy {
         match *self {
-            NumericCalculator::Base(ref a) => a.calculate(simulation, left, right),
+            NumericCalculator::Base(ref a) => a.calculate(simulation, tier, left, right),
 
             NumericCalculator::Fixed(a) => a,
 
-            NumericCalculator::Percentage(Percentage(percentage), ref a) => a.calculate(simulation, left, right) * percentage,
+            NumericCalculator::Percentage(Percentage(percentage), ref a) => a.calculate(simulation, tier, left, right) * percentage,
 
             // TODO f64 version of Bezier curves
-            NumericCalculator::Bezier(bezier, ref a) => bezier.sample_y(a.calculate(simulation, left, right) as f32) as f64,
+            NumericCalculator::Bezier(bezier, ref a) => bezier.sample_y(a.calculate(simulation, tier, left, right) as f32) as f64,
 
-            NumericCalculator::Average(ref a, ref b) => (a.calculate(simulation, left, right) + b.calculate(simulation, left, right)) / 2.0,
-            NumericCalculator::Abs(ref a) => a.calculate(simulation, left, right).abs(),
-            NumericCalculator::Min(ref a, ref b) => a.calculate(simulation, left, right).min(b.calculate(simulation, left, right)),
-            NumericCalculator::Max(ref a, ref b) => a.calculate(simulation, left, right).max(b.calculate(simulation, left, right)),
-            NumericCalculator::Plus(ref a, ref b) => a.calculate(simulation, left, right) + b.calculate(simulation, left, right),
-            NumericCalculator::Minus(ref a, ref b) => a.calculate(simulation, left, right) - b.calculate(simulation, left, right),
-            NumericCalculator::Multiply(ref a, ref b) => a.calculate(simulation, left, right) * b.calculate(simulation, left, right),
-            NumericCalculator::Divide(ref a, ref b) => a.calculate(simulation, left, right) / b.calculate(simulation, left, right),
+            NumericCalculator::Average(ref a, ref b) => (a.calculate(simulation, tier, left, right) + b.calculate(simulation, tier, left, right)) / 2.0,
+            NumericCalculator::Abs(ref a) => a.calculate(simulation, tier, left, right).abs(),
+            NumericCalculator::Min(ref a, ref b) => a.calculate(simulation, tier, left, right).min(b.calculate(simulation, tier, left, right)),
+            NumericCalculator::Max(ref a, ref b) => a.calculate(simulation, tier, left, right).max(b.calculate(simulation, tier, left, right)),
+            NumericCalculator::Plus(ref a, ref b) => a.calculate(simulation, tier, left, right) + b.calculate(simulation, tier, left, right),
+            NumericCalculator::Minus(ref a, ref b) => a.calculate(simulation, tier, left, right) - b.calculate(simulation, tier, left, right),
+            NumericCalculator::Multiply(ref a, ref b) => a.calculate(simulation, tier, left, right) * b.calculate(simulation, tier, left, right),
+            NumericCalculator::Divide(ref a, ref b) => a.calculate(simulation, tier, left, right) / b.calculate(simulation, tier, left, right),
 
-            NumericCalculator::IfThenElse(ref a, ref b, ref c) => if a.calculate(simulation, left, right) {
-                b.calculate(simulation, left, right)
+            NumericCalculator::IfThenElse(ref a, ref b, ref c) => if a.calculate(simulation, tier, left, right) {
+                b.calculate(simulation, tier, left, right)
             } else {
-                c.calculate(simulation, left, right)
-            }
+                c.calculate(simulation, tier, left, right)
+            },
+
+            NumericCalculator::Tier(ref x, ref s, ref a, ref b, ref p) => match *tier {
+                Tier::X => x.calculate(simulation, tier, left, right),
+                Tier::S => s.calculate(simulation, tier, left, right),
+                Tier::A => a.calculate(simulation, tier, left, right),
+                Tier::B => b.calculate(simulation, tier, left, right),
+                Tier::P => p.calculate(simulation, tier, left, right),
+            },
         }
     }
 }
@@ -534,18 +583,18 @@ impl<A> BooleanCalculator<A> where A: Gene, A: Clone {
 
 impl<A> Calculate<bool> for BooleanCalculator<A>
     where A: Calculate<f64> {
-    fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, left: &'c str, right: &'c str) -> bool
+    fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, tier: &'c Tier, left: &'c str, right: &'c str) -> bool
         where C: Strategy,
               D: Strategy {
         match *self {
             BooleanCalculator::True => true,
             BooleanCalculator::False => false,
-            BooleanCalculator::Greater(ref a, ref b) => a.calculate(simulation, left, right) > b.calculate(simulation, left, right),
-            BooleanCalculator::GreaterEqual(ref a, ref b) => a.calculate(simulation, left, right) >= b.calculate(simulation, left, right),
-            BooleanCalculator::Lesser(ref a, ref b) => a.calculate(simulation, left, right) < b.calculate(simulation, left, right),
-            BooleanCalculator::LesserEqual(ref a, ref b) => a.calculate(simulation, left, right) <= b.calculate(simulation, left, right),
-            BooleanCalculator::And(ref a, ref b) => a.calculate(simulation, left, right) && b.calculate(simulation, left, right),
-            BooleanCalculator::Or(ref a, ref b) => a.calculate(simulation, left, right) || b.calculate(simulation, left, right),
+            BooleanCalculator::Greater(ref a, ref b) => a.calculate(simulation, tier, left, right) > b.calculate(simulation, tier, left, right),
+            BooleanCalculator::GreaterEqual(ref a, ref b) => a.calculate(simulation, tier, left, right) >= b.calculate(simulation, tier, left, right),
+            BooleanCalculator::Lesser(ref a, ref b) => a.calculate(simulation, tier, left, right) < b.calculate(simulation, tier, left, right),
+            BooleanCalculator::LesserEqual(ref a, ref b) => a.calculate(simulation, tier, left, right) <= b.calculate(simulation, tier, left, right),
+            BooleanCalculator::And(ref a, ref b) => a.calculate(simulation, tier, left, right) && b.calculate(simulation, tier, left, right),
+            BooleanCalculator::Or(ref a, ref b) => a.calculate(simulation, tier, left, right) || b.calculate(simulation, tier, left, right),
         }
     }
 }
@@ -573,6 +622,7 @@ pub struct BetStrategy {
     pub fitness: f64,
     successes: f64,
     failures: f64,
+    record_len: f64,
     max_character_len: usize,
 
     // Genes
@@ -583,7 +633,7 @@ pub struct BetStrategy {
 
 impl<'a> BetStrategy {
     fn calculate_fitness(mut self, settings: &SimulationSettings<'a>) -> Self {
-        let (sum, successes, failures, max_character_len) = {
+        let (sum, successes, failures, record_len, max_character_len) = {
             let mut simulation = Simulation::new();
 
             match settings.mode {
@@ -597,13 +647,15 @@ impl<'a> BetStrategy {
                 simulation.sum,
                 simulation.successes,
                 simulation.failures,
+                simulation.record_len,
                 simulation.max_character_len
             )
         };
 
-        self.fitness = sum;
+        self.fitness = sum / record_len;
         self.successes = successes;
         self.failures = failures;
+        self.record_len = record_len;
         self.max_character_len = max_character_len;
 
         self
@@ -616,6 +668,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             fitness: 0.0,
             successes: 0.0,
             failures: 0.0,
+            record_len: 0.0,
             max_character_len: 0,
             bet_strategy: Gene::new(),
             prediction_strategy: Gene::new(),
@@ -628,6 +681,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             fitness: 0.0,
             successes: 0.0,
             failures: 0.0,
+            record_len: 0.0,
             max_character_len: 0,
             bet_strategy: self.bet_strategy.choose(&other.bet_strategy),
             prediction_strategy: self.prediction_strategy.choose(&other.prediction_strategy),
@@ -637,16 +691,16 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
 }
 
 impl Strategy for BetStrategy {
-    fn bet<A, B>(&self, simulation: &Simulation<A, B>, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy {
-        if self.bet_strategy.calculate(simulation, left, right) {
-            let p_left = self.prediction_strategy.calculate(simulation, left, right);
-            let p_right = self.prediction_strategy.calculate(simulation, right, left);
+    fn bet<A, B>(&self, simulation: &Simulation<A, B>, tier: &Tier, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy {
+        if self.bet_strategy.calculate(simulation, tier, left, right) {
+            let p_left = self.prediction_strategy.calculate(simulation, tier, left, right);
+            let p_right = self.prediction_strategy.calculate(simulation, tier, right, left);
 
             if p_left > p_right {
-                Bet::Left(self.money_strategy.calculate(simulation, left, right))
+                Bet::Left(self.money_strategy.calculate(simulation, tier, left, right))
 
             } else if p_right > p_left {
-                Bet::Right(self.money_strategy.calculate(simulation, right, left))
+                Bet::Right(self.money_strategy.calculate(simulation, tier, right, left))
 
             } else {
                 Bet::None

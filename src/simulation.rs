@@ -1,10 +1,9 @@
 use std;
 use std::collections::{ HashMap };
-use record::{ Record, Mode, Winner };
+use record::{ Record, Mode, Winner, Tier };
 use genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
 
 
-const MAX_VEC_LEN: f64 = 10000.0;
 const SALT_MINE_AMOUNT: f64 = 258.0; // TODO verify that this is correct
 const TOURNAMENT_BALANCE: f64 = 1375.0; // TODO
 
@@ -17,12 +16,12 @@ pub enum Bet {
 
 
 pub trait Strategy: Sized + std::fmt::Debug {
-    fn bet<A, B>(&self, simulation: &Simulation<A, B>, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy;
+    fn bet<A, B>(&self, simulation: &Simulation<A, B>, tier: &Tier, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy;
 }
 
 
 pub trait Calculate<A> {
-    fn calculate<'a, 'b, 'c, B, C>(&self, &Simulation<'a, 'b, 'c, B, C>, &'c str, &'c str) -> A
+    fn calculate<'a, 'b, 'c, B, C>(&self, &Simulation<'a, 'b, 'c, B, C>, &'c Tier, &'c str, &'c str) -> A
         where B: Strategy,
               C: Strategy;
 }
@@ -36,6 +35,8 @@ pub enum LookupStatistic {
     Odds,
     Earnings,
     MatchesLen,
+    BetAmount,
+    Duration,
 }
 
 impl LookupStatistic {
@@ -87,6 +88,50 @@ impl LookupStatistic {
 
             (record.right.name == name &&
              (record.right.bet_amount / record.left.bet_amount) > 1.0))
+    }
+
+    fn bet_amount<'a, A>(iter: A, name: &'a str) -> f64
+        where A: Iterator<Item = &'a Record> {
+        let mut bet_amount: f64 = 0.0;
+        let mut len: f64 = 0.0;
+
+        for record in iter {
+            len += 1.0;
+
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            if record.left.name == name {
+                bet_amount += record.left.bet_amount;
+
+            } else {
+                bet_amount += record.right.bet_amount;
+            }
+        }
+
+        if len == 0.0 {
+            0.0
+
+        } else {
+            bet_amount / len
+        }
+    }
+
+    fn duration<'a, A>(iter: A) -> f64
+        where A: Iterator<Item = &'a Record> {
+        let mut duration: f64 = 0.0;
+        let mut len: f64 = 0.0;
+
+        for record in iter {
+            len += 1.0;
+            duration += record.duration as f64;
+        }
+
+        if len == 0.0 {
+            0.0
+
+        } else {
+            duration / len
+        }
     }
 
     fn winrate<'a, A>(iter: A, name: &'a str) -> f64
@@ -162,8 +207,7 @@ impl LookupStatistic {
             len += 1.0;
         }
 
-        // TODO what if the len is longer than MAX_VEC_LEN ?
-        len / MAX_VEC_LEN
+        len
     }
 
     fn lookup<'a, A>(&self, name: &'a str, iter: A) -> f64
@@ -174,6 +218,8 @@ impl LookupStatistic {
             LookupStatistic::Winrate => LookupStatistic::winrate(iter, name),
             LookupStatistic::Earnings => LookupStatistic::earnings(iter, name),
             LookupStatistic::Odds => LookupStatistic::odds(iter, name),
+            LookupStatistic::BetAmount => LookupStatistic::bet_amount(iter, name),
+            LookupStatistic::Duration => LookupStatistic::duration(iter),
             LookupStatistic::MatchesLen => LookupStatistic::matches_len(iter),
         }
     }
@@ -181,7 +227,7 @@ impl LookupStatistic {
 
 impl Gene for LookupStatistic {
     fn new() -> Self {
-        let rand = gen_rand_index(6u32);
+        let rand = gen_rand_index(8u32);
 
         if rand == 0 {
             LookupStatistic::Upsets
@@ -198,8 +244,14 @@ impl Gene for LookupStatistic {
         } else if rand == 4 {
             LookupStatistic::Earnings
 
-        } else {
+        } else if rand == 5 {
             LookupStatistic::MatchesLen
+
+        } else if rand == 6 {
+            LookupStatistic::BetAmount
+
+        } else {
+            LookupStatistic::Duration
         }
     }
 
@@ -294,7 +346,7 @@ pub enum Lookup {
 }
 
 impl Calculate<f64> for Lookup {
-    fn calculate<'a, 'b, 'c, A, B>(&self, simulation: &Simulation<'a, 'b, 'c, A, B>, left: &'c str, right: &'c str) -> f64
+    fn calculate<'a, 'b, 'c, A, B>(&self, simulation: &Simulation<'a, 'b, 'c, A, B>, tier: &'c Tier, left: &'c str, right: &'c str) -> f64
         where A: Strategy,
               B: Strategy {
         match *self {
@@ -346,6 +398,7 @@ impl Gene for Lookup {
 pub struct Simulation<'a, 'b, 'c, A, B> where A: Strategy, A: 'a, B: Strategy, B: 'b {
     pub matchmaking_strategy: Option<&'a A>,
     pub tournament_strategy: Option<&'b B>,
+    pub record_len: f64,
     pub sum: f64,
     tournament_sum: f64,
     in_tournament: bool,
@@ -360,6 +413,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         Self {
             matchmaking_strategy: None,
             tournament_strategy: None,
+            record_len: 0.0,
             sum: SALT_MINE_AMOUNT,
             tournament_sum: TOURNAMENT_BALANCE,
             in_tournament: false,
@@ -384,12 +438,13 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
 
     fn insert_record(&mut self, record: &'c Record) {
         if record.left.name != record.right.name {
+            self.record_len += 1.0;
             self.insert_match(&record.left.name, record);
             self.insert_match(&record.right.name, record);
         }
     }
 
-    pub fn sum(&self) -> f64 {
+    fn sum(&self) -> f64 {
         if self.in_tournament {
             self.tournament_sum
 
@@ -433,7 +488,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
             Bet::None
 
         } else {
-            strategy.bet(self, &record.left.name, &record.right.name)
+            strategy.bet(self, &record.tier, &record.left.name, &record.right.name)
         };
 
         match bet {
@@ -536,6 +591,13 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         for record in records.iter() {
             self.calculate(record);
             self.insert_record(record);
+        }
+
+        // TODO code duplication
+        if self.in_tournament {
+            self.in_tournament = false;
+            self.sum += self.tournament_sum;
+            self.tournament_sum = TOURNAMENT_BALANCE;
         }
     }
 
