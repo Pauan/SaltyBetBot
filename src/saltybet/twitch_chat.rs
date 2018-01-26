@@ -68,6 +68,7 @@ pub enum WaifuMessage {
     BetsOpen(WaifuBetsOpen),
     BetsClosed(WaifuBetsClosed),
     Winner(WaifuWinner),
+    ModeSwitch { date: f64 },
 }
 
 
@@ -255,7 +256,6 @@ fn wait_until_defined<A, B, C>(mut get: A, done: B)
     match get() {
         Some(a) => done(a),
         None => {
-            println!("Looping");
             set_timeout(|| wait_until_defined(get, done), 100);
         },
     }
@@ -352,6 +352,8 @@ pub fn observe_changes<A>(done: A)
             character_data_old_value: false,
             attribute_filter: None,
         });
+
+        println!("Observer initialized");
 
         done(observer);
     });

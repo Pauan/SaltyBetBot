@@ -20,7 +20,7 @@ mod genetic;
 mod simulation;
 
 mod saltybet {
-    pub mod query;
+    pub mod twitch_chat;
 }
 
 
@@ -123,7 +123,7 @@ fn main() {
         stdweb::web::set_timeout(lookup, 10000);
 
         let start: f64 = stdweb::web::Date::now();
-        let messages = saltybet::query::get_waifu_messages();
+        let messages = saltybet::twitch_chat::get_waifu_messages();
         let end: f64 = stdweb::web::Date::now();
 
         let start2: f64 = stdweb::web::Date::now();
@@ -137,8 +137,7 @@ fn main() {
 
     //run_simulation();
 
-    saltybet::query::observe_changes(|observer| {
-        println!("{:#?}", observer);
+    saltybet::twitch_chat::observe_changes(|observer| {
         std::mem::forget(observer);
     });
 
