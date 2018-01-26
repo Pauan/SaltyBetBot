@@ -1,10 +1,9 @@
-//#[macro_use]
-//extern crate stdweb;
+#[macro_use]
+extern crate stdweb;
 #[macro_use]
 extern crate lazy_static;
 extern crate csv;
 extern crate regex;
-extern crate lyon_bezier;
 extern crate rand;
 extern crate rayon;
 
@@ -12,8 +11,6 @@ extern crate rayon;
 use std::path::Path;
 use std::io::Read;*/
 
-//use lyon_bezier::Point;
-//use lyon_bezier::cubic_bezier::CubicBezierSegment;
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::fs::File;
@@ -21,6 +18,10 @@ use std::fs::File;
 mod record;
 mod genetic;
 mod simulation;
+
+mod saltybet {
+    pub mod query;
+}
 
 
 /*fn read_file(path: &str) -> std::io::Result<String> {
@@ -41,7 +42,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
     };
 
     let settings = genetic::SimulationSettings {
-        mode: record::Mode::Matchmaking,
+        mode: record::Mode::Tournament,
         records: &records,
     };
 
@@ -62,7 +63,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
         println!("Initialized: {}", best.fitness);
     }
 
-    for i in 0..100 {
+    for i in 0..1000 {
         population.next_generation();
 
         let best = population.best();
@@ -79,6 +80,73 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
 }
 
 
+fn run_simulation() {
+    use genetic::{ BetStrategy, CubicBezierSegment, Point, Percentage };
+    use genetic::BooleanCalculator::*;
+    use genetic::NumericCalculator::*;
+    use simulation::Lookup::*;
+    use simulation::LookupSide::*;
+    use simulation::LookupStatistic::*;
+    use simulation::LookupFilter::*;
+
+    let records = {
+        let data = include_str!("../../../../Salty Bet/saltyRecordsM--2018-1-16-14.29.txt");
+        record::parse_csv(&data).unwrap()
+    };
+
+    println!("Running...");
+
+    let mut simulation: simulation::Simulation<BetStrategy, BetStrategy> = simulation::Simulation::new();
+
+    simulation.matchmaking_strategy = None;
+
+    simulation.tournament_strategy = None;
+
+    simulation.simulate(&records);
+
+    println!("{} {} {} {} {} {}",
+        simulation.sum,
+        simulation.successes,
+        simulation.failures,
+        simulation.record_len,
+        simulation.characters.len(),
+        simulation.max_character_len
+    );
+}
+
+
+#[cfg(any(target_arch = "wasm32", target_arch = "asmjs"))]
+fn main() {
+    stdweb::initialize();
+
+    /*fn lookup() {
+        stdweb::web::set_timeout(lookup, 10000);
+
+        let start: f64 = stdweb::web::Date::now();
+        let messages = saltybet::query::get_waifu_messages();
+        let end: f64 = stdweb::web::Date::now();
+
+        let start2: f64 = stdweb::web::Date::now();
+        println!("{:#?} {:#?}", end - start, messages);
+        let end2: f64 = stdweb::web::Date::now();
+
+        println!("{:#?}", end2 - start2);
+    }
+
+    lookup();*/
+
+    //run_simulation();
+
+    saltybet::query::observe_changes(|observer| {
+        println!("{:#?}", observer);
+        std::mem::forget(observer);
+    });
+
+    stdweb::event_loop();
+}
+
+
+#[cfg(not(any(target_arch = "wasm32", target_arch = "asmjs")))]
 fn main() {
     //stdweb::initialize();
 

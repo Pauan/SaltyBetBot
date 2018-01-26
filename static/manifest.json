@@ -1,0 +1,20 @@
+{
+  "manifest_version": 2,
+  "name": "Salty Bet Bot",
+  "description": "This extension automatically bets on saltybet.com",
+  "version": "1.0.0",
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
+  ],
+  "content_scripts": [{
+    "matches": [
+      "http://www.twitch.tv/saltybet/chat",
+      "https://www.twitch.tv/saltybet/chat"
+    ],
+    "js": [
+      "salty_bet_bot.js"
+    ],
+    "run_at": "document_end"
+  }]
+}

@@ -36,7 +36,6 @@ fn parse_odds(input: &str) -> Result<(f64, f64), Box<std::error::Error>> {
 pub enum Winner {
     Left,
     Right,
-    None,
 }
 
 impl Winner {
@@ -44,7 +43,6 @@ impl Winner {
         match self {
             Winner::Left => Winner::Right,
             Winner::Right => Winner::Left,
-            Winner::None => Winner::None,
         }
     }
 
@@ -102,6 +100,9 @@ impl Mode {
 pub struct Character {
     pub name: String,
     pub bet_amount: f64,
+    pub win_streak: f64,
+    pub illuminati_bettors: f64,
+    pub normal_bettors: f64,
 }
 
 
@@ -112,8 +113,8 @@ pub struct Record {
     pub winner: Winner,
     pub tier: Tier,
     pub mode: Mode,
-    pub duration: u32,
-    //pub date: chrono::DateTime<chrono::Utc>,
+    pub duration: f64,
+    pub date: f64,
 }
 
 impl Record {
@@ -129,6 +130,7 @@ impl Record {
                 tier: self.tier,
                 mode: self.mode,
                 duration: self.duration,
+                date: self.date,
             }
         }
     }
@@ -138,14 +140,13 @@ impl Record {
         match self.winner {
             Winner::Left => self.left.name == input,
             Winner::Right => self.right.name == input,
-            Winner::None => false
         }
     }
 }
 
 
-fn parse_duration(input: u32) -> u32 {
-    input * 1000
+fn parse_duration(input: u32) -> f64 {
+    (input * 1000) as f64
 }
 
 
@@ -187,16 +188,22 @@ pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
             left: Character {
                 name: character1,
                 bet_amount: left_odds,
+                win_streak: 0.0, // TODO
+                illuminati_bettors: 0.0, // TODO
+                normal_bettors: 0.0, // TODO
             },
             right: Character {
                 name: character2,
                 bet_amount: right_odds,
+                win_streak: 0.0, // TODO
+                illuminati_bettors: 0.0, // TODO
+                normal_bettors: 0.0, // TODO
             },
             winner: Winner::parse(&winner)?,
             tier: Tier::parse(&tier)?,
             mode: Mode::parse(&mode)?,
             duration: parse_duration(duration),
-            //date: parse_date(&date)?
+            date: 0.0, // TODO
         });
     }
 

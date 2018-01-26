@@ -4,8 +4,8 @@ use record::{ Record, Mode, Winner, Tier };
 use genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
 
 
-const SALT_MINE_AMOUNT: f64 = 258.0; // TODO verify that this is correct
-const TOURNAMENT_BALANCE: f64 = 1375.0; // TODO
+const SALT_MINE_AMOUNT: f64 = 100.0; // TODO verify that this is correct
+const TOURNAMENT_BALANCE: f64 = 1000.0; // TODO verify that this is correct
 
 
 pub enum Bet {
@@ -24,10 +24,18 @@ pub trait Calculate<A> {
     fn calculate<'a, 'b, 'c, B, C>(&self, &Simulation<'a, 'b, 'c, B, C>, &'c Tier, &'c str, &'c str) -> A
         where B: Strategy,
               C: Strategy;
+
+    fn precalculate(&self) -> Option<A> {
+        None
+    }
+
+    fn optimize(self) -> Self where Self: Sized {
+        self
+    }
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LookupStatistic {
     Upsets,
     Favored,
@@ -191,8 +199,6 @@ impl LookupStatistic {
                 } else {
                     earnings -= 1.0;
                 },
-
-                Winner::None => {}
             }
         }
 
@@ -267,7 +273,7 @@ impl Gene for LookupStatistic {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LookupFilter {
     All,
     Specific,
@@ -309,7 +315,7 @@ impl Gene for LookupFilter {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LookupSide {
     Left,
     Right
@@ -339,14 +345,14 @@ impl Gene for LookupSide {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lookup {
     Sum,
     Character(LookupSide, LookupFilter, LookupStatistic),
 }
 
 impl Calculate<f64> for Lookup {
-    fn calculate<'a, 'b, 'c, A, B>(&self, simulation: &Simulation<'a, 'b, 'c, A, B>, tier: &'c Tier, left: &'c str, right: &'c str) -> f64
+    fn calculate<'a, 'b, 'c, A, B>(&self, simulation: &Simulation<'a, 'b, 'c, A, B>, _tier: &'c Tier, left: &'c str, right: &'c str) -> f64
         where A: Strategy,
               B: Strategy {
         match *self {
@@ -405,7 +411,7 @@ pub struct Simulation<'a, 'b, 'c, A, B> where A: Strategy, A: 'a, B: Strategy, B
     pub successes: f64,
     pub failures: f64,
     pub max_character_len: usize,
-    characters: HashMap<&'c str, Vec<&'c Record>>,
+    pub characters: HashMap<&'c str, Vec<&'c Record>>,
 }
 
 impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strategy {
@@ -514,6 +520,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         // TODO make this more efficient
         let record = record.clone().shuffle();
 
+        // TODO if there is too long of a duration between two tournament matches, treat it as two different tournaments
         let winner = match record.mode {
             Mode::Matchmaking => {
                 if self.in_tournament {
@@ -549,8 +556,6 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
                     self.failures += 1.0;
                     -bet_amount
                 },
-
-                Winner::None => 0.0,
             },
 
             Bet::Right(bet_amount) => match record.winner {
@@ -564,8 +569,6 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
                     self.failures += 1.0;
                     -bet_amount
                 },
-
-                Winner::None => 0.0,
             },
 
             Bet::None => 0.0,

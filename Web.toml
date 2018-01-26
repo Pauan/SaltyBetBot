@@ -1,1 +1,2 @@
-link-args = ["-s", "ALLOW_MEMORY_GROWTH=1"]
+[target.emscripten]
+link-args = [] # "-s", "ALLOW_MEMORY_GROWTH=1", "-s", "ASSERTIONS=1"

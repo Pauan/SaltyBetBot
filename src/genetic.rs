@@ -1,6 +1,4 @@
 use std;
-use lyon_bezier::Point;
-use lyon_bezier::cubic_bezier::CubicBezierSegment;
 use rand;
 use rand::{ Rng, Closed01 };
 use record::{ Record, Mode, Tier };
@@ -83,50 +81,6 @@ impl Gene for f32 {
 }
 
 
-impl Gene for Point {
-    fn new() -> Self {
-        Self::new(Gene::new(), Gene::new())
-    }
-
-    fn choose(&self, other: &Self) -> Self {
-        // Random mutation
-        if rand_is_percent(MUTATION_RATE) {
-            Gene::new()
-
-        } else {
-            Self::new(self.x.choose(&other.x), self.y.choose(&other.y))
-        }
-    }
-}
-
-
-impl Gene for CubicBezierSegment {
-    fn new() -> Self {
-        CubicBezierSegment {
-            from: Gene::new(),
-            ctrl1: Gene::new(),
-            ctrl2: Gene::new(),
-            to: Gene::new(),
-        }
-    }
-
-    fn choose(&self, other: &Self) -> Self {
-        // Random mutation
-        if rand_is_percent(MUTATION_RATE) {
-            Gene::new()
-
-        } else {
-            CubicBezierSegment {
-                from: self.from.choose(&other.from),
-                ctrl1: self.ctrl1.choose(&other.ctrl1),
-                ctrl2: self.ctrl2.choose(&other.ctrl2),
-                to: self.to.choose(&other.to),
-            }
-        }
-    }
-}
-
-
 pub fn choose2<A>(left: &A, right: &A) -> A where A: Clone {
     if Gene::new() {
         left.clone()
@@ -155,7 +109,7 @@ pub fn choose<'a, A>(values: &'a [A]) -> Option<&'a A> {
 
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
-pub struct Percentage(f64);
+pub struct Percentage(pub f64);
 
 impl Percentage {
     fn unwrap(&self) -> f64 {
@@ -182,11 +136,92 @@ impl Gene for Percentage {
 }
 
 
-#[derive(Debug, Clone)]
-enum NumericCalculator<A, B> where A: Calculate<B> {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Point {
+    fn new(x: f64, y: f64) -> Point {
+        Point { x: x, y: y }
+    }
+}
+
+impl Gene for Point {
+    fn new() -> Self {
+        Self::new(Gene::new(), Gene::new())
+    }
+
+    fn choose(&self, other: &Self) -> Self {
+        // Random mutation
+        if rand_is_percent(MUTATION_RATE) {
+            Gene::new()
+
+        } else {
+            Self::new(self.x.choose(&other.x), self.y.choose(&other.y))
+        }
+    }
+}
+
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct CubicBezierSegment {
+    pub from: Point,
+    pub ctrl1: Point,
+    pub ctrl2: Point,
+    pub to: Point,
+}
+
+impl CubicBezierSegment {
+    // https://docs.rs/lyon_bezier/0.8.5/src/lyon_bezier/cubic_bezier.rs.html#51-61
+    // TODO verify that this is correct
+    pub fn sample_y(&self, t: f64) -> f64 {
+        let t2 = t * t;
+        let t3 = t2 * t;
+        let one_t = 1.0 - t;
+        let one_t2 = one_t * one_t;
+        let one_t3 = one_t2 * one_t;
+        return self.from.y * one_t3 +
+            self.ctrl1.y * 3.0 * one_t2 * t +
+            self.ctrl2.y * 3.0 * one_t * t2 +
+            self.to.y * t3;
+    }
+}
+
+impl Gene for CubicBezierSegment {
+    fn new() -> Self {
+        CubicBezierSegment {
+            from: Gene::new(),
+            ctrl1: Gene::new(),
+            ctrl2: Gene::new(),
+            to: Gene::new(),
+        }
+    }
+
+    fn choose(&self, other: &Self) -> Self {
+        // Random mutation
+        if rand_is_percent(MUTATION_RATE) {
+            Gene::new()
+
+        } else {
+            CubicBezierSegment {
+                from: self.from.choose(&other.from),
+                ctrl1: self.ctrl1.choose(&other.ctrl1),
+                ctrl2: self.ctrl2.choose(&other.ctrl2),
+                to: self.to.choose(&other.to),
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NumericCalculator<A, B> where A: Calculate<B> {
     Base(A),
     Fixed(B),
-    Percentage(Percentage, Box<NumericCalculator<A, B>>),
+    Percentage(Percentage),
+
     Bezier(CubicBezierSegment, Box<NumericCalculator<A, B>>),
     Average(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
     Abs(Box<NumericCalculator<A, B>>),
@@ -198,74 +233,32 @@ enum NumericCalculator<A, B> where A: Calculate<B> {
     Divide(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
 
     // TODO change to use BooleanCalculator<NumericCalculator<A, B>>
-    IfThenElse(Box<BooleanCalculator<A>>, Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
+    IfThenElse(BooleanCalculator<A>, Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
 
-    Tier(
-        Box<NumericCalculator<A, B>>, // X
-        Box<NumericCalculator<A, B>>, // S
-        Box<NumericCalculator<A, B>>, // A
-        Box<NumericCalculator<A, B>>, // B
-        Box<NumericCalculator<A, B>>, // P
-    ),
+    Tier {
+        x: Box<NumericCalculator<A, B>>,
+        s: Box<NumericCalculator<A, B>>,
+        a: Box<NumericCalculator<A, B>>,
+        b: Box<NumericCalculator<A, B>>,
+        p: Box<NumericCalculator<A, B>>,
+    },
 }
 
 impl<A> NumericCalculator<A, f64>
-    where A: Calculate<f64> + Gene + Clone {
-    fn _binary<B, C>(left: Self, right: Self, make: B, reduce: C) -> Self
-        where B: FnOnce(Box<Self>, Box<Self>) -> Self,
-              C: FnOnce(f64, f64) -> f64 {
-        match left {
-            NumericCalculator::Fixed(a) => match right {
-                NumericCalculator::Fixed(b) => NumericCalculator::Fixed(reduce(a, b)),
-                _ => make(Box::new(left), Box::new(right)),
-            },
-            _ => make(Box::new(left), Box::new(right)),
-        }
-    }
-
-    fn _percentage(left: Self, percentage: Percentage) -> Self {
-        match left {
-            NumericCalculator::Fixed(a) => NumericCalculator::Fixed(a * percentage.unwrap()),
-            NumericCalculator::Percentage(a, b) => NumericCalculator::Percentage(Percentage(a.unwrap() * percentage.unwrap()), b),
-            _ => NumericCalculator::Percentage(percentage, Box::new(left)),
-        }
-    }
-
-    // TODO what about nested Bezier ?
-    fn _bezier(left: Self, bezier: CubicBezierSegment) -> Self {
-        match left {
-            // TODO f64 version of Bezier curves
-            NumericCalculator::Fixed(a) => NumericCalculator::Fixed(bezier.sample_y(a as f32) as f64),
-            _ => NumericCalculator::Bezier(bezier, Box::new(left)),
-        }
-    }
-
-    fn _abs(left: Self) -> Self {
-        match left {
-            NumericCalculator::Fixed(a) => NumericCalculator::Fixed(a.abs()),
-            NumericCalculator::Abs(_) => left,
-            _ => NumericCalculator::Abs(Box::new(left)),
-        }
-    }
-
-    fn _if_then_else(test: BooleanCalculator<A>, yes: Self, no: Self) -> Self {
-        match test {
-            BooleanCalculator::True => yes,
-            BooleanCalculator::False => no,
-            _ => NumericCalculator::IfThenElse(Box::new(test), Box::new(yes), Box::new(no))
-        }
-    }
-
+    where A: Calculate<f64> + Gene + Clone + PartialEq {
     // TODO auto-derive this
     fn _new(depth: u32) -> Self {
         if depth >= MAX_RECURSION_DEPTH {
-            let rand = gen_rand_index(2u32);
+            let rand = gen_rand_index(3u32);
 
             if rand == 0 {
                 NumericCalculator::Base(Gene::new())
 
-            } else {
+            } else if rand == 1 {
                 NumericCalculator::Fixed(Gene::new())
+
+            } else {
+                NumericCalculator::Percentage(Gene::new())
             }
 
         } else {
@@ -278,46 +271,46 @@ impl<A> NumericCalculator<A, f64>
                 NumericCalculator::Fixed(Gene::new())
 
             } else if rand == 2 {
-                Self::_percentage(Self::_new(depth + 1), Gene::new())
+                NumericCalculator::Percentage(Gene::new())
 
             } else if rand == 3 {
-                Self::_bezier(Self::_new(depth + 1), Gene::new())
+                NumericCalculator::Bezier(Gene::new(), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 4 {
-                Self::_abs(Self::_new(depth + 1))
+                NumericCalculator::Abs(Box::new(Self::_new(depth + 1)))
 
             } else if rand == 5 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Average, |a, b| (a + b) / 2.0)
+                NumericCalculator::Average(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 6 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Min, |a, b| a.min(b))
+                NumericCalculator::Min(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 7 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Max, |a, b| a.max(b))
+                NumericCalculator::Max(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 8 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Plus, |a, b| a + b)
+                NumericCalculator::Plus(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 9 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Minus, |a, b| a - b)
+                NumericCalculator::Minus(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 10 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Multiply, |a, b| a * b)
+                NumericCalculator::Multiply(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 11 {
-                Self::_binary(Self::_new(depth + 1), Self::_new(depth + 1), NumericCalculator::Divide, |a, b| a / b)
+                NumericCalculator::Divide(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else if rand == 12 {
-                Self::_if_then_else(Gene::new(), Self::_new(depth + 1), Self::_new(depth + 1))
+                NumericCalculator::IfThenElse(Gene::new(), Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else {
-                NumericCalculator::Tier(
-                    Box::new(Self::_new(depth + 1)), // X
-                    Box::new(Self::_new(depth + 1)), // S
-                    Box::new(Self::_new(depth + 1)), // A
-                    Box::new(Self::_new(depth + 1)), // B
-                    Box::new(Self::_new(depth + 1)), // P
-                )
+                NumericCalculator::Tier {
+                    x: Box::new(Self::_new(depth + 1)),
+                    s: Box::new(Self::_new(depth + 1)),
+                    a: Box::new(Self::_new(depth + 1)),
+                    b: Box::new(Self::_new(depth + 1)),
+                    p: Box::new(Self::_new(depth + 1)),
+                }
             }
         }
     }
@@ -332,67 +325,80 @@ impl<A> NumericCalculator<A, f64>
         } else {
             match *self {
                 NumericCalculator::Base(ref father) => match *other {
-                    NumericCalculator::Base(ref mother) => NumericCalculator::Base(father.choose(&mother)),
+                    NumericCalculator::Base(ref mother) =>
+                        NumericCalculator::Base(father.choose(&mother)),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Fixed(ref father) => match *other {
-                    NumericCalculator::Fixed(ref mother) => NumericCalculator::Fixed(father.choose(&mother)),
+                    NumericCalculator::Fixed(ref mother) =>
+                        NumericCalculator::Fixed(father.choose(&mother)),
                     _ => choose2(self, other),
                 },
-                NumericCalculator::Percentage(father1, ref father2) => match *other {
-                    NumericCalculator::Percentage(mother1, ref mother2) => Self::_percentage(father2._choose(&mother2, depth + 1), father1.choose(&mother1)),
+                NumericCalculator::Percentage(father) => match *other {
+                    NumericCalculator::Percentage(mother) =>
+                        NumericCalculator::Percentage(father.choose(&mother)),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Bezier(father1, ref father2) => match *other {
-                    NumericCalculator::Bezier(mother1, ref mother2) => Self::_bezier(father2._choose(&mother2, depth + 1), father1.choose(&mother1)),
+                    NumericCalculator::Bezier(mother1, ref mother2) =>
+                        NumericCalculator::Bezier(father1.choose(&mother1), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Abs(ref father) => match *other {
-                    NumericCalculator::Abs(ref mother) => Self::_abs(father._choose(&mother, depth + 1)),
+                    NumericCalculator::Abs(ref mother) =>
+                        NumericCalculator::Abs(Box::new(father._choose(&mother, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Average(ref father1, ref father2) => match *other {
-                    NumericCalculator::Average(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Average, |a, b| (a + b) / 2.0),
+                    NumericCalculator::Average(ref mother1, ref mother2) =>
+                        NumericCalculator::Average(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Min(ref father1, ref father2) => match *other {
-                    NumericCalculator::Min(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Min, |a, b| a.min(b)),
+                    NumericCalculator::Min(ref mother1, ref mother2) =>
+                        NumericCalculator::Min(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Max(ref father1, ref father2) => match *other {
-                    NumericCalculator::Max(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Max, |a, b| a.max(b)),
+                    NumericCalculator::Max(ref mother1, ref mother2) =>
+                        NumericCalculator::Max(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Plus(ref father1, ref father2) => match *other {
-                    NumericCalculator::Plus(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Plus, |a, b| a + b),
+                    NumericCalculator::Plus(ref mother1, ref mother2) =>
+                        NumericCalculator::Plus(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Minus(ref father1, ref father2) => match *other {
-                    NumericCalculator::Minus(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Minus, |a, b| a - b),
+                    NumericCalculator::Minus(ref mother1, ref mother2) =>
+                        NumericCalculator::Minus(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Multiply(ref father1, ref father2) => match *other {
-                    NumericCalculator::Multiply(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Multiply, |a, b| a * b),
+                    NumericCalculator::Multiply(ref mother1, ref mother2) =>
+                        NumericCalculator::Multiply(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::Divide(ref father1, ref father2) => match *other {
-                    NumericCalculator::Divide(ref mother1, ref mother2) => Self::_binary(father1._choose(&mother1, depth + 1), father2._choose(&mother2, depth + 1), NumericCalculator::Divide, |a, b| a / b),
+                    NumericCalculator::Divide(ref mother1, ref mother2) =>
+                        NumericCalculator::Divide(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 NumericCalculator::IfThenElse(ref father1, ref father2, ref father3) => match *other {
                     // TODO should this pass the depth somehow to father1 and mother1 ?
-                    NumericCalculator::IfThenElse(ref mother1, ref mother2, ref mother3) => Self::_if_then_else(father1.choose(&mother1), father2._choose(&mother2, depth + 1), father3._choose(&mother3, depth + 1)),
+                    NumericCalculator::IfThenElse(ref mother1, ref mother2, ref mother3) =>
+                        NumericCalculator::IfThenElse(father1.choose(&mother1), Box::new(father2._choose(&mother2, depth + 1)), Box::new(father3._choose(&mother3, depth + 1))),
                     _ => choose2(self, other),
                 },
-                NumericCalculator::Tier(ref father1, ref father2, ref father3, ref father4, ref father5) => match *other {
-                    NumericCalculator::Tier(ref mother1, ref mother2, ref mother3, ref mother4, ref mother5) =>
-                        NumericCalculator::Tier(
-                            Box::new(father1._choose(&mother1, depth + 1)), // X
-                            Box::new(father2._choose(&mother2, depth + 1)), // S
-                            Box::new(father3._choose(&mother3, depth + 1)), // A
-                            Box::new(father4._choose(&mother4, depth + 1)), // B
-                            Box::new(father5._choose(&mother5, depth + 1)), // P
-                        ),
+                NumericCalculator::Tier { x: ref father_x, s: ref father_s, a: ref father_a, b: ref father_b, p: ref father_p } => match *other {
+                    NumericCalculator::Tier { x: ref mother_x, s: ref mother_s, a: ref mother_a, b: ref mother_b, p: ref mother_p } =>
+                        NumericCalculator::Tier {
+                            x: Box::new(father_x._choose(&mother_x, depth + 1)),
+                            s: Box::new(father_s._choose(&mother_s, depth + 1)),
+                            a: Box::new(father_a._choose(&mother_a, depth + 1)),
+                            b: Box::new(father_b._choose(&mother_b, depth + 1)),
+                            p: Box::new(father_p._choose(&mother_p, depth + 1)),
+                        },
                     _ => choose2(self, other),
                 },
             }
@@ -401,7 +407,169 @@ impl<A> NumericCalculator<A, f64>
 }
 
 impl<A> Calculate<f64> for NumericCalculator<A, f64>
-    where A: Calculate<f64> {
+    where A: Calculate<f64> + Gene + Clone + PartialEq {
+    fn optimize(self) -> Self {
+        if let NumericCalculator::Percentage(_) = self {
+            self
+
+        } else {
+            match self.precalculate() {
+                Some(a) => NumericCalculator::Fixed(a),
+                None => match self {
+                    NumericCalculator::Base(a) => NumericCalculator::Base(a.optimize()),
+                    NumericCalculator::Fixed(_) => self,
+                    NumericCalculator::Percentage(_) => self,
+
+                    NumericCalculator::Bezier(a, b) => NumericCalculator::Bezier(a, Box::new(b.optimize())),
+
+                    // TODO Abs can probably be optimized further
+                    NumericCalculator::Abs(a) => NumericCalculator::Abs(Box::new(a.optimize())),
+
+                    NumericCalculator::Average(a, b) => NumericCalculator::Average(Box::new(a.optimize()), Box::new(b.optimize())),
+
+                    NumericCalculator::Min(a, b) => {
+                        let a = a.optimize();
+                        let b = b.optimize();
+
+                        if a == b {
+                            a
+
+                        } else {
+                            NumericCalculator::Min(Box::new(a), Box::new(b))
+                        }
+                    },
+
+                    NumericCalculator::Max(a, b) => {
+                        let a = a.optimize();
+                        let b = b.optimize();
+
+                        if a == b {
+                            a
+
+                        } else {
+                            NumericCalculator::Max(Box::new(a), Box::new(b))
+                        }
+                    },
+
+                    // TODO maybe optimize into a * 2.0 when a == b
+                    NumericCalculator::Plus(a, b) => NumericCalculator::Plus(Box::new(a.optimize()), Box::new(b.optimize())),
+
+                    NumericCalculator::Minus(a, b) => {
+                        let a = a.optimize();
+                        let b = b.optimize();
+
+                        // TODO move this into precalculate
+                        if a == b {
+                            // TODO is this correct ?
+                            NumericCalculator::Fixed(0.0)
+
+                        } else {
+                            NumericCalculator::Minus(Box::new(a), Box::new(b))
+                        }
+                    },
+
+                    NumericCalculator::Multiply(a, b) => NumericCalculator::Multiply(Box::new(a.optimize()), Box::new(b.optimize())),
+                    NumericCalculator::Divide(a, b) => NumericCalculator::Divide(Box::new(a.optimize()), Box::new(b.optimize())),
+
+                    NumericCalculator::IfThenElse(a, b, c) => match a.precalculate() {
+                        Some(a) => if a {
+                            b.optimize()
+
+                        } else {
+                            c.optimize()
+                        },
+
+                        None => {
+                            let b = b.optimize();
+                            let c = c.optimize();
+
+                            if b == c {
+                                b
+
+                            } else {
+                                NumericCalculator::IfThenElse(a.optimize(), Box::new(b), Box::new(c))
+                            }
+                        },
+                    },
+
+                    NumericCalculator::Tier { x, s, a, b, p } => {
+                        let x = x.optimize();
+                        let s = s.optimize();
+                        let a = a.optimize();
+                        let b = b.optimize();
+                        let p = p.optimize();
+
+                        if x == s && x == a && x == b && x == p {
+                            x
+
+                        } else {
+                            NumericCalculator::Tier {
+                                x: Box::new(x),
+                                s: Box::new(s),
+                                a: Box::new(a),
+                                b: Box::new(b),
+                                p: Box::new(p),
+                            }
+                        }
+                    },
+                },
+            }
+        }
+    }
+
+    fn precalculate(&self) -> Option<f64> {
+        match *self {
+            NumericCalculator::Base(ref a) => a.precalculate(),
+
+            NumericCalculator::Fixed(a) => Some(a),
+
+            NumericCalculator::Percentage(Percentage(percentage)) => Some(percentage),
+
+            NumericCalculator::Bezier(bezier, ref a) => a.precalculate().map(|a| bezier.sample_y(a)),
+
+            NumericCalculator::Average(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| (a + b) / 2.0)),
+
+            NumericCalculator::Abs(ref a) => a.precalculate().map(|a| a.abs()),
+            NumericCalculator::Min(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| a.min(b))),
+            NumericCalculator::Max(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| a.max(b))),
+
+            // TODO optimize for certain things, like 0 or 1
+            NumericCalculator::Plus(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| a + b)),
+            NumericCalculator::Minus(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| a - b)),
+            NumericCalculator::Multiply(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| a * b)),
+            NumericCalculator::Divide(ref a, ref b) => a.precalculate().and_then(|a| b.precalculate().map(|b| a / b)),
+
+            NumericCalculator::IfThenElse(ref a, ref b, ref c) => match a.precalculate() {
+                Some(a) => if a {
+                    b.precalculate()
+
+                } else {
+                    c.precalculate()
+                },
+
+                None => b.precalculate().and_then(|b| c.precalculate().and_then(|c| if b == c {
+                    Some(b)
+
+                } else {
+                    None
+                }))
+            },
+
+            NumericCalculator::Tier { ref x, ref s, ref a, ref b, ref p } =>
+                x.precalculate().and_then(|x|
+                s.precalculate().and_then(|s|
+                a.precalculate().and_then(|a|
+                b.precalculate().and_then(|b|
+                p.precalculate().and_then(|p|
+                    if x == s && x == a && x == b && x == p {
+                        Some(x)
+
+                    } else {
+                        None
+                    }))))),
+        }
+    }
+
     fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, tier: &'c Tier, left: &'c str, right: &'c str) -> f64
         where C: Strategy,
               D: Strategy {
@@ -410,13 +578,12 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
 
             NumericCalculator::Fixed(a) => a,
 
-            NumericCalculator::Percentage(Percentage(percentage), ref a) => a.calculate(simulation, tier, left, right) * percentage,
+            NumericCalculator::Percentage(Percentage(percentage)) => percentage,
 
-            // TODO f64 version of Bezier curves
-            NumericCalculator::Bezier(bezier, ref a) => bezier.sample_y(a.calculate(simulation, tier, left, right) as f32) as f64,
+            NumericCalculator::Bezier(bezier, ref a) => bezier.sample_y(a.calculate(simulation, tier, left, right)),
 
-            NumericCalculator::Average(ref a, ref b) => (a.calculate(simulation, tier, left, right) + b.calculate(simulation, tier, left, right)) / 2.0,
             NumericCalculator::Abs(ref a) => a.calculate(simulation, tier, left, right).abs(),
+            NumericCalculator::Average(ref a, ref b) => (a.calculate(simulation, tier, left, right) + b.calculate(simulation, tier, left, right)) / 2.0,
             NumericCalculator::Min(ref a, ref b) => a.calculate(simulation, tier, left, right).min(b.calculate(simulation, tier, left, right)),
             NumericCalculator::Max(ref a, ref b) => a.calculate(simulation, tier, left, right).max(b.calculate(simulation, tier, left, right)),
             NumericCalculator::Plus(ref a, ref b) => a.calculate(simulation, tier, left, right) + b.calculate(simulation, tier, left, right),
@@ -430,7 +597,7 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                 c.calculate(simulation, tier, left, right)
             },
 
-            NumericCalculator::Tier(ref x, ref s, ref a, ref b, ref p) => match *tier {
+            NumericCalculator::Tier { ref x, ref s, ref a, ref b, ref p } => match *tier {
                 Tier::X => x.calculate(simulation, tier, left, right),
                 Tier::S => s.calculate(simulation, tier, left, right),
                 Tier::A => a.calculate(simulation, tier, left, right),
@@ -442,19 +609,19 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
 }
 
 impl<A> Gene for NumericCalculator<A, f64>
-    where A: Calculate<f64> + Gene + Clone {
+    where A: Calculate<f64> + Gene + Clone + PartialEq {
     fn new() -> Self {
-        NumericCalculator::_new(0)
+        NumericCalculator::_new(0).optimize()
     }
 
     fn choose(&self, other: &Self) -> Self {
-        self._choose(other, 0)
+        self._choose(other, 0).optimize()
     }
 }
 
 
-#[derive(Debug, Clone)]
-enum BooleanCalculator<A> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum BooleanCalculator<A> {
     True,
     False,
     Greater(A, A),
@@ -465,31 +632,7 @@ enum BooleanCalculator<A> {
     Or(Box<BooleanCalculator<A>>, Box<BooleanCalculator<A>>),
 }
 
-impl<A> BooleanCalculator<A> where A: Gene, A: Clone {
-    fn _and(self, other: Self) -> Self {
-        match self {
-            BooleanCalculator::True => other,
-            BooleanCalculator::False => self,
-            _ => match other {
-                BooleanCalculator::True => self,
-                BooleanCalculator::False => other,
-                _ => BooleanCalculator::And(Box::new(self), Box::new(other)),
-            }
-        }
-    }
-
-    fn _or(self, other: Self) -> Self {
-        match self {
-            BooleanCalculator::True => self,
-            BooleanCalculator::False => other,
-            _ => match other {
-                BooleanCalculator::True => other,
-                BooleanCalculator::False => self,
-                _ => BooleanCalculator::Or(Box::new(self), Box::new(other)),
-            }
-        }
-    }
-
+impl<A> BooleanCalculator<A> where A: Gene + Clone {
     fn _new(depth: u32) -> Self {
         if depth >= MAX_RECURSION_DEPTH {
             let rand = gen_rand_index(6u32);
@@ -535,10 +678,10 @@ impl<A> BooleanCalculator<A> where A: Gene, A: Clone {
                 BooleanCalculator::LesserEqual(Gene::new(), Gene::new())
 
             } else if rand == 6 {
-                Self::_new(depth + 1)._and(Self::_new(depth + 1))
+                BooleanCalculator::And(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
             } else {
-                Self::_new(depth + 1)._or(Self::_new(depth + 1))
+                BooleanCalculator::Or(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
             }
         }
     }
@@ -552,27 +695,33 @@ impl<A> BooleanCalculator<A> where A: Gene, A: Clone {
         } else {
             match *self {
                 BooleanCalculator::Greater(ref father1, ref father2) => match *other {
-                    BooleanCalculator::Greater(ref mother1, ref mother2) => BooleanCalculator::Greater(father1.choose(&mother1), father2.choose(&mother2)),
+                    BooleanCalculator::Greater(ref mother1, ref mother2) =>
+                        BooleanCalculator::Greater(father1.choose(&mother1), father2.choose(&mother2)),
                     _ => choose2(self, other),
                 },
                 BooleanCalculator::GreaterEqual(ref father1, ref father2) => match *other {
-                    BooleanCalculator::GreaterEqual(ref mother1, ref mother2) => BooleanCalculator::GreaterEqual(father1.choose(&mother1), father2.choose(&mother2)),
+                    BooleanCalculator::GreaterEqual(ref mother1, ref mother2) =>
+                        BooleanCalculator::GreaterEqual(father1.choose(&mother1), father2.choose(&mother2)),
                     _ => choose2(self, other),
                 },
                 BooleanCalculator::Lesser(ref father1, ref father2) => match *other {
-                    BooleanCalculator::Lesser(ref mother1, ref mother2) => BooleanCalculator::Lesser(father1.choose(&mother1), father2.choose(&mother2)),
+                    BooleanCalculator::Lesser(ref mother1, ref mother2) =>
+                        BooleanCalculator::Lesser(father1.choose(&mother1), father2.choose(&mother2)),
                     _ => choose2(self, other),
                 },
                 BooleanCalculator::LesserEqual(ref father1, ref father2) => match *other {
-                    BooleanCalculator::LesserEqual(ref mother1, ref mother2) => BooleanCalculator::LesserEqual(father1.choose(&mother1), father2.choose(&mother2)),
+                    BooleanCalculator::LesserEqual(ref mother1, ref mother2) =>
+                        BooleanCalculator::LesserEqual(father1.choose(&mother1), father2.choose(&mother2)),
                     _ => choose2(self, other),
                 },
                 BooleanCalculator::And(ref father1, ref father2) => match *other {
-                    BooleanCalculator::And(ref mother1, ref mother2) => father1._choose(&mother1, depth + 1)._and(father2._choose(&mother2, depth + 1)),
+                    BooleanCalculator::And(ref mother1, ref mother2) =>
+                        BooleanCalculator::And(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 BooleanCalculator::Or(ref father1, ref father2) => match *other {
-                    BooleanCalculator::Or(ref mother1, ref mother2) => father1._choose(&mother1, depth + 1)._or(father2._choose(&mother2, depth + 1)),
+                    BooleanCalculator::Or(ref mother1, ref mother2) =>
+                        BooleanCalculator::Or(Box::new(father1._choose(&mother1, depth + 1)), Box::new(father2._choose(&mother2, depth + 1))),
                     _ => choose2(self, other),
                 },
                 _ => choose2(self, other),
@@ -582,7 +731,92 @@ impl<A> BooleanCalculator<A> where A: Gene, A: Clone {
 }
 
 impl<A> Calculate<bool> for BooleanCalculator<A>
-    where A: Calculate<f64> {
+    where A: Calculate<f64> + PartialEq {
+    fn optimize(self) -> Self {
+        match self.precalculate() {
+            Some(a) => if a {
+                BooleanCalculator::True
+
+            } else {
+                BooleanCalculator::False
+            },
+
+            None => match self {
+                BooleanCalculator::True => self,
+                BooleanCalculator::False => self,
+                BooleanCalculator::Greater(a, b) => BooleanCalculator::Greater(a.optimize(), b.optimize()),
+                BooleanCalculator::GreaterEqual(a, b) => BooleanCalculator::GreaterEqual(a.optimize(), b.optimize()),
+                BooleanCalculator::Lesser(a, b) => BooleanCalculator::Lesser(a.optimize(), b.optimize()),
+                BooleanCalculator::LesserEqual(a, b) => BooleanCalculator::LesserEqual(a.optimize(), b.optimize()),
+                BooleanCalculator::And(a, b) => BooleanCalculator::And(Box::new(a.optimize()), Box::new(b.optimize())),
+                BooleanCalculator::Or(a, b) => BooleanCalculator::Or(Box::new(a.optimize()), Box::new(b.optimize())),
+            },
+        }
+    }
+
+    fn precalculate(&self) -> Option<bool> {
+        match *self {
+            BooleanCalculator::True => Some(true),
+            BooleanCalculator::False => Some(false),
+
+            BooleanCalculator::Greater(ref a, ref b) => if a == b {
+                Some(false)
+            } else {
+                a.precalculate().and_then(|a| b.precalculate().map(|b| a > b))
+            },
+
+            BooleanCalculator::GreaterEqual(ref a, ref b) => if a == b {
+                Some(true)
+            } else {
+                a.precalculate().and_then(|a| b.precalculate().map(|b| a >= b))
+            },
+
+            BooleanCalculator::Lesser(ref a, ref b) => if a == b {
+                Some(false)
+            } else {
+                a.precalculate().and_then(|a| b.precalculate().map(|b| a < b))
+            },
+
+            BooleanCalculator::LesserEqual(ref a, ref b) => if a == b {
+                Some(true)
+            } else {
+                a.precalculate().and_then(|a| b.precalculate().map(|b| a <= b))
+            },
+
+            BooleanCalculator::And(ref a, ref b) => match a.precalculate() {
+                Some(a) => if a {
+                    b.precalculate()
+
+                } else {
+                    Some(false)
+                },
+
+                None => b.precalculate().and_then(|b| if b {
+                    None
+
+                } else {
+                    Some(false)
+                }),
+            },
+
+            BooleanCalculator::Or(ref a, ref b) => match a.precalculate() {
+                Some(a) => if a {
+                    Some(true)
+
+                } else {
+                    b.precalculate()
+                },
+
+                None => b.precalculate().and_then(|b| if b {
+                    Some(true)
+
+                } else {
+                    None
+                }),
+            },
+        }
+    }
+
     fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, tier: &'c Tier, left: &'c str, right: &'c str) -> bool
         where C: Strategy,
               D: Strategy {
@@ -599,13 +833,13 @@ impl<A> Calculate<bool> for BooleanCalculator<A>
     }
 }
 
-impl<A> Gene for BooleanCalculator<A> where A: Gene, A: Clone {
+impl<A> Gene for BooleanCalculator<A> where A: Calculate<f64> + Gene + Clone + PartialEq {
     fn new() -> Self {
-        Self::_new(0)
+        Self::_new(0).optimize()
     }
 
     fn choose(&self, other: &Self) -> Self {
-        self._choose(other, 0)
+        self._choose(other, 0).optimize()
     }
 }
 
@@ -623,6 +857,7 @@ pub struct BetStrategy {
     successes: f64,
     failures: f64,
     record_len: f64,
+    characters_len: usize,
     max_character_len: usize,
 
     // Genes
@@ -633,7 +868,7 @@ pub struct BetStrategy {
 
 impl<'a> BetStrategy {
     fn calculate_fitness(mut self, settings: &SimulationSettings<'a>) -> Self {
-        let (sum, successes, failures, record_len, max_character_len) = {
+        let (sum, successes, failures, record_len, characters_len, max_character_len) = {
             let mut simulation = Simulation::new();
 
             match settings.mode {
@@ -648,14 +883,16 @@ impl<'a> BetStrategy {
                 simulation.successes,
                 simulation.failures,
                 simulation.record_len,
-                simulation.max_character_len
+                simulation.characters.len(),
+                simulation.max_character_len,
             )
         };
 
-        self.fitness = sum / record_len;
+        self.fitness = sum;
         self.successes = successes;
         self.failures = failures;
         self.record_len = record_len;
+        self.characters_len = characters_len;
         self.max_character_len = max_character_len;
 
         self
@@ -669,6 +906,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             successes: 0.0,
             failures: 0.0,
             record_len: 0.0,
+            characters_len: 0,
             max_character_len: 0,
             bet_strategy: Gene::new(),
             prediction_strategy: Gene::new(),
@@ -682,6 +920,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             successes: 0.0,
             failures: 0.0,
             record_len: 0.0,
+            characters_len: 0,
             max_character_len: 0,
             bet_strategy: self.bet_strategy.choose(&other.bet_strategy),
             prediction_strategy: self.prediction_strategy.choose(&other.prediction_strategy),
@@ -800,7 +1039,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
                 }
             };
 
-            if cfg!(target_arch = "wasm32") {
+            if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
                 (self.populace.len()..self.amount).map(closure).collect()
 
             } else {
@@ -819,7 +1058,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
 
     pub fn init(&mut self) {
         // TODO code duplication
-        let new_creatures: Vec<A> = if cfg!(target_arch = "wasm32") {
+        let new_creatures: Vec<A> = if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
             (0..self.amount).map(|_| A::new(self.data)).collect()
 
         } else {
