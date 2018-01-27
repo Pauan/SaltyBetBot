@@ -7,13 +7,26 @@
     "storage",
     "unlimitedStorage"
   ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
   "content_scripts": [{
+    "matches": [
+      "http://www.saltybet.com/",
+      "https://www.saltybet.com/"
+    ],
+    "js": [
+      "saltybet.js"
+    ],
+    "run_at": "document_end"
+  }, {
     "matches": [
       "http://www.twitch.tv/saltybet/chat",
       "https://www.twitch.tv/saltybet/chat"
     ],
     "js": [
-      "salty_bet_bot.js"
+      "twitch_chat.js"
     ],
     "run_at": "document_end"
   }]

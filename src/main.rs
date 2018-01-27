@@ -1,11 +1,12 @@
 #[macro_use]
-extern crate stdweb;
-#[macro_use]
 extern crate lazy_static;
 extern crate csv;
 extern crate regex;
 extern crate rand;
 extern crate rayon;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
 /*use std::fs::File;
 use std::path::Path;
@@ -18,10 +19,6 @@ use std::fs::File;
 mod record;
 mod genetic;
 mod simulation;
-
-mod saltybet {
-    pub mod twitch_chat;
-}
 
 
 /*fn read_file(path: &str) -> std::io::Result<String> {
@@ -117,31 +114,7 @@ fn run_simulation() {
 
 #[cfg(any(target_arch = "wasm32", target_arch = "asmjs"))]
 fn main() {
-    stdweb::initialize();
 
-    /*fn lookup() {
-        stdweb::web::set_timeout(lookup, 10000);
-
-        let start: f64 = stdweb::web::Date::now();
-        let messages = saltybet::twitch_chat::get_waifu_messages();
-        let end: f64 = stdweb::web::Date::now();
-
-        let start2: f64 = stdweb::web::Date::now();
-        println!("{:#?} {:#?}", end - start, messages);
-        let end2: f64 = stdweb::web::Date::now();
-
-        println!("{:#?}", end2 - start2);
-    }
-
-    lookup();*/
-
-    //run_simulation();
-
-    saltybet::twitch_chat::observe_changes(|observer| {
-        std::mem::forget(observer);
-    });
-
-    stdweb::event_loop();
 }
 
 

@@ -6,6 +6,9 @@
 // WAIFU4u: Bets are locked. FOO (-5) - $141,061, BAR (3) - $638,656
 // WAIFU4u: BAR wins! Payouts to Team Blue. 13 characters are left in the bracket!
 
+// SaltyBet: Tournament will start shortly. Thanks for watching!  wtfSALTY
+// WAIFU4u: BAR wins! Payouts to Team Blue. 16 characters are left in the bracket!
+
 // SaltyBet: Exhibitions will start shortly. Thanks for watching!  wtfSALTY
 // SaltyBet: wtfSalt Congrats tournament winner! stuker (+$1,219,553)
 // WAIFU4u: BAR wins! Payouts to Team Blue. 25 exhibition matches left!
@@ -17,11 +20,19 @@
 
 // WAIFU4u: "wtfSalt ♫ "
 
+#[macro_use]
+extern crate lazy_static;
+extern crate salty_bet_bot;
+extern crate regex;
+extern crate serde_json;
+extern crate stdweb;
+
 use std::iter::Iterator;
-use regex;
+use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, Message};
+use salty_bet_bot::record::{Tier, Mode, Winner};
+use stdweb::{Value};
 use stdweb::web::{document, IElement, INode, Element, MutationObserver, MutationObserverInit, MutationObserverHandle, MutationRecord, set_timeout, Date, Node};
 use stdweb::unstable::{TryInto};
-use record::{Tier, Mode, Winner};
 
 
 // 10 minutes
@@ -68,7 +79,7 @@ pub enum WaifuMessage {
     BetsOpen(WaifuBetsOpen),
     BetsClosed(WaifuBetsClosed),
     Winner(WaifuWinner),
-    ModeSwitch { date: f64 },
+    //ModeSwitch { date: f64 },
 }
 
 
@@ -112,19 +123,6 @@ fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
             WaifuMessage::BetsOpen(WaifuBetsOpen { left, right, tier, mode, date }))))))
 }
 
-
-// TODO make this more efficient
-fn parse_f64(input: &str) -> Option<f64> {
-    lazy_static! {
-        static ref PARSE_F64_REGEX: regex::Regex = regex::Regex::new(r",").unwrap();
-    }
-
-    match PARSE_F64_REGEX.replace_all(input, "").parse::<f64>() {
-        Ok(a) => Some(a),
-        // TODO better error handling
-        Err(_) => None,
-    }
-}
 
 fn parse_bets_closed(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
@@ -204,7 +202,7 @@ fn parse_winner(input: &str, date: f64) -> Option<WaifuMessage> {
 fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
     lazy_static! {
         static ref UNKNOWN_REGEX: regex::Regex = regex::Regex::new(
-            r"(?:^[ \n]*wtfSalt[ \n]+♫ )|(?:^[ \n]*[XSABP] Tier[ \n]*$)|(?:^[ \n]*Current stage: )|(?:^[ \n]*(.+)[ \n]+by[ \n]+(.+),[ \n]+(.+)[ \n]+by[ \n]+(.+)[ \n]*$)|(?:^[ \n]*Current odds: [0-9\.]+:[0-9\.]+[ \n]*$)|(?:^[ \n]*The current game mode is: matchmaking\. [0-9]+ more matches until the next tournament![ \n]*$)"
+            r"(?:^[ \n]*wtfSalt[ \n]+♫ )|(?:^[ \n]*[XSABP] Tier[ \n]*$)|(?:^[ \n]*Current stage: )|(?:^[ \n]*(.+)[ \n]+by[ \n]+(.+),[ \n]+(.+)[ \n]+by[ \n]+(.+)[ \n]*$)|(?:^[ \n]*Current odds: [0-9\.]+:[0-9\.]+[ \n]*$)|(?:^[ \n]*The current game mode is: (?:matchmaking|tournament)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket)![ \n]*$)|(?:^[ \n]*Download WAIFU Wars at[ \n]+www\.waifuwars\.com[ \n]*![ \n]*$)|(?:^[ \n]*Current pot total: \$[0-9]+[ \n]*$)|(?:^[ \n]*The current tournament bracket can be found at:[ \n]+http://www\.saltybet\.com/shaker\?bracket=1[ \n]*$)|(?:^[ \n]*wtfVeku[ \n]+Note: (.+) \(from (.+)\)[ \n]*$)"
         ).unwrap();
     }
 
@@ -229,7 +227,7 @@ fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
         node.query_selector("span.from")
             .and_then(|x| x.text_content())
             .and_then(|name| {
-                if name == "WAIFU4u" {
+                if name == "WAIFU4u" || name == "SaltyBet" {
                     node.query_selector("span.message")
                         .and_then(|x| x.text_content())
                         .and_then(|x| parse_message(&x, date))
@@ -250,20 +248,7 @@ pub fn get_waifu_messages() -> Vec<WaifuMessage> {
 }
 
 
-fn wait_until_defined<A, B, C>(mut get: A, done: B)
-    where A: FnMut() -> Option<C> + 'static,
-          B: FnOnce(C) + 'static {
-    match get() {
-        Some(a) => done(a),
-        None => {
-            set_timeout(|| wait_until_defined(get, done), 100);
-        },
-    }
-}
-
-pub fn observe_changes<A>(done: A)
-    where A: FnOnce(MutationObserverHandle) + 'static {
-
+pub fn observe_changes() {
     let mut old_open = None;
     let mut old_closed = None;
 
@@ -342,7 +327,14 @@ pub fn observe_changes<A>(done: A)
         }
     });
 
-    wait_until_defined(|| document().query_selector("ul.chat-lines"), |lines| {
+    wait_until_defined(|| document().query_selector("ul.chat-lines"), move |lines| {
+        let port = Port::new("twitch_chat");
+
+        std::mem::forget(port.listen(|message| {
+            let message: Message = serde_json::from_str(&message).unwrap();
+            println!("{:#?}", message);
+        }));
+
         observer.observe(&lines, MutationObserverInit {
             child_list: true,
             attributes: false,
@@ -353,8 +345,18 @@ pub fn observe_changes<A>(done: A)
             attribute_filter: None,
         });
 
-        println!("Observer initialized");
+        std::mem::forget(port);
+        std::mem::forget(observer);
 
-        done(observer);
+        println!("Observer initialized");
     });
+}
+
+
+fn main() {
+    stdweb::initialize();
+
+    observe_changes();
+
+    stdweb::event_loop();
 }

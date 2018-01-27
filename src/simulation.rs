@@ -8,6 +8,7 @@ const SALT_MINE_AMOUNT: f64 = 100.0; // TODO verify that this is correct
 const TOURNAMENT_BALANCE: f64 = 1000.0; // TODO verify that this is correct
 
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Bet {
     Left(f64),
     Right(f64),
