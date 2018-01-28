@@ -2,6 +2,7 @@ use std;
 use regex;
 use csv;
 use genetic;
+use simulation::Bet;
 
 
 fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {
@@ -113,6 +114,7 @@ pub struct Record {
     pub winner: Winner,
     pub tier: Tier,
     pub mode: Mode,
+    pub bet: Bet,
     pub duration: f64,
     pub date: f64,
 }
@@ -129,6 +131,7 @@ impl Record {
                 winner: self.winner.swap(),
                 tier: self.tier,
                 mode: self.mode,
+                bet: self.bet.swap(),
                 duration: self.duration,
                 date: self.date,
             }
@@ -202,6 +205,7 @@ pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
             winner: Winner::parse(&winner)?,
             tier: Tier::parse(&tier)?,
             mode: Mode::parse(&mode)?,
+            bet: Bet::None, // TODO
             duration: parse_duration(duration),
             date: 0.0, // TODO
         });

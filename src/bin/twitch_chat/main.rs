@@ -27,9 +27,12 @@ extern crate regex;
 extern crate serde_json;
 extern crate stdweb;
 
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::iter::Iterator;
-use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, Message};
-use salty_bet_bot::record::{Tier, Mode, Winner};
+use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, Message, Information, remove_newlines, collapse_whitespace, get_text_content};
+use salty_bet_bot::simulation::{Bet};
+use salty_bet_bot::record::{Tier, Mode, Winner, Record, Character};
 use stdweb::{Value};
 use stdweb::web::{document, IElement, INode, Element, MutationObserver, MutationObserverInit, MutationObserverHandle, MutationRecord, set_timeout, Date, Node};
 use stdweb::unstable::{TryInto};
@@ -39,9 +42,19 @@ use stdweb::unstable::{TryInto};
 // TODO is this high enough ?
 const MAX_BET_TIME_LIMIT: f64 = 1000.0 * 60.0 * 10.0;
 
-// 30 minutes
+// 50 minutes
 // TODO is this high enough ?
-const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 30.0;
+const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 50.0;
+
+
+// ~7.7 minutes
+const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
+
+// TODO
+const MAX_EXHIBITS_DURATION: f64 = NORMAL_MATCH_TIME * 1.0;
+
+// ~1.92 hours
+const MAX_TOURNAMENT_DURATION: f64 = NORMAL_MATCH_TIME * 15.0;
 
 
 #[derive(Debug, Clone)]
@@ -79,7 +92,7 @@ pub enum WaifuMessage {
     BetsOpen(WaifuBetsOpen),
     BetsClosed(WaifuBetsClosed),
     Winner(WaifuWinner),
-    //ModeSwitch { date: f64 },
+    ModeSwitch { date: f64 },
 }
 
 
@@ -102,8 +115,8 @@ fn parse_tier(input: &str) -> Option<Tier> {
 
 fn parse_mode(input: &str) -> Option<Mode> {
     match input {
-        "(matchmaking)" => Some(Mode::Matchmaking),
-        "tournament bracket:" => Some(Mode::Tournament),
+        "(matchmaking) www.saltybet.com" => Some(Mode::Matchmaking),
+        "tournament bracket: http://www.saltybet.com/shaker?bracket=1" => Some(Mode::Tournament),
         _ => None,
     }
 }
@@ -111,7 +124,7 @@ fn parse_mode(input: &str) -> Option<Mode> {
 fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
         static ref BET_OPEN_REGEX: regex::Regex = regex::Regex::new(
-            r"^[ \n]*Bets are OPEN for[ \n]+(.+)[ \n]+vs[ \n]+(.+)! \(([XSABP]) Tier\) ((?:\(matchmaking\))|(?:tournament bracket:))"
+            r"^Bets are OPEN for (.+) vs (.+?) *! \(([XSABP]) Tier\) ((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1))$"
         ).unwrap();
     }
 
@@ -127,7 +140,7 @@ fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
 fn parse_bets_closed(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
         static ref BETS_CLOSED_REGEX: regex::Regex = regex::Regex::new(
-            r"^[ \n]*Bets are locked\.[ \n]+(.+)[ \n]+\((\-?[0-9,]+)\) \- \$([0-9,]+),[ \n]+(.+)[ \n]+\((\-?[0-9,]+)\) \- \$([0-9,]+)[ \n]*$"
+            r"^Bets are locked\. (.+) \((\-?[0-9,]+)\) \- \$([0-9,]+), (.+) \((\-?[0-9,]+)\) \- \$([0-9,]+)$"
         ).unwrap();
     }
 
@@ -187,7 +200,7 @@ fn parse_side(input: &str) -> Option<Winner> {
 fn parse_winner(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
         static ref WINNER_REGEX: regex::Regex = regex::Regex::new(
-            r"^[ \n]*(.+)[ \n]+wins! Payouts to Team (Red|Blue)\. "
+            r"^(.+) wins! Payouts to Team (Red|Blue)\. "
         ).unwrap();
     }
 
@@ -199,10 +212,26 @@ fn parse_winner(input: &str, date: f64) -> Option<WaifuMessage> {
 }
 
 
+fn parse_mode_switch(input: &str, date: f64) -> Option<WaifuMessage> {
+    lazy_static! {
+        static ref MODE_SWITCH_REGEX: regex::Regex = regex::Regex::new(
+            r"^(?:Tournament|Exhibitions|Matchmaking) will start shortly\. Thanks for watching! wtfSALTY$"
+        ).unwrap();
+    }
+
+    if MODE_SWITCH_REGEX.is_match(input) {
+        Some(WaifuMessage::ModeSwitch { date })
+
+    } else {
+        None
+    }
+}
+
+
 fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
     lazy_static! {
         static ref UNKNOWN_REGEX: regex::Regex = regex::Regex::new(
-            r"(?:^[ \n]*wtfSalt[ \n]+♫ )|(?:^[ \n]*[XSABP] Tier[ \n]*$)|(?:^[ \n]*Current stage: )|(?:^[ \n]*(.+)[ \n]+by[ \n]+(.+),[ \n]+(.+)[ \n]+by[ \n]+(.+)[ \n]*$)|(?:^[ \n]*Current odds: [0-9\.]+:[0-9\.]+[ \n]*$)|(?:^[ \n]*The current game mode is: (?:matchmaking|tournament)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket)![ \n]*$)|(?:^[ \n]*Download WAIFU Wars at[ \n]+www\.waifuwars\.com[ \n]*![ \n]*$)|(?:^[ \n]*Current pot total: \$[0-9]+[ \n]*$)|(?:^[ \n]*The current tournament bracket can be found at:[ \n]+http://www\.saltybet\.com/shaker\?bracket=1[ \n]*$)|(?:^[ \n]*wtfVeku[ \n]+Note: (.+) \(from (.+)\)[ \n]*$)"
+            r"(?:^wtfSalt ♫ )|(?:^[XSABP] Tier$)|(?:^Current stage: )|(?:^(?:.+) by (?:.+?) *, (?:.+) by (?:.+)$)|(?:^Current odds: [0-9\.]+:[0-9\.]+$)|(?:^The current game mode is: (?:matchmaking|tournament|exhibitions)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket|exhibition matches left)!$)|(?:^Download WAIFU Wars at www\.waifuwars\.com !$)|(?:^Current pot total: \$[0-9]+$)|(?:^The current tournament bracket can be found at: http://www\.saltybet\.com/shaker\?bracket=1$)|(?:^wtfVeku Note: (?:.+) \(from (?:.+?) *\)$)|(?:^wtfSALTY (?:.+) is fighting to stay in [SAB] Tier!$)|(?:^wtfSALTY New Waifu Wars bounties available! Winner: (?:.+) \(wave [0-9,]+\)! Play for free at http://www\.waifuwars\.com$)|(?:^wtfSalt Congrats tournament winner! (?:.+) \(\+\$[0-9,]+\)$)|(?:^The current game mode is: tournament\. FINAL ROUND! Stay tuned for exhibitions after the tournament!$)|(?:^Bets are locked\. (?:.+?) *\- \$[0-9,]+, (?:.+?) *\- \$[0-9,]+$)|(?:^(?:.+) vs (?:.+) was requested by (?:.+?) *\. OMGScoots$)|(?:^Palettes of previous match: [0-9]+(?: / [0-9]+)?, [0-9]+(?: / [0-9]+)?$)|(?:^Bets are OPEN for (?:.+) vs (?:.+?) *!(?: \([XSABP](?: / [XSABP])? Tier\))? \(Requested by (?:.+?) *\) \(exhibitions\) www\.saltybet\.com$)|(?:^The current game mode is: matchmaking\. Matchmaking mode will be activated after the next exhibition match!$)"
         ).unwrap();
     }
 
@@ -216,8 +245,9 @@ fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
 fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
     parse_bets_open(input, date).or_else(||
     parse_bets_closed(input, date).or_else(||
-    parse_winner(input, date))).or_else(||
-    check_unknown_message(input))
+    parse_winner(input, date).or_else(||
+    parse_mode_switch(input, date).or_else(||
+    check_unknown_message(input)))))
 }
 
 
@@ -225,11 +255,11 @@ fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
     // TODO better error handling ?
     node.try_into().ok().and_then(|node: Element|
         node.query_selector("span.from")
-            .and_then(|x| x.text_content())
+            .and_then(get_text_content)
             .and_then(|name| {
                 if name == "WAIFU4u" || name == "SaltyBet" {
                     node.query_selector("span.message")
-                        .and_then(|x| x.text_content())
+                        .and_then(get_text_content)
                         .and_then(|x| parse_message(&x, date))
 
                 } else {
@@ -248,92 +278,193 @@ pub fn get_waifu_messages() -> Vec<WaifuMessage> {
 }
 
 
+// TODO timer which prints an error message if it's been >5 hours since a successful match recording
 pub fn observe_changes() {
     let mut old_open = None;
     let mut old_closed = None;
+    let mut mode_switch = None;
 
-    let observer = MutationObserver::new(move |records, _| {
-        let now: f64 = Date::now();
+    let information: Rc<RefCell<Option<Information>>> = Rc::new(RefCell::new(None));
 
-        for record in records {
-            match record {
-                MutationRecord::ChildList { inserted_nodes, .. } => {
-                    let messages = inserted_nodes.into_iter()
-                        .filter_map(|x| get_waifu_message(x, now));
+    let observer = {
+        let information = information.clone();
 
-                    for message in messages {
-                        match message {
-                            WaifuMessage::BetsOpen(open) => {
-                                old_open = Some(open);
-                                old_closed = None;
-                            },
+        MutationObserver::new(move |records, _| {
+            let now: f64 = Date::now();
 
-                            WaifuMessage::BetsClosed(closed) => {
-                                match old_open {
-                                    Some(ref open) => {
-                                        let duration = closed.date - open.date;
+            let mut information = information.borrow_mut();
 
-                                        if duration >= 0.0 &&
-                                           duration <= MAX_BET_TIME_LIMIT &&
-                                           open.left == closed.left.name &&
-                                           open.right == closed.right.name {
-                                            old_closed = Some(closed);
-                                            continue;
+            for record in records {
+                match record {
+                    MutationRecord::ChildList { inserted_nodes, .. } => {
+                        let messages = inserted_nodes.into_iter()
+                            .filter_map(|x| get_waifu_message(x, now));
 
-                                        } else {
-                                            println!("Invalid messages: {:#?} {:#?}", open, closed);
-                                        }
-                                    },
-                                    None => {},
-                                }
+                        for message in messages {
+                            match message {
+                                WaifuMessage::BetsOpen(open) => {
+                                    old_open = Some(open);
+                                    old_closed = None;
+                                    mode_switch = None;
+                                    *information = None;
+                                },
 
-                                old_open = None;
-                                old_closed = None;
-                            },
+                                WaifuMessage::BetsClosed(closed) => {
+                                    mode_switch = None;
+                                    *information = None;
 
-                            WaifuMessage::Winner(winner) => {
-                                match old_open {
-                                    Some(ref open) => match old_closed {
-                                        Some(ref closed) => {
-                                            let duration = winner.date - closed.date;
+                                    match old_open {
+                                        Some(ref open) => {
+                                            let duration = closed.date - open.date;
 
                                             if duration >= 0.0 &&
-                                               duration <= MAX_MATCH_TIME_LIMIT &&
-                                               match winner.side {
-                                                   Winner::Left => winner.name == closed.left.name,
-                                                   Winner::Right => winner.name == closed.right.name,
-                                               } {
-                                                println!("Successful match: {:#?} {:#?} {:#?}", open, closed, winner);
+                                               duration <= MAX_BET_TIME_LIMIT &&
+                                               open.left == closed.left.name &&
+                                               open.right == closed.right.name {
+                                                old_closed = Some(closed);
+                                                continue;
 
                                             } else {
-                                                println!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
+                                                println!("Invalid messages: {:#?} {:#?}", open, closed);
                                             }
                                         },
-                                        None => {
-                                            println!("Invalid messages: {:#?} {:#?}", open, winner);
-                                        },
-                                    },
-                                    None => {},
-                                }
+                                        None => {},
+                                    }
 
-                                old_open = None;
-                                old_closed = None;
-                            },
+                                    old_open = None;
+                                    old_closed = None;
+                                },
+
+                                WaifuMessage::ModeSwitch { date } => {
+                                    match old_open {
+                                        Some(ref open) => match old_closed {
+                                            Some(_) => {
+                                                mode_switch = Some(date);
+                                                continue;
+                                            },
+                                            None => {
+                                                println!("Invalid messages: {:#?} {:#?}", open, message);
+                                            },
+                                        },
+                                        None => {},
+                                    }
+
+                                    mode_switch = None;
+                                },
+
+                                WaifuMessage::Winner(winner) => {
+                                    match old_open {
+                                        Some(ref open) => match old_closed {
+                                            Some(ref mut closed) => match *information {
+                                                Some(ref mut information) => {
+                                                    let date = match mode_switch {
+                                                        Some(date) => date,
+                                                        None => winner.date,
+                                                    };
+
+                                                    let duration = date - closed.date;
+
+                                                    if duration >= 0.0 &&
+                                                       duration <= MAX_MATCH_TIME_LIMIT &&
+                                                       match winner.side {
+                                                           Winner::Left => winner.name == closed.left.name,
+                                                           Winner::Right => winner.name == closed.right.name,
+                                                       } {
+
+                                                        match information.bet {
+                                                            Bet::Left(amount) => {
+                                                                if information.player_is_illuminati {
+                                                                    information.left_bettors_illuminati -= 1.0;
+
+                                                                } else {
+                                                                    information.left_bettors_normal -= 1.0;
+                                                                }
+
+                                                                closed.left.bet_amount -= amount;
+                                                            },
+                                                            Bet::Right(amount) => {
+                                                                if information.player_is_illuminati {
+                                                                    information.right_bettors_illuminati -= 1.0;
+
+                                                                } else {
+                                                                    information.right_bettors_normal -= 1.0;
+                                                                }
+
+                                                                closed.right.bet_amount -= amount;
+                                                            },
+                                                            Bet::None => {},
+                                                        }
+
+                                                        // TODO figure out a way to avoid clone
+                                                        println!("Successful match: {:#?}", Record {
+                                                            left: Character {
+                                                                name: closed.left.name.clone(),
+                                                                bet_amount: closed.left.bet_amount,
+                                                                win_streak: closed.left.win_streak,
+                                                                illuminati_bettors: information.left_bettors_illuminati,
+                                                                normal_bettors: information.left_bettors_normal,
+                                                            },
+                                                            right: Character {
+                                                                name: closed.right.name.clone(),
+                                                                bet_amount: closed.right.bet_amount,
+                                                                win_streak: closed.right.win_streak,
+                                                                illuminati_bettors: information.right_bettors_illuminati,
+                                                                normal_bettors: information.right_bettors_normal,
+                                                            },
+                                                            winner: winner.side,
+                                                            tier: open.tier.clone(),
+                                                            mode: open.mode.clone(),
+                                                            bet: information.bet.clone(),
+                                                            duration,
+                                                            date: date,
+                                                        });
+
+                                                    } else {
+                                                        println!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                                    }
+                                                },
+                                                None => {
+                                                    println!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
+                                                },
+                                            },
+                                            None => {
+                                                println!("Invalid messages: {:#?} {:#?}", open, winner);
+                                            },
+                                        },
+                                        None => {},
+                                    }
+
+                                    old_open = None;
+                                    old_closed = None;
+                                    mode_switch = None;
+                                    *information = None;
+                                },
+                            }
                         }
-                    }
-                },
-                _ => {},
+                    },
+                    _ => {},
+                }
             }
-        }
-    });
+        })
+    };
 
     wait_until_defined(|| document().query_selector("ul.chat-lines"), move |lines| {
         let port = Port::new("twitch_chat");
 
-        std::mem::forget(port.listen(|message| {
-            let message: Message = serde_json::from_str(&message).unwrap();
-            println!("{:#?}", message);
-        }));
+        {
+            let information = information.clone();
+
+            std::mem::forget(port.listen(move |message| {
+                let mut information = information.borrow_mut();
+
+                match serde_json::from_str(&message).unwrap() {
+                    Message::Information(message) => {
+                        *information = Some(message);
+                    },
+                    _ => {},
+                }
+            }));
+        }
 
         observer.observe(&lines, MutationObserverInit {
             child_list: true,

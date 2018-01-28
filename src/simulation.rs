@@ -8,11 +8,21 @@ const SALT_MINE_AMOUNT: f64 = 100.0; // TODO verify that this is correct
 const TOURNAMENT_BALANCE: f64 = 1000.0; // TODO verify that this is correct
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Bet {
     Left(f64),
     Right(f64),
     None,
+}
+
+impl Bet {
+    pub fn swap(&self) -> Self {
+        match *self {
+            Bet::Left(a) => Bet::Right(a),
+            Bet::Right(a) => Bet::Left(a),
+            Bet::None => Bet::None,
+        }
+    }
 }
 
 

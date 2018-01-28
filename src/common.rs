@@ -7,17 +7,19 @@ use stdweb::unstable::{TryFrom};
 use record::Record;
 use simulation::Bet;
 use stdweb::{Value, Once};
-use stdweb::web::{set_timeout};
+use stdweb::web::{set_timeout, INode};
 
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Information {
+    pub player_is_illuminati: bool,
     pub left_bettors_illuminati: f64,
     pub right_bettors_illuminati: f64,
     pub left_bettors_normal: f64,
     pub right_bettors_normal: f64,
     pub bet: Bet,
 }
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Message {
@@ -43,6 +45,28 @@ pub fn parse_f64(input: &str) -> Option<f64> {
 }
 
 
+// TODO make this more efficient
+pub fn remove_newlines(input: &str) -> String {
+    lazy_static! {
+        static ref PARSE_NEWLINES: regex::Regex = regex::Regex::new(r"(?:^[ \n\r]+)|[\n\r]|(?:[ \n\r]+$)").unwrap();
+    }
+
+    // TODO is this into_owned correct ?
+    PARSE_NEWLINES.replace_all(input, "").into_owned()
+}
+
+
+// TODO make this more efficient
+pub fn collapse_whitespace(input: &str) -> String {
+    lazy_static! {
+        static ref PARSE_WHITESPACE: regex::Regex = regex::Regex::new(r" +").unwrap();
+    }
+
+    // TODO is this into_owned correct ?
+    PARSE_WHITESPACE.replace_all(input, " ").into_owned()
+}
+
+
 pub fn parse_money(input: &str) -> Option<f64> {
     lazy_static! {
         static ref MONEY_REGEX: regex::Regex = regex::Regex::new(
@@ -64,6 +88,13 @@ pub fn wait_until_defined<A, B, C>(mut get: A, done: B)
             set_timeout(|| wait_until_defined(get, done), 100);
         },
     }
+}
+
+
+pub fn get_text_content<A: INode>(node: A) -> Option<String> {
+    node.text_content()
+        .map(|x| remove_newlines(&x))
+        .map(|x| collapse_whitespace(&x))
 }
 
 
@@ -115,8 +146,6 @@ impl Port {
         Listener {
             stop: js! {
                 function listener(message) {
-                    console.log("Raw message", message);
-
                     @{&callback}(message);
                 }
 
@@ -134,7 +163,6 @@ impl Port {
 
     #[inline]
     pub fn send_message(&self, message: &str) {
-        println!("Raw serialize: {:#?}", message);
         js! { @(no_return)
             @{&self.0}.postMessage(@{message});
         }
