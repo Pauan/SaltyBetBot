@@ -70,3 +70,5 @@ chrome.runtime.onConnect.addListener(function (port) {
         throw new Error("Invalid port: " + port.name);
     }
 });
+
+console.log("Background page started");

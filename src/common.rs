@@ -2,9 +2,10 @@ use std;
 use regex;
 use record::{Tier, Mode, Winner};
 use stdweb::{Value, Once};
-use stdweb::web::{set_timeout, INode, Element};
+use stdweb::web::{document, set_timeout, INode, Element, NodeList};
 use stdweb::web::html_element::InputElement;
 use stdweb::unstable::{TryInto};
+use stdweb::traits::*;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,11 +119,10 @@ pub fn to_input_element(node: Element) -> Option<InputElement> {
     node.try_into().ok()
 }
 
-pub fn get_value(node: &InputElement) -> Option<String> {
-    // TODO better error handling
-    node.value().try_into().ok()
-        .map(|x: String| remove_newlines(&x))
-        .map(|x| collapse_whitespace(&x))
+pub fn get_value(node: &InputElement) -> String {
+    let value = node.raw_value();
+    let value = remove_newlines(&value);
+    collapse_whitespace(&value)
 }
 
 
@@ -131,6 +131,15 @@ pub fn click(node: &InputElement) {
     js! { @(no_return)
         @{node}.click();
     }
+}
+
+
+pub fn query(input: &str) -> Option<Element> {
+    document().query_selector(input).unwrap()
+}
+
+pub fn query_all(input: &str) -> NodeList {
+    document().query_selector_all(input).unwrap()
 }
 
 

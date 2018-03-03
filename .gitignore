@@ -1,4 +1,6 @@
 /target/
 /static/saltybet.js
+/static/saltybet.wasm
 /static/twitch_chat.js
+/static/twitch_chat.wasm
 **/*.rs.bk

@@ -6,11 +6,11 @@ extern crate salty_bet_bot;
 
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::common::{parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, to_input_element, get_value, click, get_storage, set_storage};
+use salty_bet_bot::common::{parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
 use salty_bet_bot::genetic::{BetStrategy};
 use salty_bet_bot::record::{Record, Character, Winner, Mode};
 use salty_bet_bot::simulation::{Bet, Simulation};
-use stdweb::web::{document, set_timeout};
+use stdweb::web::set_timeout;
 
 
 // 10 minutes
@@ -47,17 +47,17 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
     let mut state = state.borrow_mut();
 
     if !state.did_bet &&
-       document().query_selector("#betconfirm").is_none() {
+       query("#betconfirm").is_none() {
 
-        let current_balance = document().query_selector("#balance")
+        let current_balance = query("#balance")
             .and_then(get_text_content)
             .and_then(|x| parse_f64(x.as_str()));
 
-        let wager_box = document().query_selector("#wager").and_then(to_input_element);
+        let wager_box = query("#wager").and_then(to_input_element);
 
-        let left_button = document().query_selector("#player1:enabled").and_then(to_input_element);
+        let left_button = query("#player1:enabled").and_then(to_input_element);
 
-        let right_button = document().query_selector("#player2:enabled").and_then(to_input_element);
+        let right_button = query("#player2:enabled").and_then(to_input_element);
 
         // TODO gross
         // TODO figure out a way to avoid the clone
@@ -66,8 +66,9 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
         if let Some(wager_box) = wager_box {
         if let Some(left_button) = left_button {
         if let Some(right_button) = right_button {
-        if let Some(left_name) = get_value(&left_button) {
-        if let Some(right_name) = get_value(&right_button) {
+            let left_name = get_value(&left_button);
+            let right_name = get_value(&right_button);
+
             // TODO check the date as well ?
             if left_name == open.left &&
                right_name == open.right {
@@ -99,11 +100,11 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 
                 match bet {
                     Bet::Left(amount) => {
-                        wager_box.set_value(amount);
+                        wager_box.set_raw_value(&amount.to_string());
                         click(&left_button);
                     },
                     Bet::Right(amount) => {
-                        wager_box.set_value(amount);
+                        wager_box.set_raw_value(&amount.to_string());
                         click(&right_button);
                     },
                     Bet::None => {},
@@ -112,32 +113,32 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
             } else {
                 log!("Invalid state: {:#?} {:#?} {:#?}", open, left_name, right_name);
             }
-        }}}}}}}
+        }}}}}
     }
 }
 
 
 fn lookup_information(state: &Rc<RefCell<State>>) {
-    let status = document().query_selector("#betstatus")
+    let status = query("#betstatus")
         .and_then(get_text_content)
         .map(|x| x == "Bets are locked until the next match.")
         .unwrap_or(false);
 
     if status &&
-       document().query_selector("#sbettors1 > span.redtext > span.counttext").is_some() &&
-       document().query_selector("#sbettors2 > span.bluetext > span.counttext").is_some() {
+       query("#sbettors1 > span.redtext > span.counttext").is_some() &&
+       query("#sbettors2 > span.bluetext > span.counttext").is_some() {
 
-        let left_bettors_illuminati = document().query_selector_all("#bettors1 > p.bettor-line > strong.goldtext").len() as f64;
-        let right_bettors_illuminati = document().query_selector_all("#bettors2 > p.bettor-line > strong.goldtext").len() as f64;
+        let left_bettors_illuminati = query_all("#bettors1 > p.bettor-line > strong.goldtext").len() as f64;
+        let right_bettors_illuminati = query_all("#bettors2 > p.bettor-line > strong.goldtext").len() as f64;
 
-        let left_bettors_normal = document().query_selector_all("#bettors1 > p.bettor-line > strong:not(.goldtext)").len() as f64;
-        let right_bettors_normal = document().query_selector_all("#bettors2 > p.bettor-line > strong:not(.goldtext)").len() as f64;
+        let left_bettors_normal = query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)").len() as f64;
+        let right_bettors_normal = query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)").len() as f64;
 
-        let left_bet = document().query_selector("#lastbet > span:first-of-type.redtext")
+        let left_bet = query("#lastbet > span:first-of-type.redtext")
             .and_then(get_text_content)
             .and_then(|x| parse_money(x.as_str()));
 
-        let right_bet = document().query_selector("#lastbet > span:first-of-type.bluetext")
+        let right_bet = query("#lastbet > span:first-of-type.bluetext")
             .and_then(get_text_content)
             .and_then(|x| parse_money(x.as_str()));
 
@@ -377,6 +378,8 @@ pub struct State {
 
 fn main() {
     stdweb::initialize();
+
+    log!("Initializing...");
 
     get_storage("matches", |matches| {
         let matches: Vec<Record> = match matches {

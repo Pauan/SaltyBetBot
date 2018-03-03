@@ -31,5 +31,9 @@
     ],
     "run_at": "document_end",
     "all_frames": false
-  }]
+  }],
+  "web_accessible_resources": [
+    "saltybet.wasm",
+    "twitch_chat.wasm"
+  ]
 }

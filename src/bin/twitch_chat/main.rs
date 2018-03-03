@@ -30,9 +30,9 @@ extern crate serde_json;
 extern crate stdweb;
 
 use std::iter::Iterator;
-use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner};
+use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all};
 use salty_bet_bot::record::{Tier, Mode, Winner};
-use stdweb::web::{document, IElement, Element, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
+use stdweb::web::{IParentNode, Element, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
 use stdweb::unstable::{TryInto};
 
 
@@ -194,11 +194,11 @@ fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
 fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
     // TODO better error handling ?
     node.try_into().ok().and_then(|node: Element|
-        node.query_selector("span.from")
+        node.query_selector("span.from").unwrap()
             .and_then(get_text_content)
             .and_then(|name| {
                 if name == "WAIFU4u" || name == "SaltyBet" {
-                    node.query_selector("span.message")
+                    node.query_selector("span.message").unwrap()
                         .and_then(get_text_content)
                         .and_then(|x| parse_message(&x, date))
 
@@ -212,13 +212,15 @@ fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
 pub fn get_waifu_messages() -> Vec<WaifuMessage> {
     let now: f64 = Date::now();
 
-    document().query_selector_all("ul.chat-lines > li.message-line.chat-line").into_iter()
+    query_all("ul.chat-lines > li.message-line.chat-line").into_iter()
         .filter_map(|x| get_waifu_message(x, now))
         .collect()
 }
 
 
 pub fn observe_changes() {
+    log!("Initializing...");
+
     let port = Port::new("twitch_chat");
 
     let observer = MutationObserver::new(move |records, _| {
@@ -239,7 +241,7 @@ pub fn observe_changes() {
         }
     });
 
-    wait_until_defined(|| document().query_selector("ul.chat-lines"), move |lines| {
+    wait_until_defined(|| query("ul.chat-lines"), move |lines| {
         observer.observe(&lines, MutationObserverInit {
             child_list: true,
             attributes: false,
@@ -248,7 +250,7 @@ pub fn observe_changes() {
             attribute_old_value: false,
             character_data_old_value: false,
             attribute_filter: None,
-        });
+        }).unwrap();
 
         std::mem::forget(observer);
 
