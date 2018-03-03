@@ -1,10 +1,14 @@
 use std;
+use std::iter::Iterator;
 use std::collections::{ HashMap };
 use record::{ Record, Mode, Winner, Tier };
 use genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
 
 
+// TODO this should take into account the user's real limit
 const SALT_MINE_AMOUNT: f64 = 100.0; // TODO verify that this is correct
+
+// TODO this should take into account the user's real limit
 const TOURNAMENT_BALANCE: f64 = 1000.0; // TODO verify that this is correct
 
 
@@ -26,15 +30,19 @@ impl Bet {
 }
 
 
+pub trait Simulator {
+    fn current_money(&self) -> f64;
+    fn lookup_character(&self, &str) -> Option<&[Record]>;
+}
+
+
 pub trait Strategy: Sized + std::fmt::Debug {
-    fn bet<A, B>(&self, simulation: &Simulation<A, B>, tier: &Tier, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy;
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet;
 }
 
 
 pub trait Calculate<A> {
-    fn calculate<'a, 'b, 'c, B, C>(&self, &Simulation<'a, 'b, 'c, B, C>, &'c Tier, &'c str, &'c str) -> A
-        where B: Strategy,
-              C: Strategy;
+    fn calculate<B: Simulator>(&self, &B, &Tier, &str, &str) -> A;
 
     fn precalculate(&self) -> Option<A> {
         None
@@ -46,7 +54,7 @@ pub trait Calculate<A> {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LookupStatistic {
     Upsets,
     Favored,
@@ -83,7 +91,7 @@ impl LookupStatistic {
         }
     }
 
-    fn upsets<'a, A>(iter: A, name: &'a str) -> f64
+    fn upsets<'a, A>(iter: A, name: &str) -> f64
         where A: Iterator<Item = &'a Record> {
         // TODO is 0.0 or 0.5 better ?
         LookupStatistic::iterate_percentage(iter, || 0.0, |record|
@@ -96,7 +104,7 @@ impl LookupStatistic {
              (record.left.bet_amount / record.right.bet_amount) > 1.0))
     }
 
-    fn favored<'a, A>(iter: A, name: &'a str) -> f64
+    fn favored<'a, A>(iter: A, name: &str) -> f64
         where A: Iterator<Item = &'a Record> {
         // TODO is 0.0 or 0.5 better ?
         LookupStatistic::iterate_percentage(iter, || 0.0, |record|
@@ -109,7 +117,7 @@ impl LookupStatistic {
              (record.right.bet_amount / record.left.bet_amount) > 1.0))
     }
 
-    fn bet_amount<'a, A>(iter: A, name: &'a str) -> f64
+    fn bet_amount<'a, A>(iter: A, name: &str) -> f64
         where A: Iterator<Item = &'a Record> {
         let mut bet_amount: f64 = 0.0;
         let mut len: f64 = 0.0;
@@ -153,13 +161,13 @@ impl LookupStatistic {
         }
     }
 
-    fn winrate<'a, A>(iter: A, name: &'a str) -> f64
+    fn winrate<'a, A>(iter: A, name: &str) -> f64
         where A: Iterator<Item = &'a Record> {
         // TODO what about mirror matches ?
         LookupStatistic::iterate_percentage(iter, || 0.5, |record| record.is_winner(name))
     }
 
-    fn odds<'a, A>(iter: A, name: &'a str) -> f64
+    fn odds<'a, A>(iter: A, name: &str) -> f64
         where A: Iterator<Item = &'a Record> {
         let mut len: f64 = 0.0;
 
@@ -187,7 +195,7 @@ impl LookupStatistic {
         }
     }
 
-    fn earnings<'a, A>(iter: A, name: &'a str) -> f64
+    fn earnings<'a, A>(iter: A, name: &str) -> f64
         where A: Iterator<Item = &'a Record> {
         let mut earnings: f64 = 0.0;
 
@@ -227,7 +235,7 @@ impl LookupStatistic {
         len
     }
 
-    fn lookup<'a, A>(&self, name: &'a str, iter: A) -> f64
+    fn lookup<'a, A>(&self, name: &str, iter: A) -> f64
         where A: Iterator<Item = &'a Record> {
         match *self {
             LookupStatistic::Upsets => LookupStatistic::upsets(iter, name),
@@ -284,18 +292,18 @@ impl Gene for LookupStatistic {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LookupFilter {
     All,
     Specific,
 }
 
 impl LookupFilter {
-    fn lookup<'a>(&self, stat: &LookupStatistic, left: &'a str, right: &'a str, matches: &Vec<&'a Record>) -> f64 {
+    fn lookup(&self, stat: &LookupStatistic, left: &str, right: &str, matches: &[Record]) -> f64 {
         match *self {
-            LookupFilter::All => stat.lookup(left, matches.into_iter().map(|x| *x)),
+            LookupFilter::All => stat.lookup(left, matches.into_iter()),
 
-            LookupFilter::Specific => stat.lookup(left, matches.into_iter().map(|x| *x).filter(|record|
+            LookupFilter::Specific => stat.lookup(left, matches.into_iter().filter(|record|
                 (record.left.name == right) ||
                 (record.right.name == right))),
         }
@@ -326,7 +334,7 @@ impl Gene for LookupFilter {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LookupSide {
     Left,
     Right
@@ -356,25 +364,23 @@ impl Gene for LookupSide {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Lookup {
     Sum,
     Character(LookupSide, LookupFilter, LookupStatistic),
 }
 
 impl Calculate<f64> for Lookup {
-    fn calculate<'a, 'b, 'c, A, B>(&self, simulation: &Simulation<'a, 'b, 'c, A, B>, _tier: &'c Tier, left: &'c str, right: &'c str) -> f64
-        where A: Strategy,
-              B: Strategy {
+    fn calculate<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {
         match *self {
-            Lookup::Sum => simulation.sum(),
+            Lookup::Sum => simulation.current_money(),
 
             Lookup::Character(ref side, ref filter, ref stat) => match *side {
                 LookupSide::Left =>
-                    filter.lookup(stat, left, right, simulation.characters.get(left).unwrap_or(&vec![])),
+                    filter.lookup(stat, left, right, simulation.lookup_character(left).unwrap_or(&[])),
 
                 LookupSide::Right =>
-                    filter.lookup(stat, right, left, simulation.characters.get(right).unwrap_or(&vec![])),
+                    filter.lookup(stat, right, left, simulation.lookup_character(right).unwrap_or(&[])),
             },
         }
     }
@@ -411,21 +417,22 @@ impl Gene for Lookup {
 }
 
 
+
 #[derive(Debug)]
-pub struct Simulation<'a, 'b, 'c, A, B> where A: Strategy, A: 'a, B: Strategy, B: 'b {
-    pub matchmaking_strategy: Option<&'a A>,
-    pub tournament_strategy: Option<&'b B>,
+pub struct Simulation<A, B> where A: Strategy, B: Strategy {
+    pub matchmaking_strategy: Option<A>,
+    pub tournament_strategy: Option<B>,
     pub record_len: f64,
     pub sum: f64,
-    tournament_sum: f64,
-    in_tournament: bool,
+    pub tournament_sum: f64,
+    pub in_tournament: bool,
     pub successes: f64,
     pub failures: f64,
     pub max_character_len: usize,
-    pub characters: HashMap<&'c str, Vec<&'c Record>>,
+    pub characters: HashMap<String, Vec<Record>>,
 }
 
-impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strategy {
+impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     pub fn new() -> Self {
         Self {
             matchmaking_strategy: None,
@@ -441,7 +448,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         }
     }
 
-    fn insert_match(&mut self, key: &'c str, record: &'c Record) {
+    fn insert_match(&mut self, key: String, record: Record) {
         let matches = self.characters.entry(key).or_insert_with(|| vec![]);
 
         matches.push(record);
@@ -453,11 +460,15 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         }
     }
 
-    fn insert_record(&mut self, record: &'c Record) {
-        if record.left.name != record.right.name {
+    // TODO figure out a way to remove the clones
+    pub fn insert_record(&mut self, record: Record) {
+        let left = record.left.name.clone();
+        let right = record.right.name.clone();
+
+        if left != right {
             self.record_len += 1.0;
-            self.insert_match(&record.left.name, record);
-            self.insert_match(&record.right.name, record);
+            self.insert_match(left, record.clone());
+            self.insert_match(right, record);
         }
     }
 
@@ -500,12 +511,12 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         }
     }
 
-    fn pick_winner<C>(&self, strategy: &C, record: &'c Record) -> Bet where C: Strategy {
-        let bet = if record.left.name == record.right.name {
+    pub fn pick_winner<C>(&self, strategy: &C, tier: &Tier, left: &str, right: &str) -> Bet where C: Strategy {
+        let bet = if left == right {
             Bet::None
 
         } else {
-            strategy.bet(self, &record.tier, &record.left.name, &record.right.name)
+            strategy.bet(self, tier, left, right)
         };
 
         match bet {
@@ -527,7 +538,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         }
     }
 
-    fn calculate(&mut self, record: &'c Record) {
+    fn calculate(&mut self, record: &Record) {
         // TODO make this more efficient
         let record = record.clone().shuffle();
 
@@ -541,7 +552,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
                 }
 
                 match self.matchmaking_strategy {
-                    Some(a) => self.pick_winner(a, &record),
+                    Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
                     None => return,
                 }
             },
@@ -549,7 +560,7 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
                 self.in_tournament = true;
 
                 match self.tournament_strategy {
-                    Some(a) => self.pick_winner(a, &record),
+                    Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
                     None => return,
                 }
             },
@@ -601,9 +612,9 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         }
     }
 
-    pub fn simulate(&mut self, records: &'c Vec<Record>) {
-        for record in records.iter() {
-            self.calculate(record);
+    pub fn simulate(&mut self, records: Vec<Record>) {
+        for record in records.into_iter() {
+            self.calculate(&record);
             self.insert_record(record);
         }
 
@@ -615,9 +626,19 @@ impl<'a, 'b, 'c, A, B> Simulation<'a, 'b, 'c, A, B> where A: Strategy, B: Strate
         }
     }
 
-    pub fn insert_records(&mut self, records: &'c Vec<Record>) {
-        for record in records.iter() {
+    pub fn insert_records(&mut self, records: Vec<Record>) {
+        for record in records.into_iter() {
             self.insert_record(record);
         }
+    }
+}
+
+impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
+    fn current_money(&self) -> f64 {
+        self.sum()
+    }
+
+    fn lookup_character(&self, name: &str) -> Option<&[Record]> {
+        self.characters.get(name).map(|x| x.as_slice())
     }
 }

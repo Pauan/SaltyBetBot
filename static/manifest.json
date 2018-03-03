@@ -19,7 +19,8 @@
     "js": [
       "saltybet.js"
     ],
-    "run_at": "document_end"
+    "run_at": "document_end",
+    "all_frames": false
   }, {
     "matches": [
       "http://www.twitch.tv/saltybet/chat",
@@ -28,6 +29,7 @@
     "js": [
       "twitch_chat.js"
     ],
-    "run_at": "document_end"
+    "run_at": "document_end",
+    "all_frames": false
   }]
 }

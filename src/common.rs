@@ -1,34 +1,49 @@
 use std;
-use serde_json;
 use regex;
-use serde;
-use serde::{Serialize, Deserialize};
-use stdweb::unstable::{TryFrom};
-use record::Record;
-use simulation::Bet;
+use record::{Tier, Mode, Winner};
 use stdweb::{Value, Once};
-use stdweb::web::{set_timeout, INode};
+use stdweb::web::{set_timeout, INode, Element};
+use stdweb::web::html_element::InputElement;
+use stdweb::unstable::{TryInto};
 
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Information {
-    pub player_is_illuminati: bool,
-    pub left_bettors_illuminati: f64,
-    pub right_bettors_illuminati: f64,
-    pub left_bettors_normal: f64,
-    pub right_bettors_normal: f64,
-    pub bet: Bet,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaifuBetsOpen {
+    pub left: String,
+    pub right: String,
+    pub tier: Tier,
+    pub mode: Mode,
+    pub date: f64,
 }
 
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Message {
-    Information(Information),
-    RecordAdded(Record),
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaifuBetsClosedInfo {
+    pub name: String,
+    pub win_streak: f64,
+    pub bet_amount: f64,
 }
 
-js_serializable!(Message);
-js_deserializable!(Message);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaifuBetsClosed {
+    pub left: WaifuBetsClosedInfo,
+    pub right: WaifuBetsClosedInfo,
+    pub date: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaifuWinner {
+    pub name: String,
+    pub side: Winner,
+    pub date: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WaifuMessage {
+    BetsOpen(WaifuBetsOpen),
+    BetsClosed(WaifuBetsClosed),
+    Winner(WaifuWinner),
+    ModeSwitch { date: f64 },
+}
 
 
 // TODO make this more efficient
@@ -98,6 +113,27 @@ pub fn get_text_content<A: INode>(node: A) -> Option<String> {
 }
 
 
+pub fn to_input_element(node: Element) -> Option<InputElement> {
+    // TODO better error handling
+    node.try_into().ok()
+}
+
+pub fn get_value(node: &InputElement) -> Option<String> {
+    // TODO better error handling
+    node.value().try_into().ok()
+        .map(|x: String| remove_newlines(&x))
+        .map(|x| collapse_whitespace(&x))
+}
+
+
+// TODO move this into stdweb
+pub fn click(node: &InputElement) {
+    js! { @(no_return)
+        @{node}.click();
+    }
+}
+
+
 pub fn create_tab<A>(done: A)
     where A: FnOnce() + 'static {
 
@@ -124,6 +160,28 @@ impl<'a> Drop for Listener<'a> {
             @{&self.stop}();
             @{&self.callback}.drop();
         }
+    }
+}
+
+
+pub fn get_storage<A>(key: &str, f: A)
+    where A: FnOnce(Option<String>) + 'static {
+    js! { @(no_return)
+        // TODO error handling
+        chrome.storage.local.get(@{key}, function (items) {
+            @{Once(f)}(items[@{key}]);
+        });
+    }
+}
+
+
+// TODO verify that this sets things in the correct order if called multiple times
+pub fn set_storage(key: &str, value: &str) {
+    js! { @(no_return)
+        var obj = {};
+        obj[@{key}] = @{value};
+        // TODO error handling
+        chrome.storage.local.set(obj);
     }
 }
 

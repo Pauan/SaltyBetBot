@@ -1,0 +1,631 @@
+{
+  "fitness": 6.757872108009969e87,
+  "successes": 33021.0,
+  "failures": 31413.0,
+  "record_len": 91468.0,
+  "characters_len": 7972,
+  "max_character_len": 86,
+  "bet_strategy": "True",
+  "prediction_strategy": {
+    "Tier": {
+      "x": {
+        "Base": {
+          "Character": [
+            "Left",
+            "All",
+            "Earnings"
+          ]
+        }
+      },
+      "s": {
+        "Divide": [
+          {
+            "IfThenElse": [
+              {
+                "Lesser": [
+                  {
+                    "Character": [
+                      "Right",
+                      "All",
+                      "Favored"
+                    ]
+                  },
+                  {
+                    "Character": [
+                      "Left",
+                      "All",
+                      "Odds"
+                    ]
+                  }
+                ]
+              },
+              {
+                "Plus": [
+                  {
+                    "Max": [
+                      {
+                        "Percentage": 0.19595607148216069
+                      },
+                      {
+                        "Percentage": 0.7023460766950024
+                      }
+                    ]
+                  },
+                  {
+                    "Base": {
+                      "Character": [
+                        "Left",
+                        "All",
+                        "Winrate"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "Fixed": -0.000001200472291490774
+              }
+            ]
+          },
+          {
+            "Minus": [
+              {
+                "Average": [
+                  {
+                    "Abs": {
+                      "Multiply": [
+                        {
+                          "Base": {
+                            "Character": [
+                              "Left",
+                              "All",
+                              "Upsets"
+                            ]
+                          }
+                        },
+                        {
+                          "Fixed": 267896.41408951216
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "Fixed": -410297.8759880543
+                  }
+                ]
+              },
+              {
+                "Abs": {
+                  "Plus": [
+                    {
+                      "Fixed": -786859.6889044034
+                    },
+                    {
+                      "Multiply": [
+                        {
+                          "Base": {
+                            "Character": [
+                              "Left",
+                              "All",
+                              "BetAmount"
+                            ]
+                          }
+                        },
+                        {
+                          "Fixed": 352426.5091200507
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "a": {
+        "Divide": [
+          {
+            "Minus": [
+              {
+                "Multiply": [
+                  {
+                    "Percentage": 0.16832453254782824
+                  },
+                  {
+                    "Multiply": [
+                      {
+                        "Multiply": [
+                          {
+                            "Percentage": 0.4321325338376472
+                          },
+                          {
+                            "Base": "Sum"
+                          }
+                        ]
+                      },
+                      {
+                        "Max": [
+                          {
+                            "Base": {
+                              "Character": [
+                                "Left",
+                                "Specific",
+                                "Earnings"
+                              ]
+                            }
+                          },
+                          {
+                            "Base": {
+                              "Character": [
+                                "Right",
+                                "All",
+                                "BetAmount"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "Divide": [
+                  {
+                    "Fixed": -5.813382621729153e21
+                  },
+                  {
+                    "Multiply": [
+                      {
+                        "Fixed": -211908.67953557769
+                      },
+                      {
+                        "Bezier": [
+                          {
+                            "from": {
+                              "x": -694681.5374679107,
+                              "y": 667659.4760902412
+                            },
+                            "ctrl1": {
+                              "x": -36294.6823591227,
+                              "y": -412806.52791049858
+                            },
+                            "ctrl2": {
+                              "x": 164938.4540434069,
+                              "y": -116210.92582819992
+                            },
+                            "to": {
+                              "x": 104125.63211500259,
+                              "y": 696402.9257636211
+                            }
+                          },
+                          {
+                            "Base": {
+                              "Character": [
+                                "Left",
+                                "All",
+                                "Odds"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Min": [
+              {
+                "Fixed": 3.8299070476265e22
+              },
+              {
+                "Average": [
+                  {
+                    "Abs": {
+                      "Base": "Sum"
+                    }
+                  },
+                  {
+                    "Base": {
+                      "Character": [
+                        "Left",
+                        "All",
+                        "Earnings"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "b": {
+        "Minus": [
+          {
+            "Divide": [
+              {
+                "Average": [
+                  {
+                    "Base": {
+                      "Character": [
+                        "Left",
+                        "All",
+                        "MatchesLen"
+                      ]
+                    }
+                  },
+                  {
+                    "Multiply": [
+                      {
+                        "Average": [
+                          {
+                            "Base": "Sum"
+                          },
+                          {
+                            "Base": {
+                              "Character": [
+                                "Right",
+                                "Specific",
+                                "Odds"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "Base": {
+                          "Character": [
+                            "Left",
+                            "All",
+                            "Favored"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "Bezier": [
+                  {
+                    "from": {
+                      "x": -440233.90696612888,
+                      "y": -637781.5049788694
+                    },
+                    "ctrl1": {
+                      "x": 258825.0895854711,
+                      "y": 832875.8638675795
+                    },
+                    "ctrl2": {
+                      "x": -68826.79917777502,
+                      "y": 782336.1448990782
+                    },
+                    "to": {
+                      "x": 518193.19357426496,
+                      "y": -856032.6090341177
+                    }
+                  },
+                  {
+                    "Bezier": [
+                      {
+                        "from": {
+                          "x": 352973.7013758145,
+                          "y": -784343.6024992085
+                        },
+                        "ctrl1": {
+                          "x": 682335.7581625234,
+                          "y": -752972.1411953743
+                        },
+                        "ctrl2": {
+                          "x": -496486.2555522641,
+                          "y": -568599.8390616294
+                        },
+                        "to": {
+                          "x": -845737.7290152488,
+                          "y": 810799.043459532
+                        }
+                      },
+                      {
+                        "Plus": [
+                          {
+                            "Base": "Sum"
+                          },
+                          {
+                            "Percentage": 0.9377245903357799
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Plus": [
+              {
+                "Base": {
+                  "Character": [
+                    "Right",
+                    "Specific",
+                    "Duration"
+                  ]
+                }
+              },
+              {
+                "Plus": [
+                  {
+                    "Max": [
+                      {
+                        "Base": {
+                          "Character": [
+                            "Right",
+                            "All",
+                            "Earnings"
+                          ]
+                        }
+                      },
+                      {
+                        "Base": {
+                          "Character": [
+                            "Right",
+                            "Specific",
+                            "Duration"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "Fixed": -692388.9453011274
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "p": {
+        "Fixed": 750907.8101147992
+      }
+    }
+  },
+  "money_strategy": {
+    "Min": [
+      {
+        "Minus": [
+          {
+            "Max": [
+              {
+                "Multiply": [
+                  {
+                    "Divide": [
+                      {
+                        "Base": "Sum"
+                      },
+                      {
+                        "IfThenElse": [
+                          {
+                            "GreaterEqual": [
+                              {
+                                "Character": [
+                                  "Left",
+                                  "All",
+                                  "BetAmount"
+                                ]
+                              },
+                              {
+                                "Character": [
+                                  "Left",
+                                  "All",
+                                  "Winrate"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "Base": "Sum"
+                          },
+                          {
+                            "Base": {
+                              "Character": [
+                                "Left",
+                                "All",
+                                "Winrate"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Fixed": 0.532508946804858
+                  }
+                ]
+              },
+              {
+                "Plus": [
+                  {
+                    "Multiply": [
+                      {
+                        "Percentage": 0.0414460491421409
+                      },
+                      {
+                        "Base": "Sum"
+                      }
+                    ]
+                  },
+                  {
+                    "Base": "Sum"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Max": [
+              {
+                "Base": "Sum"
+              },
+              {
+                "Min": [
+                  {
+                    "Base": "Sum"
+                  },
+                  {
+                    "Percentage": 0.5057426950497094
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "Multiply": [
+          {
+            "Average": [
+              {
+                "IfThenElse": [
+                  {
+                    "Lesser": [
+                      {
+                        "Character": [
+                          "Left",
+                          "All",
+                          "Duration"
+                        ]
+                      },
+                      "Sum"
+                    ]
+                  },
+                  {
+                    "Tier": {
+                      "x": {
+                        "Fixed": -172718.8580098679
+                      },
+                      "s": {
+                        "Divide": [
+                          {
+                            "Base": "Sum"
+                          },
+                          {
+                            "Base": {
+                              "Character": [
+                                "Left",
+                                "Specific",
+                                "BetAmount"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "a": {
+                        "Fixed": 0.831625876879555
+                      },
+                      "b": {
+                        "Percentage": 0.8287304141580899
+                      },
+                      "p": {
+                        "Fixed": -1388719.2850521852
+                      }
+                    }
+                  },
+                  {
+                    "Bezier": [
+                      {
+                        "from": {
+                          "x": -514120.70496685968,
+                          "y": 349447.7986859039
+                        },
+                        "ctrl1": {
+                          "x": 416241.1214321129,
+                          "y": 772362.1733482637
+                        },
+                        "ctrl2": {
+                          "x": -347894.30878267236,
+                          "y": 892776.7776328623
+                        },
+                        "to": {
+                          "x": -697699.0109735497,
+                          "y": -23139.099566670375
+                        }
+                      },
+                      {
+                        "IfThenElse": [
+                          {
+                            "Greater": [
+                              "Sum",
+                              {
+                                "Character": [
+                                  "Right",
+                                  "Specific",
+                                  "MatchesLen"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "Percentage": 0.7423890094379099
+                          },
+                          {
+                            "Base": {
+                              "Character": [
+                                "Left",
+                                "Specific",
+                                "MatchesLen"
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "Multiply": [
+                  {
+                    "Multiply": [
+                      {
+                        "Fixed": -275581.5729857625
+                      },
+                      {
+                        "Min": [
+                          {
+                            "Base": {
+                              "Character": [
+                                "Left",
+                                "Specific",
+                                "Earnings"
+                              ]
+                            }
+                          },
+                          {
+                            "Fixed": -314394.25262951417
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Base": "Sum"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Base": "Sum"
+          }
+        ]
+      }
+    ]
+  }
+}

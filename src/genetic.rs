@@ -3,7 +3,7 @@ use rand;
 use rand::{ Rng, Closed01 };
 use record::{ Record, Mode, Tier };
 use rayon::prelude::*;
-use simulation::{ Simulation, Strategy, Bet, Lookup, Calculate };
+use simulation::{ Simulation, Strategy, Bet, Lookup, Calculate, Simulator };
 
 
 const MAX_BET_AMOUNT: f64 = 1000000.0;
@@ -108,15 +108,8 @@ pub fn choose<'a, A>(values: &'a [A]) -> Option<&'a A> {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Serialize, Deserialize)]
 pub struct Percentage(pub f64);
-
-impl Percentage {
-    fn unwrap(&self) -> f64 {
-        let Percentage(value) = *self;
-        value
-    }
-}
 
 impl Gene for Percentage {
     fn new() -> Self {
@@ -136,7 +129,7 @@ impl Gene for Percentage {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
@@ -165,7 +158,7 @@ impl Gene for Point {
 }
 
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CubicBezierSegment {
     pub from: Point,
     pub ctrl1: Point,
@@ -216,7 +209,7 @@ impl Gene for CubicBezierSegment {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum NumericCalculator<A, B> where A: Calculate<B> {
     Base(A),
     Fixed(B),
@@ -404,11 +397,8 @@ impl<A> NumericCalculator<A, f64>
             }
         }
     }
-}
 
-impl<A> Calculate<f64> for NumericCalculator<A, f64>
-    where A: Calculate<f64> + Gene + Clone + PartialEq {
-    fn optimize(self) -> Self {
+    fn _optimize(self, tier: &Option<Tier>) -> Self {
         if let NumericCalculator::Percentage(_) = self {
             self
 
@@ -420,16 +410,16 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                     NumericCalculator::Fixed(_) => self,
                     NumericCalculator::Percentage(_) => self,
 
-                    NumericCalculator::Bezier(a, b) => NumericCalculator::Bezier(a, Box::new(b.optimize())),
+                    NumericCalculator::Bezier(a, b) => NumericCalculator::Bezier(a, Box::new(b._optimize(tier))),
 
                     // TODO Abs can probably be optimized further
-                    NumericCalculator::Abs(a) => NumericCalculator::Abs(Box::new(a.optimize())),
+                    NumericCalculator::Abs(a) => NumericCalculator::Abs(Box::new(a._optimize(tier))),
 
-                    NumericCalculator::Average(a, b) => NumericCalculator::Average(Box::new(a.optimize()), Box::new(b.optimize())),
+                    NumericCalculator::Average(a, b) => NumericCalculator::Average(Box::new(a._optimize(tier)), Box::new(b._optimize(tier))),
 
                     NumericCalculator::Min(a, b) => {
-                        let a = a.optimize();
-                        let b = b.optimize();
+                        let a = a._optimize(tier);
+                        let b = b._optimize(tier);
 
                         if a == b {
                             a
@@ -440,8 +430,8 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                     },
 
                     NumericCalculator::Max(a, b) => {
-                        let a = a.optimize();
-                        let b = b.optimize();
+                        let a = a._optimize(tier);
+                        let b = b._optimize(tier);
 
                         if a == b {
                             a
@@ -452,11 +442,11 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                     },
 
                     // TODO maybe optimize into a * 2.0 when a == b
-                    NumericCalculator::Plus(a, b) => NumericCalculator::Plus(Box::new(a.optimize()), Box::new(b.optimize())),
+                    NumericCalculator::Plus(a, b) => NumericCalculator::Plus(Box::new(a._optimize(tier)), Box::new(b._optimize(tier))),
 
                     NumericCalculator::Minus(a, b) => {
-                        let a = a.optimize();
-                        let b = b.optimize();
+                        let a = a._optimize(tier);
+                        let b = b._optimize(tier);
 
                         // TODO move this into precalculate
                         if a == b {
@@ -468,20 +458,20 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                         }
                     },
 
-                    NumericCalculator::Multiply(a, b) => NumericCalculator::Multiply(Box::new(a.optimize()), Box::new(b.optimize())),
-                    NumericCalculator::Divide(a, b) => NumericCalculator::Divide(Box::new(a.optimize()), Box::new(b.optimize())),
+                    NumericCalculator::Multiply(a, b) => NumericCalculator::Multiply(Box::new(a._optimize(tier)), Box::new(b._optimize(tier))),
+                    NumericCalculator::Divide(a, b) => NumericCalculator::Divide(Box::new(a._optimize(tier)), Box::new(b._optimize(tier))),
 
                     NumericCalculator::IfThenElse(a, b, c) => match a.precalculate() {
                         Some(a) => if a {
-                            b.optimize()
+                            b._optimize(tier)
 
                         } else {
-                            c.optimize()
+                            c._optimize(tier)
                         },
 
                         None => {
-                            let b = b.optimize();
-                            let c = c.optimize();
+                            let b = b._optimize(tier);
+                            let c = c._optimize(tier);
 
                             if b == c {
                                 b
@@ -492,29 +482,44 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                         },
                     },
 
-                    NumericCalculator::Tier { x, s, a, b, p } => {
-                        let x = x.optimize();
-                        let s = s.optimize();
-                        let a = a.optimize();
-                        let b = b.optimize();
-                        let p = p.optimize();
+                    NumericCalculator::Tier { x, s, a, b, p } => match *tier {
+                        Some(Tier::X) => x._optimize(tier),
+                        Some(Tier::S) => s._optimize(tier),
+                        Some(Tier::A) => a._optimize(tier),
+                        Some(Tier::B) => b._optimize(tier),
+                        Some(Tier::P) => p._optimize(tier),
 
-                        if x == s && x == a && x == b && x == p {
-                            x
+                        None => {
+                            let x = x._optimize(&Some(Tier::X));
+                            let s = s._optimize(&Some(Tier::S));
+                            let a = a._optimize(&Some(Tier::A));
+                            let b = b._optimize(&Some(Tier::B));
+                            let p = p._optimize(&Some(Tier::P));
 
-                        } else {
-                            NumericCalculator::Tier {
-                                x: Box::new(x),
-                                s: Box::new(s),
-                                a: Box::new(a),
-                                b: Box::new(b),
-                                p: Box::new(p),
+                            if x == s && x == a && x == b && x == p {
+                                x
+
+                            } else {
+                                NumericCalculator::Tier {
+                                    x: Box::new(x),
+                                    s: Box::new(s),
+                                    a: Box::new(a),
+                                    b: Box::new(b),
+                                    p: Box::new(p),
+                                }
                             }
                         }
                     },
                 },
             }
         }
+    }
+}
+
+impl<A> Calculate<f64> for NumericCalculator<A, f64>
+    where A: Calculate<f64> + Gene + Clone + PartialEq {
+    fn optimize(self) -> Self {
+        self._optimize(&None)
     }
 
     fn precalculate(&self) -> Option<f64> {
@@ -570,9 +575,7 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
         }
     }
 
-    fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, tier: &'c Tier, left: &'c str, right: &'c str) -> f64
-        where C: Strategy,
-              D: Strategy {
+    fn calculate<B: Simulator>(&self, simulation: &B, tier: &Tier, left: &str, right: &str) -> f64 {
         match *self {
             NumericCalculator::Base(ref a) => a.calculate(simulation, tier, left, right),
 
@@ -620,7 +623,7 @@ impl<A> Gene for NumericCalculator<A, f64>
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BooleanCalculator<A> {
     True,
     False,
@@ -744,12 +747,51 @@ impl<A> Calculate<bool> for BooleanCalculator<A>
             None => match self {
                 BooleanCalculator::True => self,
                 BooleanCalculator::False => self,
+
                 BooleanCalculator::Greater(a, b) => BooleanCalculator::Greater(a.optimize(), b.optimize()),
                 BooleanCalculator::GreaterEqual(a, b) => BooleanCalculator::GreaterEqual(a.optimize(), b.optimize()),
                 BooleanCalculator::Lesser(a, b) => BooleanCalculator::Lesser(a.optimize(), b.optimize()),
                 BooleanCalculator::LesserEqual(a, b) => BooleanCalculator::LesserEqual(a.optimize(), b.optimize()),
-                BooleanCalculator::And(a, b) => BooleanCalculator::And(Box::new(a.optimize()), Box::new(b.optimize())),
-                BooleanCalculator::Or(a, b) => BooleanCalculator::Or(Box::new(a.optimize()), Box::new(b.optimize())),
+
+                BooleanCalculator::And(a, b) => match a.precalculate() {
+                    Some(a) => if a {
+                        b.optimize()
+
+                    } else {
+                        BooleanCalculator::False
+                    },
+
+                    None => match b.precalculate() {
+                        Some(b) => if b {
+                            a.optimize()
+
+                        } else {
+                            BooleanCalculator::False
+                        },
+
+                        None => BooleanCalculator::And(Box::new(a.optimize()), Box::new(b.optimize())),
+                    },
+                },
+
+                BooleanCalculator::Or(a, b) => match a.precalculate() {
+                    Some(a) => if a {
+                        BooleanCalculator::True
+
+                    } else {
+                        b.optimize()
+                    },
+
+                    None => match b.precalculate() {
+                        Some(b) => if b {
+                            BooleanCalculator::True
+
+                        } else {
+                            a.optimize()
+                        },
+
+                        None => BooleanCalculator::Or(Box::new(a.optimize()), Box::new(b.optimize())),
+                    },
+                }
             },
         }
     }
@@ -817,9 +859,7 @@ impl<A> Calculate<bool> for BooleanCalculator<A>
         }
     }
 
-    fn calculate<'a, 'b, 'c, C, D>(&self, simulation: &Simulation<'a, 'b, 'c, C, D>, tier: &'c Tier, left: &'c str, right: &'c str) -> bool
-        where C: Strategy,
-              D: Strategy {
+    fn calculate<B: Simulator>(&self, simulation: &B, tier: &Tier, left: &str, right: &str) -> bool {
         match *self {
             BooleanCalculator::True => true,
             BooleanCalculator::False => false,
@@ -851,32 +891,33 @@ pub struct SimulationSettings<'a> {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BetStrategy {
     pub fitness: f64,
-    successes: f64,
-    failures: f64,
-    record_len: f64,
-    characters_len: usize,
-    max_character_len: usize,
+    pub successes: f64,
+    pub failures: f64,
+    pub record_len: f64,
+    pub characters_len: usize,
+    pub max_character_len: usize,
 
     // Genes
-    bet_strategy: BooleanCalculator<NumericCalculator<Lookup, f64>>,
-    prediction_strategy: NumericCalculator<Lookup, f64>,
-    money_strategy: NumericCalculator<Lookup, f64>,
+    pub bet_strategy: BooleanCalculator<NumericCalculator<Lookup, f64>>,
+    pub prediction_strategy: NumericCalculator<Lookup, f64>,
+    pub money_strategy: NumericCalculator<Lookup, f64>,
 }
 
 impl<'a> BetStrategy {
+    // TODO figure out a way to avoid the clones
     fn calculate_fitness(mut self, settings: &SimulationSettings<'a>) -> Self {
         let (sum, successes, failures, record_len, characters_len, max_character_len) = {
             let mut simulation = Simulation::new();
 
             match settings.mode {
-                Mode::Matchmaking => simulation.matchmaking_strategy = Some(&self),
-                Mode::Tournament => simulation.tournament_strategy = Some(&self),
+                Mode::Matchmaking => simulation.matchmaking_strategy = Some(self.clone()),
+                Mode::Tournament => simulation.tournament_strategy = Some(self.clone()),
             }
 
-            simulation.simulate(settings.records);
+            simulation.simulate(settings.records.clone());
 
             (
                 simulation.sum,
@@ -930,7 +971,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
 }
 
 impl Strategy for BetStrategy {
-    fn bet<A, B>(&self, simulation: &Simulation<A, B>, tier: &Tier, left: &str, right: &str) -> Bet where A: Strategy, B: Strategy {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
         if self.bet_strategy.calculate(simulation, tier, left, right) {
             let p_left = self.prediction_strategy.calculate(simulation, tier, left, right);
             let p_right = self.prediction_strategy.calculate(simulation, tier, right, left);
