@@ -1,6 +1,9 @@
+#[macro_use]
 extern crate salty_bet_bot;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate stdweb;
 
 /*use std::fs::File;
 use std::path::Path;
@@ -38,7 +41,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
 
     let mut population: genetic::Population<genetic::BetStrategy, genetic::SimulationSettings> = genetic::Population::new(1000, &settings);
 
-    println!("Initializing...");
+    log!("Initializing...");
 
     population.init();
 
@@ -50,7 +53,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
         write!(buffer, "{:#?}\n", population.populace)?;
         write!(buffer, "<<<<<<<<<<<<<<<<<<<<<<<<<<\n")?;
         buffer.flush()?;
-        println!("Initialized: {}", best.fitness);
+        log!("Initialized: {}", best.fitness);
     }
 
     for i in 0..1000 {
@@ -59,7 +62,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
         let best = population.best();
         write!(buffer, "{:#?}\n", best)?;
         buffer.flush()?;
-        println!("Generation {}: {}", i + 1, best.fitness);
+        log!("Generation {}: {}", i + 1, best.fitness);
     }
 
     write!(buffer, ">>>>>>>>>>>>>>>>>>>>>>>>>>\n")?;
@@ -1496,14 +1499,14 @@ fn run_simulation() -> Result<(), std::io::Error> {
     simulation.matchmaking_strategy = Some(matchmaking_strategy2);
     simulation.tournament_strategy = Some(tournament_strategy2);
 
-    println!("Running...");
+    log!("Running...");
 
     simulation.simulate(records);
 
     //write_strategy("strategies/matchmaking_strategy", &matchmaking_strategy)?;
     //write_strategy("strategies/tournament_strategy", &tournament_strategy)?;
 
-    println!("fitness: {:#?},\nsuccesses: {:#?},\nfailures: {:#?},\nrecord_len: {:#?},\ncharacters_len: {:#?},\nmax_character_len: {:#?},",
+    log!("fitness: {:#?},\nsuccesses: {:#?},\nfailures: {:#?},\nrecord_len: {:#?},\ncharacters_len: {:#?},\nmax_character_len: {:#?},",
         simulation.sum,
         simulation.successes,
         simulation.failures,
@@ -1534,30 +1537,26 @@ fn main() {
         to: Point::new(0.65694433,0.018677153)
     };
 
-    println!("{:#?}", bezier.sample_y(0.0));
-    println!("{:#?}", bezier.sample_y(0.1));
-    println!("{:#?}", bezier.sample_y(0.2));
-    println!("{:#?}", bezier.sample_y(0.3));
-    println!("{:#?}", bezier.sample_y(0.4));
-    println!("{:#?}", bezier.sample_y(0.5));
-    println!("{:#?}", bezier.sample_y(0.6));
-    println!("{:#?}", bezier.sample_y(0.7));
-    println!("{:#?}", bezier.sample_y(0.8));
-    println!("{:#?}", bezier.sample_y(0.9));
-    println!("{:#?}", bezier.sample_y(1.0));*/
+    log!("{:#?}", bezier.sample_y(0.0));
+    log!("{:#?}", bezier.sample_y(0.1));
+    log!("{:#?}", bezier.sample_y(0.2));
+    log!("{:#?}", bezier.sample_y(0.3));
+    log!("{:#?}", bezier.sample_y(0.4));
+    log!("{:#?}", bezier.sample_y(0.5));
+    log!("{:#?}", bezier.sample_y(0.6));
+    log!("{:#?}", bezier.sample_y(0.7));
+    log!("{:#?}", bezier.sample_y(0.8));
+    log!("{:#?}", bezier.sample_y(0.9));
+    log!("{:#?}", bezier.sample_y(1.0));*/
 
     run_simulation().unwrap();
     //write_file("tmp").unwrap();
 
-    /*js! {
-        console.log(@{format!("{:#?}", records)});
-    };*/
+    /*log!("{:#?}", records);*/
 
-    /*js! {
-        console.log(@{format!("{:#?}", (2, "hi"))});
-    }*/
+    /*log!("{:#?}", (2, "hi"));*/
 
-    //println!("{:#?}", "hi!");
+    //log!("{:#?}", "hi!");
 
     //stdweb::event_loop();
 }

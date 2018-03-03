@@ -65,9 +65,7 @@ mod tests {
 			*counts.entry(OrdWrap(f())).or_insert(0) += 1;
 		}
 
-		js! {
-			console.log(@{format!("{}:\n{:?}", name, counts)});
-		}
+		log!("{}:\n{:?}", name, counts);
 	}
 
 

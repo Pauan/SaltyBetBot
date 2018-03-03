@@ -154,7 +154,7 @@ fn parse_duration(input: u32) -> f64 {
 
 
 /*fn parse_date(input: &str) -> Result<chrono::DateTime<chrono::Utc>, Box<std::error::Error>> {
-    println!("{:?}", input);
+    log!("{:?}", input);
     Ok(chrono::Utc.datetime_from_str(input, "%d-%m-%Y")?)
 }*/
 

@@ -22,9 +22,11 @@
 
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
 extern crate salty_bet_bot;
 extern crate regex;
 extern crate serde_json;
+#[macro_use]
 extern crate stdweb;
 
 use std::iter::Iterator;
@@ -174,7 +176,7 @@ fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
     }
 
     if !UNKNOWN_REGEX.is_match(input) {
-        println!("Unknown message: {:#?}", input);
+        log!("Unknown message: {:#?}", input);
     }
 
     None
@@ -250,7 +252,7 @@ pub fn observe_changes() {
 
         std::mem::forget(observer);
 
-        println!("Observer initialized");
+        log!("Observer initialized");
     });
 }
 

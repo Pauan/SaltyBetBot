@@ -1,8 +1,7 @@
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate stdweb;
 extern crate serde_json;
+#[macro_use]
 extern crate salty_bet_bot;
 
 use std::rc::Rc;
@@ -10,7 +9,7 @@ use std::cell::RefCell;
 use salty_bet_bot::common::{parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, to_input_element, get_value, click, get_storage, set_storage};
 use salty_bet_bot::genetic::{BetStrategy};
 use salty_bet_bot::record::{Record, Character, Winner, Mode};
-use salty_bet_bot::simulation::{Bet, Strategy, Simulation};
+use salty_bet_bot::simulation::{Bet, Simulation};
 use stdweb::web::{document, set_timeout};
 
 
@@ -96,7 +95,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                     },
                 };
 
-                println!("Betting: {:#?}", bet);
+                log!("Betting: {:#?}", bet);
 
                 match bet {
                     Bet::Left(amount) => {
@@ -111,7 +110,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                 }
 
             } else {
-                println!("Invalid state: {:#?} {:#?} {:#?}", open, left_name, right_name);
+                log!("Invalid state: {:#?} {:#?} {:#?}", open, left_name, right_name);
             }
         }}}}}}}
     }
@@ -213,7 +212,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                                 continue;
 
                             } else {
-                                println!("Invalid messages: {:#?} {:#?}", open, closed);
+                                log!("Invalid messages: {:#?} {:#?}", open, closed);
                             }
                         },
                         None => {},
@@ -234,11 +233,11 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                                     continue;
 
                                 } else {
-                                    println!("Invalid messages: {:#?} {:#?} {:#?}", open, mode_switch, message);
+                                    log!("Invalid messages: {:#?} {:#?} {:#?}", open, mode_switch, message);
                                 }
                             },
                             None => {
-                                println!("Invalid messages: {:#?} {:#?}", open, message);
+                                log!("Invalid messages: {:#?} {:#?}", open, message);
                             },
                         },
                         None => {},
@@ -322,17 +321,17 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                                             })
 
                                         } else {
-                                            println!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                            log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
                                             None
                                         }
                                     },
                                     None => {
-                                        println!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
+                                        log!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
                                         None
                                     },
                                 },
                                 None => {
-                                    println!("Invalid messages: {:#?} {:#?}", open, winner);
+                                    log!("Invalid messages: {:#?} {:#?}", open, winner);
                                     None
                                 },
                             },
@@ -343,7 +342,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                     let mut state = state.borrow_mut();
 
                     if let Some(record) = record {
-                        println!("Record saved {:#?}", record);
+                        log!("Record saved {:#?}", record);
 
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(record.clone());
@@ -385,7 +384,7 @@ fn main() {
             None => vec![],
         };
 
-        println!("Initialized {} records", matches.len());
+        log!("Initialized {} records", matches.len());
 
         let mut simulation = Simulation::new();
 
@@ -410,7 +409,7 @@ fn main() {
     });
 
     create_tab(|| {
-        println!("Tab created");
+        log!("Tab created");
     });
 
     stdweb::event_loop();
