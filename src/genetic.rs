@@ -1,6 +1,5 @@
 use std;
 use rand;
-use rand::{ Rng, Closed01 };
 use record::{ Record, Mode, Tier };
 use rayon::prelude::*;
 use simulation::{ Simulation, Strategy, Bet, Lookup, Calculate, Simulator };
@@ -27,7 +26,7 @@ pub trait Gene {
 
 impl Gene for bool {
     fn new() -> Self {
-        rand::weak_rng().gen::<bool>()
+        rand::bool()
     }
 
     fn choose(&self, other: &Self) -> Self {
@@ -62,7 +61,7 @@ impl Gene for f64 {
 }
 
 
-impl Gene for f32 {
+/*impl Gene for f32 {
     // TODO verify that this is correct
     fn new() -> Self {
         let Closed01(val) = rand::weak_rng().gen::<Closed01<f32>>();
@@ -78,7 +77,7 @@ impl Gene for f32 {
             choose2(self, other)
         }
     }
-}
+}*/
 
 
 pub fn choose2<A>(left: &A, right: &A) -> A where A: Clone {
@@ -92,7 +91,7 @@ pub fn choose2<A>(left: &A, right: &A) -> A where A: Clone {
 
 
 pub fn gen_rand_index(index: u32) -> u32 {
-    rand::weak_rng().gen_range(0, index)
+    rand::between_exclusive(0, index)
 }
 
 
@@ -104,7 +103,11 @@ pub fn rand_is_percent(Percentage(input): Percentage) -> bool {
 
 
 pub fn choose<'a, A>(values: &'a [A]) -> Option<&'a A> {
-    rand::weak_rng().choose(values)
+    if values.is_empty() {
+        None
+    } else {
+        Some(&values[rand::between_exclusive(0, values.len() as u32) as usize])
+    }
 }
 
 
@@ -113,8 +116,7 @@ pub struct Percentage(pub f64);
 
 impl Gene for Percentage {
     fn new() -> Self {
-        let Closed01(val) = rand::weak_rng().gen::<Closed01<f64>>();
-        Percentage(val)
+        Percentage(rand::percentage())
     }
 
     fn choose(&self, other: &Self) -> Self {

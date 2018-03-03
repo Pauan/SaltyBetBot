@@ -8,14 +8,9 @@ csv = "1.0.0-beta.5"
 regex = "0.2.5"
 #chrono = "0.4.0"
 lazy_static = "1.0.0"
-rand = "0.4.2"
 #nn = "0.1.6"
 stdweb = { git = "https://github.com/koute/stdweb", rev = "ea1cd903794d0941a16585e721ded736715557ea" }
 rayon = "0.9.0"
 serde = "1.0.27"
 serde_json = "1.0.9"
 serde_derive = "1.0.27"
-
-[features]
-twitch_chat = []
-saltybet = []

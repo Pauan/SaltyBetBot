@@ -27,7 +27,7 @@ use salty_bet_bot::{genetic, record, simulation};
 
 fn write_file(filename: &str) -> Result<(), std::io::Error> {
     let records = {
-        let data = include_str!("../../../../Salty Bet/saltyRecordsM--2018-1-16-14.29.txt");
+        let data = include_str!("../records/saltyRecordsM--2018-1-16-14.29.txt");
         record::parse_csv(&data).unwrap()
     };
 
@@ -1487,7 +1487,7 @@ fn run_simulation() -> Result<(), std::io::Error> {
 
 
     let records = {
-        let data = include_str!("../../../../Salty Bet/saltyRecordsM--2018-1-16-14.29.txt");
+        let data = include_str!("../records/saltyRecordsM--2018-1-16-14.29.txt");
         record::parse_csv(&data).unwrap()
     };
 
