@@ -28,7 +28,7 @@ use salty_bet_bot::{genetic, record, simulation};
 }*/
 
 
-fn write_file(filename: &str) -> Result<(), std::io::Error> {
+/*fn write_file(filename: &str) -> Result<(), std::io::Error> {
     let records = {
         let data = include_str!("../records/saltyRecordsM--2018-1-16-14.29.txt");
         record::parse_csv(&data).unwrap()
@@ -70,7 +70,7 @@ fn write_file(filename: &str) -> Result<(), std::io::Error> {
     buffer.flush()?;
 
     Ok(())
-}
+}*/
 
 
 fn read_strategy(filename: &str) -> Result<genetic::BetStrategy, std::io::Error> {
@@ -84,7 +84,7 @@ fn write_strategy<A: simulation::Strategy + serde::Serialize>(filename: &str, st
 }
 
 
-fn run_simulation() -> Result<(), std::io::Error> {
+/*fn run_simulation() -> Result<(), std::io::Error> {
     use genetic::{ BetStrategy, CubicBezierSegment, Point };
     use genetic::BooleanCalculator::*;
     use genetic::NumericCalculator::*;
@@ -1517,7 +1517,7 @@ fn run_simulation() -> Result<(), std::io::Error> {
 
 
     Ok(())
-}
+}*/
 
 
 #[cfg(any(target_arch = "wasm32", target_arch = "asmjs"))]

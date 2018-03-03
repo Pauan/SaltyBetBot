@@ -1,11 +1,11 @@
-use std;
-use regex;
-use csv;
+//use std;
+//use regex;
+//use csv;
 use genetic;
 use simulation::Bet;
 
 
-fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {
+/*fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {
     match input {
         Some(a) => Ok(a),
         None => Err(From::from(format!("invalid odds {}", message))),
@@ -30,7 +30,7 @@ fn parse_odds(input: &str) -> Result<(f64, f64), Box<std::error::Error>> {
     } else {
         Err(From::from(format!("invalid odds {}", input)))
     }
-}
+}*/
 
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -47,13 +47,13 @@ impl Winner {
         }
     }
 
-    fn parse(input: &str) -> Result<Winner, Box<std::error::Error>> {
+    /*fn parse(input: &str) -> Result<Winner, Box<std::error::Error>> {
         match input {
             "0" => Ok(Winner::Left),
             "1" => Ok(Winner::Right),
             _ => Err(From::from(format!("invalid winner {}", input))),
         }
-    }
+    }*/
 }
 
 
@@ -66,7 +66,7 @@ pub enum Tier {
     P,
 }
 
-impl Tier {
+/*impl Tier {
     fn parse(input: &str) -> Result<Tier, Box<std::error::Error>> {
         match input {
             "X" => Ok(Tier::X),
@@ -77,7 +77,7 @@ impl Tier {
             _ => Err(From::from(format!("invalid tier {}", input))),
         }
     }
-}
+}*/
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,7 +86,7 @@ pub enum Mode {
     Tournament,
 }
 
-impl Mode {
+/*impl Mode {
     fn parse(input: &str) -> Result<Mode, Box<std::error::Error>> {
         match input {
             "m" => Ok(Mode::Matchmaking),
@@ -94,7 +94,7 @@ impl Mode {
             _ => Err(From::from(format!("invalid mode {}", input))),
         }
     }
-}
+}*/
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,9 +148,9 @@ impl Record {
 }
 
 
-fn parse_duration(input: u32) -> f64 {
+/*fn parse_duration(input: u32) -> f64 {
     (input * 1000) as f64
-}
+}*/
 
 
 /*fn parse_date(input: &str) -> Result<chrono::DateTime<chrono::Utc>, Box<std::error::Error>> {
@@ -159,7 +159,7 @@ fn parse_duration(input: u32) -> f64 {
 }*/
 
 
-pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
+/*pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
     let mut reader = csv::ReaderBuilder::new()
           .has_headers(false)
           .quoting(false)
@@ -213,3 +213,4 @@ pub fn parse_csv(data: &str) -> Result<Vec<Record>, Box<std::error::Error>> {
 
     Ok(output)
 }
+*/

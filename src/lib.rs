@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate lazy_static;
-extern crate csv;
+//extern crate csv;
 extern crate regex;
-extern crate rayon;
+//extern crate rayon;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;

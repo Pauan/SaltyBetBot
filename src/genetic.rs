@@ -1,7 +1,7 @@
 use std;
 use rand;
 use record::{ Record, Mode, Tier };
-use rayon::prelude::*;
+//use rayon::prelude::*;
 use simulation::{ Simulation, Strategy, Bet, Lookup, Calculate, Simulator };
 
 
@@ -1082,12 +1082,12 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
                 }
             };
 
-            if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
+            //if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
                 (self.populace.len()..self.amount).map(closure).collect()
 
-            } else {
+            /*} else {
                 (self.populace.len()..self.amount).into_par_iter().map(closure).collect()
-            }
+            }*/
         };
 
         for creature in new_creatures {
@@ -1101,12 +1101,12 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
 
     pub fn init(&mut self) {
         // TODO code duplication
-        let new_creatures: Vec<A> = if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
+        let new_creatures: Vec<A> = //if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
             (0..self.amount).map(|_| A::new(self.data)).collect()
 
-        } else {
+        /*} else {
             (0..self.amount).into_par_iter().map(|_|A::new(self.data)).collect()
-        };
+        }*/;
 
         for creature in new_creatures {
             self.insert_creature(creature);
