@@ -51,7 +51,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 
         let current_balance = query("#balance")
             .and_then(get_text_content)
-            .and_then(|x| parse_f64(x.as_str()));
+            .and_then(|x| parse_f64(&x));
 
         let wager_box = query("#wager").and_then(to_input_element);
 
@@ -136,11 +136,11 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
 
         let left_bet = query("#lastbet > span:first-of-type.redtext")
             .and_then(get_text_content)
-            .and_then(|x| parse_money(x.as_str()));
+            .and_then(|x| parse_money(&x));
 
         let right_bet = query("#lastbet > span:first-of-type.bluetext")
             .and_then(get_text_content)
-            .and_then(|x| parse_money(x.as_str()));
+            .and_then(|x| parse_money(&x));
 
         state.borrow_mut().information = Some(Information {
             // TODO handle the situation where the player is Illuminati

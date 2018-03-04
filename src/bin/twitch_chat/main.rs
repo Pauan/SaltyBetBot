@@ -24,7 +24,6 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate regex;
 extern crate serde_json;
 #[macro_use]
 extern crate stdweb;
@@ -32,14 +31,9 @@ extern crate stdweb;
 use std::iter::Iterator;
 use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all};
 use salty_bet_bot::record::{Tier, Mode, Winner};
+use salty_bet_bot::regexp;
 use stdweb::web::{IParentNode, Element, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
 use stdweb::unstable::{TryInto};
-
-
-// TODO can this performance be improved ?
-fn to_string(x: regex::Match) -> String {
-    x.as_str().to_string()
-}
 
 
 fn parse_tier(input: &str) -> Option<Tier> {
@@ -63,25 +57,25 @@ fn parse_mode(input: &str) -> Option<Mode> {
 
 fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
-        static ref BET_OPEN_REGEX: regex::Regex = regex::Regex::new(
+        static ref BET_OPEN_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"^Bets are OPEN for (.+) vs (.+?) *! \(([XSABP]) Tier\) ((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1))$"
-        ).unwrap();
+        );
     }
 
-    BET_OPEN_REGEX.captures(input).and_then(|capture|
-        capture.get(1).map(to_string).and_then(|left|
-        capture.get(2).map(to_string).and_then(|right|
-        capture.get(3).and_then(|x| parse_tier(x.as_str())).and_then(|tier|
-        capture.get(4).and_then(|x| parse_mode(x.as_str())).map(|mode|
+    BET_OPEN_REGEX.first_match(input).and_then(|mut captures|
+        captures[1].take().and_then(|left|
+        captures[2].take().and_then(|right|
+        captures[3].as_ref().and_then(|x| parse_tier(x)).and_then(|tier|
+        captures[4].as_ref().and_then(|x| parse_mode(x)).map(|mode|
             WaifuMessage::BetsOpen(WaifuBetsOpen { left, right, tier, mode, date }))))))
 }
 
 
 fn parse_bets_closed(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
-        static ref BETS_CLOSED_REGEX: regex::Regex = regex::Regex::new(
+        static ref BETS_CLOSED_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"^Bets are locked\. (.+) \((\-?[0-9,]+)\) \- \$([0-9,]+), (.+) \((\-?[0-9,]+)\) \- \$([0-9,]+)$"
-        ).unwrap();
+        );
     }
 
     /*let capture = BETS_CLOSED_REGEX.captures(input)?;
@@ -106,13 +100,13 @@ fn parse_bets_closed(input: &str, date: f64) -> Option<WaifuMessage> {
         date: date
     }))*/
 
-    BETS_CLOSED_REGEX.captures(input).and_then(|capture|
-        capture.get(1).map(to_string).and_then(|left_name|
-        capture.get(2).and_then(|x| parse_f64(x.as_str())).and_then(|left_win_streak|
-        capture.get(3).and_then(|x| parse_f64(x.as_str())).and_then(|left_bet_amount|
-        capture.get(4).map(to_string).and_then(|right_name|
-        capture.get(5).and_then(|x| parse_f64(x.as_str())).and_then(|right_win_streak|
-        capture.get(6).and_then(|x| parse_f64(x.as_str())).map(|right_bet_amount|
+    BETS_CLOSED_REGEX.first_match(input).and_then(|mut captures|
+        captures[1].take().and_then(|left_name|
+        captures[2].as_ref().and_then(|x| parse_f64(x)).and_then(|left_win_streak|
+        captures[3].as_ref().and_then(|x| parse_f64(x)).and_then(|left_bet_amount|
+        captures[4].take().and_then(|right_name|
+        captures[5].as_ref().and_then(|x| parse_f64(x)).and_then(|right_win_streak|
+        captures[6].as_ref().and_then(|x| parse_f64(x)).map(|right_bet_amount|
             WaifuMessage::BetsClosed(WaifuBetsClosed {
                 left: WaifuBetsClosedInfo {
                     name: left_name,
@@ -139,23 +133,23 @@ fn parse_side(input: &str) -> Option<Winner> {
 
 fn parse_winner(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
-        static ref WINNER_REGEX: regex::Regex = regex::Regex::new(
+        static ref WINNER_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"^(.+) wins! Payouts to Team (Red|Blue)\. "
-        ).unwrap();
+        );
     }
 
-    WINNER_REGEX.captures(input).and_then(|capture|
-        capture.get(1).map(to_string).and_then(|name|
-        capture.get(2).and_then(|x| parse_side(x.as_str())).map(|side|
+    WINNER_REGEX.first_match(input).and_then(|mut captures|
+        captures[1].take().and_then(|name|
+        captures[2].as_ref().and_then(|x| parse_side(x)).map(|side|
             WaifuMessage::Winner(WaifuWinner { name, side, date }))))
 }
 
 
 fn parse_mode_switch(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
-        static ref MODE_SWITCH_REGEX: regex::Regex = regex::Regex::new(
+        static ref MODE_SWITCH_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"^(?:Tournament|Exhibitions|Matchmaking) will start shortly\. Thanks for watching! wtfSALTY$"
-        ).unwrap();
+        );
     }
 
     if MODE_SWITCH_REGEX.is_match(input) {
@@ -170,9 +164,9 @@ fn parse_mode_switch(input: &str, date: f64) -> Option<WaifuMessage> {
 fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
     lazy_static! {
         // wtfSALTY Bridget has been demoted!
-        static ref UNKNOWN_REGEX: regex::Regex = regex::Regex::new(
+        static ref UNKNOWN_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"(?:^wtfSalt ♫ )|(?:^[XSABP](?: / [XSABP])? Tier$)|(?:^Current stage: )|(?:^(?:.+) by (?:.+?) *, (?:.+) by (?:.+)$)|(?:^Current odds: [0-9\.]+:[0-9\.]+$)|(?:^The current game mode is: (?:matchmaking|tournament|exhibitions)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket|exhibition matches left)!$)|(?:^Download WAIFU Wars at www\.waifuwars\.com !$)|(?:^Current pot total: \$[0-9]+$)|(?:^The current tournament bracket can be found at: http://www\.saltybet\.com/shaker\?bracket=1$)|(?:^wtfVeku Note: (?:.+) \(from (?:.+?) *\)$)|(?:^wtfSALTY (?:.+) is fighting to stay in [SAB] Tier!$)|(?:^wtfSALTY New Waifu Wars bounties available! Winner: (?:.+) \(wave [0-9,]+\)! Play for free at http://www\.waifuwars\.com$)|(?:^wtfSalt Congrats tournament winner! (?:.+) \(\+\$[0-9,]+\)$)|(?:^The current game mode is: tournament\. FINAL ROUND! Stay tuned for exhibitions after the tournament!$)|(?:^Bets are locked\. (?:.+?) *\- \$[0-9,]+, (?:.+?) *\- \$[0-9,]+$)|(?:^(?:.+) vs (?:.+) was requested by (?:.+?) *\. OMGScoots$)|(?:^Palettes of previous match: [0-9]+(?: / [0-9]+)?, [0-9]+(?: / [0-9]+)?$)|(?:^Bets are OPEN for (?:.+) vs (?:.+?) *!(?: \([XSABP](?: / [XSABP])? Tier\))? \(Requested by (?:.+?) *\) \(exhibitions\) www\.saltybet\.com$)|(?:^The current game mode is: matchmaking\. Matchmaking mode will be activated after the next exhibition match!$)|(?:^The current game mode is: tournament\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) has been demoted!$)"
-        ).unwrap();
+        );
     }
 
     if !UNKNOWN_REGEX.is_match(input) {

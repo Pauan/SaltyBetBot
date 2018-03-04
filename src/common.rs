@@ -1,5 +1,5 @@
 use std;
-use regex;
+use regexp;
 use record::{Tier, Mode, Winner};
 use stdweb::{Value, Once};
 use stdweb::web::{document, set_timeout, INode, Element, NodeList};
@@ -50,10 +50,10 @@ pub enum WaifuMessage {
 // TODO make this more efficient
 pub fn parse_f64(input: &str) -> Option<f64> {
     lazy_static! {
-        static ref PARSE_F64_REGEX: regex::Regex = regex::Regex::new(r",").unwrap();
+        static ref PARSE_F64_REGEX: regexp::RegExp = regexp::RegExp::new(r",");
     }
 
-    match PARSE_F64_REGEX.replace_all(input, "").parse::<f64>() {
+    match PARSE_F64_REGEX.replace(input, "").parse::<f64>() {
         Ok(a) => Some(a),
         // TODO better error handling
         Err(_) => None,
@@ -64,34 +64,32 @@ pub fn parse_f64(input: &str) -> Option<f64> {
 // TODO make this more efficient
 pub fn remove_newlines(input: &str) -> String {
     lazy_static! {
-        static ref PARSE_NEWLINES: regex::Regex = regex::Regex::new(r"(?:^[ \n\r]+)|[\n\r]|(?:[ \n\r]+$)").unwrap();
+        static ref PARSE_NEWLINES: regexp::RegExp = regexp::RegExp::new(r"(?:^[ \n\r]+)|(?:[\n\r]+)|(?:[ \n\r]+$)");
     }
 
-    // TODO is this into_owned correct ?
-    PARSE_NEWLINES.replace_all(input, "").into_owned()
+    PARSE_NEWLINES.replace(input, "")
 }
 
 
 // TODO make this more efficient
 pub fn collapse_whitespace(input: &str) -> String {
     lazy_static! {
-        static ref PARSE_WHITESPACE: regex::Regex = regex::Regex::new(r" +").unwrap();
+        static ref PARSE_WHITESPACE: regexp::RegExp = regexp::RegExp::new(r" {2,}");
     }
 
-    // TODO is this into_owned correct ?
-    PARSE_WHITESPACE.replace_all(input, " ").into_owned()
+    PARSE_WHITESPACE.replace(input, " ")
 }
 
 
 pub fn parse_money(input: &str) -> Option<f64> {
     lazy_static! {
-        static ref MONEY_REGEX: regex::Regex = regex::Regex::new(
-            r"^[ \n]*\$([0-9,]+)[ \n]*$"
-        ).unwrap();
+        static ref MONEY_REGEX: regexp::RegExp = regexp::RegExp::new(
+            r"^[ \n\r]*\$([0-9,]+)[ \n\r]*$"
+        );
     }
 
-    MONEY_REGEX.captures(input).and_then(|capture|
-        capture.get(1).and_then(|x| parse_f64(x.as_str())))
+    MONEY_REGEX.first_match(input).and_then(|captures|
+        captures[1].as_ref().and_then(|x| parse_f64(x)))
 }
 
 
