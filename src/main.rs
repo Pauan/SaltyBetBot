@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate serde;
-extern crate serde_json;
+//extern crate serde;
+//extern crate serde_json;
 #[macro_use]
 extern crate stdweb;
 
@@ -73,7 +73,7 @@ use salty_bet_bot::{genetic, record, simulation};
 }*/
 
 
-fn read_strategy(filename: &str) -> Result<genetic::BetStrategy, std::io::Error> {
+/*fn read_strategy(filename: &str) -> Result<genetic::BetStrategy, std::io::Error> {
     let buffer = BufReader::new(File::open(filename)?);
     Ok(serde_json::from_reader(buffer)?)
 }
@@ -81,7 +81,7 @@ fn read_strategy(filename: &str) -> Result<genetic::BetStrategy, std::io::Error>
 fn write_strategy<A: simulation::Strategy + serde::Serialize>(filename: &str, strategy: &A) -> Result<(), std::io::Error> {
     let buffer = BufWriter::new(File::create(filename)?);
     Ok(serde_json::to_writer_pretty(buffer, strategy)?)
-}
+}*/
 
 
 /*fn run_simulation() -> Result<(), std::io::Error> {

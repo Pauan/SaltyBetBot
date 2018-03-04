@@ -6,7 +6,7 @@ extern crate salty_bet_bot;
 
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::common::{parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
+use salty_bet_bot::common::{parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
 use salty_bet_bot::genetic::{BetStrategy};
 use salty_bet_bot::record::{Record, Character, Winner, Mode};
 use salty_bet_bot::simulation::{Bet, Simulation};
@@ -174,8 +174,8 @@ fn lookup(state: Rc<RefCell<State>>) {
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
 // TODO refresh page when mode changes
 pub fn observe_changes(state: Rc<RefCell<State>>) {
-    let mut old_closed = None;
-    let mut mode_switch = None;
+    let mut old_closed: Option<WaifuBetsClosed> = None;
+    let mut mode_switch: Option<f64> = None;
 
     let port = Port::new("saltybet");
 
