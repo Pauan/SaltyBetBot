@@ -1,5 +1,6 @@
 var salty_ports = [];
 var twitch_ports = [];
+var twitch_tabs = [];
 
 function remove_saltybet(port) {
     var index = salty_ports.indexOf(port);
@@ -9,6 +10,12 @@ function remove_saltybet(port) {
     }
 
     salty_ports.splice(index, 1);
+
+    if (salty_ports.length === 0) {
+        // TODO handle error messages
+        chrome.tabs.remove(twitch_tabs);
+        twitch_tabs.length = 0;
+    }
 }
 
 function remove_twitch_chat(port) {
@@ -39,7 +46,10 @@ chrome.runtime.onMessage.addListener(function (message, _sender, reply) {
     chrome.tabs.create({
         url: "https://www.twitch.tv/saltybet/chat",
         active: false
-    }, function () {
+    }, function (tab) {
+        // TODO update the id when the chrome.tabs.onReplaced event fires
+        // TODO remove the id when the Twitch tab is closed / disconnected
+        twitch_tabs.push(tab.id);
         reply({});
     });
 

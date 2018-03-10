@@ -96,8 +96,6 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                     },
                 };
 
-                log!("Betting: {:#?}", bet);
-
                 match bet {
                     Bet::Left(amount) => {
                         wager_box.set_raw_value(&amount.to_string());
@@ -343,8 +341,6 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                     let mut state = state.borrow_mut();
 
                     if let Some(record) = record {
-                        log!("Record saved {:#?}", record);
-
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(record.clone());
 
@@ -381,7 +377,7 @@ fn main() {
 
     log!("Initializing...");
 
-    wait_until_defined(|| query("#video-embed"), move |video| {
+    wait_until_defined(|| query("#iframeplayer"), move |video| {
         // TODO hacky
         js! { @(no_return)
             var video = @{video};
