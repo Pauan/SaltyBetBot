@@ -2,7 +2,8 @@ use std;
 use rand;
 use record::{ Record, Mode, Tier };
 //use rayon::prelude::*;
-use simulation::{ Simulation, Strategy, Bet, Lookup, Calculate, Simulator };
+use simulation::{ Simulation, Strategy, Bet, Calculate, Simulator };
+use types::{BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point};
 
 
 const MAX_BET_AMOUNT: f64 = 1000000.0;
@@ -111,9 +112,6 @@ pub fn choose<'a, A>(values: &'a [A]) -> Option<&'a A> {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Serialize, Deserialize)]
-pub struct Percentage(pub f64);
-
 impl Gene for Percentage {
     fn new() -> Self {
         Percentage(rand::percentage())
@@ -130,12 +128,6 @@ impl Gene for Percentage {
     }
 }
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64,
-}
 
 impl Point {
     fn new(x: f64, y: f64) -> Point {
@@ -159,14 +151,6 @@ impl Gene for Point {
     }
 }
 
-
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CubicBezierSegment {
-    pub from: Point,
-    pub ctrl1: Point,
-    pub ctrl2: Point,
-    pub to: Point,
-}
 
 impl CubicBezierSegment {
     // https://docs.rs/lyon_bezier/0.8.5/src/lyon_bezier/cubic_bezier.rs.html#51-61
@@ -210,35 +194,6 @@ impl Gene for CubicBezierSegment {
     }
 }
 
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum NumericCalculator<A, B> where A: Calculate<B> {
-    Base(A),
-    Fixed(B),
-    Percentage(Percentage),
-
-    Bezier(CubicBezierSegment, Box<NumericCalculator<A, B>>),
-    Average(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-    Abs(Box<NumericCalculator<A, B>>),
-    Min(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-    Max(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-    Plus(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-    Minus(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-    Multiply(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-    Divide(Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-
-    // TODO change to use BooleanCalculator<NumericCalculator<A, B>>
-    IfThenElse(BooleanCalculator<A>, Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
-
-    Tier {
-        new: Box<NumericCalculator<A, B>>,
-        x: Box<NumericCalculator<A, B>>,
-        s: Box<NumericCalculator<A, B>>,
-        a: Box<NumericCalculator<A, B>>,
-        b: Box<NumericCalculator<A, B>>,
-        p: Box<NumericCalculator<A, B>>,
-    },
-}
 
 impl<A> NumericCalculator<A, f64>
     where A: Calculate<f64> + Gene + Clone + PartialEq {
@@ -633,18 +588,6 @@ impl<A> Gene for NumericCalculator<A, f64>
 }
 
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum BooleanCalculator<A> {
-    True,
-    False,
-    Greater(A, A),
-    GreaterEqual(A, A),
-    Lesser(A, A),
-    LesserEqual(A, A),
-    And(Box<BooleanCalculator<A>>, Box<BooleanCalculator<A>>),
-    Or(Box<BooleanCalculator<A>>, Box<BooleanCalculator<A>>),
-}
-
 impl<A> BooleanCalculator<A> where A: Gene + Clone {
     fn _new(depth: u32) -> Self {
         if depth >= MAX_RECURSION_DEPTH {
@@ -900,21 +843,6 @@ pub struct SimulationSettings<'a> {
     pub mode: Mode,
 }
 
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BetStrategy {
-    pub fitness: f64,
-    pub successes: f64,
-    pub failures: f64,
-    pub record_len: f64,
-    pub characters_len: usize,
-    pub max_character_len: usize,
-
-    // Genes
-    pub bet_strategy: BooleanCalculator<NumericCalculator<Lookup, f64>>,
-    pub prediction_strategy: NumericCalculator<Lookup, f64>,
-    pub money_strategy: NumericCalculator<Lookup, f64>,
-}
 
 impl<'a> BetStrategy {
     // TODO figure out a way to avoid the clones

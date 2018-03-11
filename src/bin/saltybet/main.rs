@@ -7,7 +7,7 @@ extern crate salty_bet_bot;
 use std::rc::Rc;
 use std::cell::RefCell;
 use salty_bet_bot::common::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
-use salty_bet_bot::genetic::{BetStrategy};
+use salty_bet_bot::types::{BetStrategy};
 use salty_bet_bot::record::{Record, Character, Winner, Mode};
 use salty_bet_bot::simulation::{Bet, Simulation};
 use stdweb::web::set_timeout;

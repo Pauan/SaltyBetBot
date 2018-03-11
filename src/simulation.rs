@@ -3,6 +3,7 @@ use std::iter::Iterator;
 use std::collections::{ HashMap };
 use record::{ Record, Mode, Winner, Tier };
 use genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
+use types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
 
 
 // TODO this should take into account the user's real limit
@@ -53,18 +54,6 @@ pub trait Calculate<A> {
     }
 }
 
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LookupStatistic {
-    Upsets,
-    Favored,
-    Winrate,
-    Odds,
-    Earnings,
-    MatchesLen,
-    BetAmount,
-    Duration,
-}
 
 impl LookupStatistic {
     fn iterate_percentage<'a, A, B, C>(iter: A, default: B, matches: C) -> f64
@@ -292,12 +281,6 @@ impl Gene for LookupStatistic {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LookupFilter {
-    All,
-    Specific,
-}
-
 impl LookupFilter {
     fn lookup(&self, stat: &LookupStatistic, left: &str, right: &str, matches: &[Record]) -> f64 {
         match *self {
@@ -334,12 +317,6 @@ impl Gene for LookupFilter {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LookupSide {
-    Left,
-    Right
-}
-
 impl Gene for LookupSide {
     fn new() -> Self {
         let rand = gen_rand_index(2u32);
@@ -363,12 +340,6 @@ impl Gene for LookupSide {
     }
 }
 
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Lookup {
-    Sum,
-    Character(LookupSide, LookupFilter, LookupStatistic),
-}
 
 impl Calculate<f64> for Lookup {
     fn calculate<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {

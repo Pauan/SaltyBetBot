@@ -8,6 +8,9 @@
   "bet_strategy": "True",
   "prediction_strategy": {
     "Tier": {
+      "new": {
+        "Fixed": 0.0
+      },
       "x": {
         "Base": {
           "Character": [
@@ -507,6 +510,9 @@
                   },
                   {
                     "Tier": {
+                      "new": {
+                        "Fixed": 0.0
+                      },
                       "x": {
                         "Fixed": -172718.8580098679
                       },

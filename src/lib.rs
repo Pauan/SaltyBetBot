@@ -18,3 +18,5 @@ pub mod record;
 pub mod simulation;
 pub mod common;
 mod macros;
+
+pub mod types;
