@@ -59,6 +59,7 @@ impl Winner {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Tier {
+    New,
     X,
     S,
     A,

@@ -231,6 +231,7 @@ pub enum NumericCalculator<A, B> where A: Calculate<B> {
     IfThenElse(BooleanCalculator<A>, Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
 
     Tier {
+        new: Box<NumericCalculator<A, B>>,
         x: Box<NumericCalculator<A, B>>,
         s: Box<NumericCalculator<A, B>>,
         a: Box<NumericCalculator<A, B>>,
@@ -300,6 +301,7 @@ impl<A> NumericCalculator<A, f64>
 
             } else {
                 NumericCalculator::Tier {
+                    new: Box::new(Self::_new(depth + 1)),
                     x: Box::new(Self::_new(depth + 1)),
                     s: Box::new(Self::_new(depth + 1)),
                     a: Box::new(Self::_new(depth + 1)),
@@ -385,9 +387,10 @@ impl<A> NumericCalculator<A, f64>
                         NumericCalculator::IfThenElse(father1.choose(&mother1), Box::new(father2._choose(&mother2, depth + 1)), Box::new(father3._choose(&mother3, depth + 1))),
                     _ => choose2(self, other),
                 },
-                NumericCalculator::Tier { x: ref father_x, s: ref father_s, a: ref father_a, b: ref father_b, p: ref father_p } => match *other {
-                    NumericCalculator::Tier { x: ref mother_x, s: ref mother_s, a: ref mother_a, b: ref mother_b, p: ref mother_p } =>
+                NumericCalculator::Tier { new: ref father_new, x: ref father_x, s: ref father_s, a: ref father_a, b: ref father_b, p: ref father_p } => match *other {
+                    NumericCalculator::Tier { new: ref mother_new, x: ref mother_x, s: ref mother_s, a: ref mother_a, b: ref mother_b, p: ref mother_p } =>
                         NumericCalculator::Tier {
+                            new: Box::new(father_new._choose(&mother_new, depth + 1)),
                             x: Box::new(father_x._choose(&mother_x, depth + 1)),
                             s: Box::new(father_s._choose(&mother_s, depth + 1)),
                             a: Box::new(father_a._choose(&mother_a, depth + 1)),
@@ -484,7 +487,8 @@ impl<A> NumericCalculator<A, f64>
                         },
                     },
 
-                    NumericCalculator::Tier { x, s, a, b, p } => match *tier {
+                    NumericCalculator::Tier { new, x, s, a, b, p } => match *tier {
+                        Some(Tier::New) => new._optimize(tier),
                         Some(Tier::X) => x._optimize(tier),
                         Some(Tier::S) => s._optimize(tier),
                         Some(Tier::A) => a._optimize(tier),
@@ -492,17 +496,19 @@ impl<A> NumericCalculator<A, f64>
                         Some(Tier::P) => p._optimize(tier),
 
                         None => {
+                            let new = new._optimize(&Some(Tier::New));
                             let x = x._optimize(&Some(Tier::X));
                             let s = s._optimize(&Some(Tier::S));
                             let a = a._optimize(&Some(Tier::A));
                             let b = b._optimize(&Some(Tier::B));
                             let p = p._optimize(&Some(Tier::P));
 
-                            if x == s && x == a && x == b && x == p {
-                                x
+                            if new == x && new == s && new == a && new == b && new == p {
+                                new
 
                             } else {
                                 NumericCalculator::Tier {
+                                    new: Box::new(new),
                                     x: Box::new(x),
                                     s: Box::new(s),
                                     a: Box::new(a),
@@ -562,18 +568,19 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                 }))
             },
 
-            NumericCalculator::Tier { ref x, ref s, ref a, ref b, ref p } =>
+            NumericCalculator::Tier { ref new, ref x, ref s, ref a, ref b, ref p } =>
+                new.precalculate().and_then(|new|
                 x.precalculate().and_then(|x|
                 s.precalculate().and_then(|s|
                 a.precalculate().and_then(|a|
                 b.precalculate().and_then(|b|
                 p.precalculate().and_then(|p|
-                    if x == s && x == a && x == b && x == p {
+                    if new == x && new == s && new == a && new == b && new == p {
                         Some(x)
 
                     } else {
                         None
-                    }))))),
+                    })))))),
         }
     }
 
@@ -602,7 +609,8 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                 c.calculate(simulation, tier, left, right)
             },
 
-            NumericCalculator::Tier { ref x, ref s, ref a, ref b, ref p } => match *tier {
+            NumericCalculator::Tier { ref new, ref x, ref s, ref a, ref b, ref p } => match *tier {
+                Tier::New => new.calculate(simulation, tier, left, right),
                 Tier::X => x.calculate(simulation, tier, left, right),
                 Tier::S => s.calculate(simulation, tier, left, right),
                 Tier::A => a.calculate(simulation, tier, left, right),
