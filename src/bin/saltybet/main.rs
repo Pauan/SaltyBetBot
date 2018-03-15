@@ -3,15 +3,18 @@ extern crate stdweb;
 extern crate serde_json;
 #[macro_use]
 extern crate salty_bet_bot;
+extern crate algorithm;
 
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::common::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
-use salty_bet_bot::types::{BetStrategy};
-use salty_bet_bot::record::{Record, Character, Winner, Mode};
-use salty_bet_bot::simulation::{Bet, Simulation};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
+use algorithm::types::{BetStrategy};
+use algorithm::record::{Record, Character, Winner, Mode};
+use algorithm::simulation::{Bet, Simulation};
 use stdweb::web::set_timeout;
 
+
+const SHOULD_BET: bool = false;
 
 // 10 minutes
 // TODO is this high enough ?
@@ -46,7 +49,8 @@ pub struct Information {
 fn lookup_bet(state: &Rc<RefCell<State>>) {
     let mut state = state.borrow_mut();
 
-    if !state.did_bet &&
+    if SHOULD_BET &&
+       !state.did_bet &&
        query("#betconfirm").is_none() {
 
         let current_balance = query("#balance")
@@ -385,6 +389,24 @@ fn main() {
         }
 
         log!("Video hidden");
+    });
+
+    wait_until_defined(|| query("#chat-frame-stream"), move |chat| {
+       // TODO hacky
+        js! { @(no_return)
+            var chat = @{chat};
+            chat.parentNode.removeChild(chat);
+        }
+
+        log!("Chat hidden");
+    });
+
+    wait_until_defined(|| query("#sbettorswrapper"), move |bettors| {
+        js! { @(no_return)
+            @{bettors}.style.display = "none";
+        }
+
+        log!("Bettors hidden");
     });
 
     get_storage("matches", |matches| {

@@ -81,7 +81,7 @@ pub enum Tier {
 }*/
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Mode {
     Matchmaking,
     Tournament,

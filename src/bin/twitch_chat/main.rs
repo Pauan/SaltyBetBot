@@ -27,11 +27,11 @@ extern crate salty_bet_bot;
 extern crate serde_json;
 #[macro_use]
 extern crate stdweb;
+extern crate algorithm;
 
 use std::iter::Iterator;
-use salty_bet_bot::common::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all};
-use salty_bet_bot::record::{Tier, Mode, Winner};
-use salty_bet_bot::regexp;
+use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp};
+use algorithm::record::{Tier, Mode, Winner};
 use stdweb::web::{IParentNode, Element, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
 use stdweb::unstable::{TryInto};
 
@@ -234,6 +234,14 @@ pub fn observe_changes() {
         if messages.len() != 0 {
             port.send_message(&serde_json::to_string(&messages).unwrap());
         }
+    });
+
+    wait_until_defined(|| query("body"), move |body| {
+        js! { @(no_return)
+            @{body}.style.display = "none";
+        }
+
+        log!("Body hidden");
     });
 
     wait_until_defined(|| query("ul.chat-lines"), move |lines| {

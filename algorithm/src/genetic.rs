@@ -1,14 +1,14 @@
 use std;
-use rand;
+use random;
 use record::{ Record, Mode, Tier };
-//use rayon::prelude::*;
+use rayon::prelude::*;
 use simulation::{ Simulation, Strategy, Bet, Calculate, Simulator };
 use types::{BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point};
 
 
 const MAX_BET_AMOUNT: f64 = 1000000.0;
 pub const MUTATION_RATE: Percentage = Percentage(0.10);
-const MAX_RECURSION_DEPTH: u32 = 6; // 64 maximum nodes
+const MAX_RECURSION_DEPTH: u32 = 2; // 4 maximum nodes
 
 
 pub trait Creature<A>: Ord {
@@ -27,7 +27,7 @@ pub trait Gene {
 
 impl Gene for bool {
     fn new() -> Self {
-        rand::bool()
+        random::bool()
     }
 
     fn choose(&self, other: &Self) -> Self {
@@ -65,7 +65,7 @@ impl Gene for f64 {
 /*impl Gene for f32 {
     // TODO verify that this is correct
     fn new() -> Self {
-        let Closed01(val) = rand::weak_rng().gen::<Closed01<f32>>();
+        let Closed01(val) = random::weak_rng().gen::<Closed01<f32>>();
         val
     }
 
@@ -92,7 +92,7 @@ pub fn choose2<A>(left: &A, right: &A) -> A where A: Clone {
 
 
 pub fn gen_rand_index(index: u32) -> u32 {
-    rand::between_exclusive(0, index)
+    random::between_exclusive(0, index)
 }
 
 
@@ -107,14 +107,14 @@ pub fn choose<'a, A>(values: &'a [A]) -> Option<&'a A> {
     if values.is_empty() {
         None
     } else {
-        Some(&values[rand::between_exclusive(0, values.len() as u32) as usize])
+        Some(&values[random::between_exclusive(0, values.len() as u32) as usize])
     }
 }
 
 
 impl Gene for Percentage {
     fn new() -> Self {
-        Percentage(rand::percentage())
+        Percentage(random::percentage())
     }
 
     fn choose(&self, other: &Self) -> Self {
@@ -846,7 +846,21 @@ pub struct SimulationSettings<'a> {
 
 impl<'a> BetStrategy {
     // TODO figure out a way to avoid the clones
-    fn calculate_fitness(mut self, settings: &SimulationSettings<'a>) -> Self {
+    pub fn calculate_fitness(&self, settings: &SimulationSettings<'a>) -> f64 {
+        let mut simulation = Simulation::new();
+
+        match settings.mode {
+            Mode::Matchmaking => simulation.matchmaking_strategy = Some(self.clone()),
+            Mode::Tournament => simulation.tournament_strategy = Some(self.clone()),
+        }
+
+        simulation.simulate(settings.records.clone());
+
+        simulation.sum / simulation.record_len
+    }
+
+    // TODO figure out a way to avoid the clones
+    fn calculate_self(mut self, settings: &SimulationSettings<'a>) -> Self {
         let (sum, successes, failures, record_len, characters_len, max_character_len) = {
             let mut simulation = Simulation::new();
 
@@ -867,7 +881,7 @@ impl<'a> BetStrategy {
             )
         };
 
-        self.fitness = sum;
+        self.fitness = sum / record_len;
         self.successes = successes;
         self.failures = failures;
         self.record_len = record_len;
@@ -890,7 +904,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             bet_strategy: Gene::new(),
             prediction_strategy: Gene::new(),
             money_strategy: Gene::new(),
-        }.calculate_fitness(settings)
+        }.calculate_self(settings)
     }
 
     fn breed(&self, other: &Self, settings: &SimulationSettings<'a>) -> Self {
@@ -904,7 +918,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             bet_strategy: self.bet_strategy.choose(&other.bet_strategy),
             prediction_strategy: self.prediction_strategy.choose(&other.prediction_strategy),
             money_strategy: self.money_strategy.choose(&other.money_strategy),
-        }.calculate_fitness(settings)
+        }.calculate_self(settings)
     }
 }
 
@@ -1018,12 +1032,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
                 }
             };
 
-            //if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
-                (self.populace.len()..self.amount).map(closure).collect()
-
-            /*} else {
-                (self.populace.len()..self.amount).into_par_iter().map(closure).collect()
-            }*/
+            (self.populace.len()..self.amount).into_par_iter().map(closure).collect()
         };
 
         for creature in new_creatures {
@@ -1037,12 +1046,7 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
 
     pub fn init(&mut self) {
         // TODO code duplication
-        let new_creatures: Vec<A> = //if cfg!(any(target_arch = "wasm32", target_arch = "asmjs")) {
-            (0..self.amount).map(|_| A::new(self.data)).collect()
-
-        /*} else {
-            (0..self.amount).into_par_iter().map(|_|A::new(self.data)).collect()
-        }*/;
+        let new_creatures: Vec<A> = (0..self.amount).into_par_iter().map(|_|A::new(self.data)).collect();
 
         for creature in new_creatures {
             self.insert_creature(creature);

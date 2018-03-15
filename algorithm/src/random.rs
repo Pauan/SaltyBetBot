@@ -1,17 +1,18 @@
 use std;
-use stdweb::unstable::TryInto;
+use rand;
+use rand::Rng;
 
 
 const PERCENTAGE_MAX: f64 = 1.0 + std::f64::EPSILON;
 
 
 fn rand() -> f64 {
-    js!( return Math.random(); ).try_into().unwrap()
+    rand::weak_rng().gen::<f64>()
 }
 
 // TODO verify that this is correct
 pub fn bool() -> bool {
-    rand() < 0.5
+    rand::weak_rng().gen::<bool>()
 }
 
 // TODO verify that this is correct
