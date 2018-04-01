@@ -15,6 +15,10 @@ pub fn bool() -> bool {
     rand::weak_rng().gen::<bool>()
 }
 
+pub fn shuffle<A>(slice: &mut [A]) {
+    rand::weak_rng().shuffle(slice)
+}
+
 // TODO verify that this is correct
 pub fn percentage() -> f64 {
     rand() * PERCENTAGE_MAX

@@ -7,16 +7,20 @@ extern crate serde_json;
 
 use algorithm::{genetic, types};
 use algorithm::record::{Record, Mode};
+use algorithm::simulation::Strategy;
+use algorithm::strategy::{EarningsStrategy, AllInStrategy};
+use algorithm::random::shuffle;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use chrono::offset::Utc;
+use std::borrow::Borrow;
 use std::io::{BufReader, BufWriter};
 use std::fs::File;
 
 
 const POPULATION_SIZE: usize = 100;
-const GENERATIONS: u64 = 10000;
+const GENERATIONS: u64 = 100;
 
 
 /*fn read_file(path: &str) -> std::io::Result<String> {
@@ -126,10 +130,122 @@ fn split_records(mut records: Vec<Record>) -> (Vec<Record>, Vec<Record>) {
     (records, right)
 }
 
-fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &Vec<Record>) -> types::BetStrategy {
+
+#[derive(Debug)]
+pub struct Boundary {
+    pub mode: Mode,
+    pub start: usize,
+    pub end: usize,
+}
+
+pub struct BoundaryIterator<A> {
+    iter: Option<A>,
+    matchmaking: usize,
+    tournament: usize,
+    index: usize,
+}
+
+impl<A, B: Borrow<Record>> Iterator for BoundaryIterator<A> where A: Iterator<Item = B> {
+    type Item = Boundary;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let mut output = None;
+
+            match self.iter.as_mut().and_then(|x| x.next()) {
+                Some(record) => match record.borrow().mode {
+                    Mode::Matchmaking => {
+                        if self.tournament != self.index {
+                            output = Some(Boundary {
+                                mode: Mode::Tournament,
+                                start: self.tournament,
+                                end: self.index,
+                            });
+                        }
+
+                        self.index += 1;
+                        self.tournament = self.index;
+                    },
+                    // TODO compare the dates to ensure that it's the same tournament
+                    Mode::Tournament => {
+                        if self.matchmaking != self.index {
+                            output = Some(Boundary {
+                                mode: Mode::Matchmaking,
+                                start: self.matchmaking,
+                                end: self.index,
+                            });
+                        }
+
+                        self.index += 1;
+                        self.matchmaking = self.index;
+                    },
+                },
+
+                None => {
+                    self.iter = None;
+
+                    if self.matchmaking != self.index {
+                        output = Some(Boundary {
+                            mode: Mode::Matchmaking,
+                            start: self.matchmaking,
+                            end: self.index,
+                        });
+
+                        self.matchmaking = self.index;
+
+                    } else if self.tournament != self.index {
+                        output = Some(Boundary {
+                            mode: Mode::Tournament,
+                            start: self.tournament,
+                            end: self.index,
+                        });
+
+                        self.tournament = self.index;
+
+                    } else {
+                        return None;
+                    }
+                },
+            }
+
+            if output.is_some() {
+                return output;
+            }
+        }
+    }
+}
+
+// TODO have this return an iterator instead
+pub fn boundaries<A: IntoIterator<Item = B>, B: Borrow<Record>>(records: A) -> BoundaryIterator<A::IntoIter> {
+    BoundaryIterator {
+        iter: Some(records.into_iter()),
+        matchmaking: 0,
+        tournament: 0,
+        index: 0,
+    }
+}
+
+
+fn shuffle_records(records: &[Record], mode: Mode) -> Vec<Record> {
+    match mode {
+        Mode::Matchmaking => {
+            let mut records: Vec<Record> = records.iter().filter(|x| x.mode == Mode::Matchmaking).cloned().collect();
+            shuffle(&mut records);
+            records
+        },
+        // TODO shuffle this too
+        Mode::Tournament => {
+            records.to_vec()
+        },
+    }
+}
+
+fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Record]) -> types::BetStrategy {
+    let records = shuffle_records(records, mode);
+
     let settings = genetic::SimulationSettings {
         mode,
-        records,
+        records: &records,
     };
 
     let mut population: genetic::Population<types::BetStrategy, genetic::SimulationSettings> = genetic::Population::new(POPULATION_SIZE, &settings);
@@ -146,69 +262,76 @@ fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &Vec<Rec
     population.best().clone()
 }
 
-fn test_strategy(mode: Mode, records: &Vec<Record>, strategy: &types::BetStrategy) -> f64 {
-    let settings = genetic::SimulationSettings {
-        mode,
-        records,
-    };
-
-    strategy.calculate_fitness(&settings)
+fn test_strategy<A: Strategy>(mode: Mode, records: &mut [Record], strategy: A) -> f64 {
+    let records = shuffle_records(records, mode);
+    genetic::SimulationSettings { mode, records: &records }.calculate_fitness(strategy)
 }
 
-fn run_simulation() -> Result<(), std::io::Error> {
-    let date = current_time();
 
-    let records: Vec<Record> = read("../records/SaltyBet Records (2018-03-14T23_19_43.114Z).json")?;
+fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
+    let matchmaking_strategy: types::BetStrategy = read("../strategies/matchmaking_strategy")?;
+    let tournament_strategy: types::BetStrategy = read("../strategies/tournament_strategy")?;
+    println!("Matchmaking Old   -> {}   -> {}",
+        test_strategy(Mode::Matchmaking, left, matchmaking_strategy.clone()),
+        test_strategy(Mode::Matchmaking, right, matchmaking_strategy));
+    println!("Tournament Old   -> {}   -> {}",
+        test_strategy(Mode::Tournament, left, tournament_strategy.clone()),
+        test_strategy(Mode::Tournament, right, tournament_strategy));
+    Ok(())
+}
 
-    let (left, right) = split_records(records);
 
+fn run_strategy<A: Strategy + Copy>(left: &mut [Record], right: &mut [Record], strategy: A) {
+    println!("Matchmaking   -> {}   -> {}",
+        test_strategy(Mode::Matchmaking, left, strategy),
+        test_strategy(Mode::Matchmaking, right, strategy));
+    println!("Tournament   -> {}   -> {}",
+        test_strategy(Mode::Tournament, left, strategy),
+        test_strategy(Mode::Tournament, right, strategy));
+}
+
+
+fn run_bet_strategy(date: String, left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
     let progress_bar = indicatif::ProgressBar::new((GENERATIONS + 1) * 4);
 
-    let ((matchmaking1, matchmaking2), (tournament1, tournament2)) = rayon::join(
-        || rayon::join(
-            || simulate(&progress_bar, Mode::Matchmaking, &left),
-            || simulate(&progress_bar, Mode::Matchmaking, &right)
-        ),
-        || rayon::join(
-            || simulate(&progress_bar, Mode::Tournament, &left),
-            || simulate(&progress_bar, Mode::Tournament, &right)
-        )
-    );
+    let matchmaking1 = simulate(&progress_bar, Mode::Matchmaking, left);
+    let matchmaking2 = simulate(&progress_bar, Mode::Matchmaking, right);
+
+    let tournament1 = simulate(&progress_bar, Mode::Tournament, left);
+    let tournament2 = simulate(&progress_bar, Mode::Tournament, right);
 
     progress_bar.finish_and_clear();
 
-    let ((matchmaking_test1, matchmaking_test2), (tournament_test1, tournament_test2)) = rayon::join(
-        || rayon::join(
-            || test_strategy(Mode::Matchmaking, &right, &matchmaking1),
-            || test_strategy(Mode::Matchmaking, &left, &matchmaking2)
-        ),
-        || rayon::join(
-            || test_strategy(Mode::Tournament, &right, &tournament1),
-            || test_strategy(Mode::Tournament, &left, &tournament2)
-        )
-    );
+    let matchmaking_test1 = test_strategy(Mode::Matchmaking, right, matchmaking1.clone());
+    let matchmaking_test2 = test_strategy(Mode::Matchmaking, left, matchmaking2.clone());
 
-    {
-        let matchmaking_strategy: types::BetStrategy = read("../strategies/matchmaking_strategy")?;
-        let tournament_strategy: types::BetStrategy = read("../strategies/tournament_strategy")?;
-        println!("Matchmaking Old  {}  {}",
-            test_strategy(Mode::Matchmaking, &left, &matchmaking_strategy),
-            test_strategy(Mode::Matchmaking, &right, &matchmaking_strategy));
-        println!("Tournament Old  {}  {}",
-            test_strategy(Mode::Tournament, &left, &tournament_strategy),
-            test_strategy(Mode::Tournament, &right, &tournament_strategy));
-    }
+    let tournament_test1 = test_strategy(Mode::Tournament, right, tournament1.clone());
+    let tournament_test2 = test_strategy(Mode::Tournament, left, tournament2.clone());
 
-    println!("Matchmaking1  {}  {}", matchmaking1.fitness, matchmaking_test1);
-    println!("Matchmaking2  {}  {}", matchmaking2.fitness, matchmaking_test2);
-    println!("Tournament1  {}  {}", tournament1.fitness, tournament_test1);
-    println!("Tournament2  {}  {}", tournament2.fitness, tournament_test2);
+    println!("Matchmaking  {} -> {}  {} -> {}", matchmaking1.fitness, matchmaking_test1, matchmaking2.fitness, matchmaking_test2);
+    println!("Tournament  {} -> {}  {} -> {}", tournament1.fitness, tournament_test1, tournament2.fitness, tournament_test2);
 
     let matchmaking = if matchmaking_test1 > matchmaking_test2 { matchmaking1 } else { matchmaking2 };
     let tournament = if tournament_test1 > tournament_test2 { tournament1 } else { tournament2 };
 
     write(&format!("../strategies/{} (matchmaking)", date), &matchmaking)?;
     write(&format!("../strategies/{} (tournament)", date), &tournament)?;
+
+    Ok(())
+}
+
+
+fn run_simulation() -> Result<(), std::io::Error> {
+    let date = current_time();
+
+    let records: Vec<Record> = read("../records/SaltyBet Records (2018-03-22T07_31_54.050Z).json")?;
+
+    let (mut left, mut right) = split_records(records);
+
+    run_strategy(&mut left, &mut right, EarningsStrategy);
+    run_strategy(&mut left, &mut right, AllInStrategy);
+    run_old_simulation(&mut left, &mut right)?;
+    run_bet_strategy(date, &mut left, &mut right)?;
 
     Ok(())
 }

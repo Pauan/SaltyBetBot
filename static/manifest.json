@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "tabs"
+    "tabs",
+    "downloads"
   ],
   "background": {
     "scripts": ["background.js"],

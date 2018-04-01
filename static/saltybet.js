@@ -443,6 +443,15 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_fe1e80bdcfe7f7cb820b64a40f6d286cbd345955": function($0) {
                 return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Array) | 0;
             },
+            "__extjs_6ca5ed896d5e65a07120817a084b0c9d1668daf5": function($0) {
+                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof HTMLInputElement) | 0;
+            },
+            "__extjs_a342681e5c1e3fb0bdeac6e35d67bf944fcd4102": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). value ;})());
+            },
+            "__extjs_3f8256bfa4545084f3bf765e5b0c21812d1e1750": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). click ();
+            },
             "__extjs_7ce40a5b88eeaa71b9a2366dd36bb22193484408": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var obj = {}; obj [($0)]= ($1); chrome.storage.local.set (obj);
             },
@@ -467,6 +476,9 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
                 Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
             },
+            "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
+            },
             "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
                 console.error( 'Encountered a panic!' );
             },
@@ -482,23 +494,38 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_74d5764ddc102a8d3b6252116087a68f2db0c9d4": function($0) {
                 Module.STDWEB_PRIVATE.from_js($0, (function(){return window ;})());
             },
+            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
+            },
+            "__extjs_4f998a6a2e8abfce697424379bb997930abe9f9e": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). value = ($1);
+            },
+            "__extjs_190f8efc2f62d41304a905ebc7819e0d12e11975": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). style.color = ($1);
+            },
+            "__extjs_d307ae261eb254e327a31a3ea462bf3cd9d25c54": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return chrome.runtime.connect (null , {name : ($1)});})());
+            },
+            "__extjs_9d289eec0629e94f52e646cb556577bcff8999ee": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var element = ($0); element.style.display = "flex" ; element.style.backgroundColor = "#f2f2f2" ; element.style.width = "100%" ; element.style.height = "100%" ; element.style.position = "absolute" ; element.style.left = "0px" ; element.style.top = "0px" ;
+            },
+            "__extjs_d92a765e7141dd3cb397afaee313fa7e0d34e2a2": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var element = ($0); element.style.flex = "1" ; element.style.border = "1px solid black" ; element.style.borderRight = "none" ; element.style.borderLeftColor = "rgb(100, 65, 165)" ;
+            },
+            "__extjs_8bedba436403d9449ddb788b4dd0e58eace03867": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var name = ($0); name.style.display = "flex" ; name.style.alignItems = "center" ; name.style.justifyContent = "center" ; name.style.height = "50px" ; name.style.padding = "5px" ; name.style.color = "white" ; name.style.fontSize = "15px" ; name.style.borderBottom = "2px solid black" ; name.style.boxShadow = "0px 0px 5px black" ; name.style.marginBottom = "5px" ; name.style.backgroundColor = ($1);
+            },
+            "__extjs_b73b8badd762f15e823d30d1df399a41e65392cc": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var element = ($0); element.style.display = "flex" ; element.style.alignItems = "center" ; element.style.padding = "0px 5px" ; element.style.color = "black" ;
+            },
             "__extjs_00c2dfc7525f4fe98655eb3f5064dbbbc37b233b": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);chrome.runtime.sendMessage (null , {}, null , function (){($0)();});
             },
             "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
             },
-            "__extjs_eed37c32147de8773a0ebe3fcd1ccd69b77b5b33": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var chat = ($0); chat.parentNode.removeChild (chat);
-            },
-            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
-            },
             "__extjs_fc416b864acc476ccab184eceaf9b1686f47e048": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);var video = ($0); video.parentNode.removeChild (video);
-            },
-            "__extjs_1458d968803f0ead5043da77c58d02a82094eda9": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). style.display = "none" ;
             },
             "__extjs_ee41f864457c794c278cdcafc28967ffbac29706": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1);})());
@@ -506,17 +533,23 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_917726eccf6a4104ccf894736895b9dcd730afd7": function($0, $1, $2, $3) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){function listener (message){($1)(message);}($2). onMessage.addListener (listener); return function (){($3). onMessage.removeListener (listener);};})());
             },
-            "__extjs_549e982121a9e76fa0c1295dd69b3084ab9688ff": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). textContent ;})());
-            },
-            "__extjs_d307ae261eb254e327a31a3ea462bf3cd9d25c54": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return chrome.runtime.connect (null , {name : ($1)});})());
-            },
             "__extjs_2034053b7b6771271a2dad3e5416b045a74488a1": function($0, $1, $2, $3) {
                 Module.STDWEB_PRIVATE.acquire_js_reference( $0 ).setTimeout( function() {Module.STDWEB_PRIVATE.dyncall( 'vi', $1, [$2] );}, $3 );
             },
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            },
+            "__extjs_549e982121a9e76fa0c1295dd69b3084ab9688ff": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). textContent ;})());
+            },
+            "__extjs_ecb41cb66cfcd8472a5497d436c79755d87fa6a7": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). textContent = ($1);
+            },
             "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
                 Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            },
+            "round": function($0) {
+                return Math.round( $0 );
             },
             "__web_on_grow": function() {
                 const buffer = Module.instance.exports.memory.buffer;

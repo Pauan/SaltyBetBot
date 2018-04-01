@@ -11,3 +11,4 @@ pub mod genetic;
 pub mod record;
 pub mod simulation;
 pub mod types;
+pub mod strategy;

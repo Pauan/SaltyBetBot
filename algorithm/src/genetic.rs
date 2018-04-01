@@ -839,27 +839,29 @@ impl<A> Gene for BooleanCalculator<A> where A: Calculate<f64> + Gene + Clone + P
 
 #[derive(Debug)]
 pub struct SimulationSettings<'a> {
-    pub records: &'a Vec<Record>,
+    pub records: &'a [Record],
     pub mode: Mode,
+}
+
+impl<'a> SimulationSettings<'a> {
+    pub fn calculate_fitness<A: Strategy>(&self, strategy: A) -> f64 {
+        let mut simulation = Simulation::new();
+
+        match self.mode {
+            Mode::Matchmaking => simulation.matchmaking_strategy = Some(strategy),
+            Mode::Tournament => simulation.tournament_strategy = Some(strategy),
+        }
+
+        // TODO figure out a way to avoid the to_vec
+        simulation.simulate(self.records.to_vec());
+
+        simulation.sum / simulation.record_len
+    }
 }
 
 
 impl<'a> BetStrategy {
-    // TODO figure out a way to avoid the clones
-    pub fn calculate_fitness(&self, settings: &SimulationSettings<'a>) -> f64 {
-        let mut simulation = Simulation::new();
-
-        match settings.mode {
-            Mode::Matchmaking => simulation.matchmaking_strategy = Some(self.clone()),
-            Mode::Tournament => simulation.tournament_strategy = Some(self.clone()),
-        }
-
-        simulation.simulate(settings.records.clone());
-
-        simulation.sum / simulation.record_len
-    }
-
-    // TODO figure out a way to avoid the clones
+    // TODO figure out a way to avoid the clones and to_vec
     fn calculate_self(mut self, settings: &SimulationSettings<'a>) -> Self {
         let (sum, successes, failures, record_len, characters_len, max_character_len) = {
             let mut simulation = Simulation::new();
@@ -869,7 +871,7 @@ impl<'a> BetStrategy {
                 Mode::Tournament => simulation.tournament_strategy = Some(self.clone()),
             }
 
-            simulation.simulate(settings.records.clone());
+            simulation.simulate(settings.records.to_vec());
 
             (
                 simulation.sum,

@@ -1,5 +1,4 @@
 use std;
-use std::iter::Iterator;
 use std::collections::{ HashMap };
 use record::{ Record, Mode, Winner, Tier };
 use genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
@@ -7,10 +6,10 @@ use types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
 
 
 // TODO this should take into account the user's real limit
-const SALT_MINE_AMOUNT: f64 = 100.0; // TODO verify that this is correct
+const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
 
 // TODO this should take into account the user's real limit
-const TOURNAMENT_BALANCE: f64 = 1000.0; // TODO verify that this is correct
+const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,8 +31,9 @@ impl Bet {
 
 
 pub trait Simulator {
+    fn matches_len(&self, &str) -> usize;
     fn current_money(&self) -> f64;
-    fn lookup_character(&self, &str) -> Option<&[Record]>;
+    fn lookup_character(&self, &str) -> &[Record];
 }
 
 
@@ -55,13 +55,16 @@ pub trait Calculate<A> {
 }
 
 
-impl LookupStatistic {
-    fn iterate_percentage<'a, A, B, C>(iter: A, default: B, matches: C) -> f64
-        where A: Iterator<Item = &'a Record>,
-              B: FnOnce() -> f64,
-              C: Fn(&'a Record) -> bool {
-        let mut output: f64 = 0.0;
+pub mod lookup {
+    use std::iter::IntoIterator;
+    use record::{Record, Winner};
 
+
+    fn iterate_percentage<'a, A, B, C>(iter: A, default: B, mut matches: C) -> f64
+        where A: IntoIterator<Item = &'a Record>,
+              B: FnOnce() -> f64,
+              C: FnMut(&'a Record) -> bool {
+        let mut output: f64 = 0.0;
         let mut len: f64 = 0.0;
 
         for record in iter {
@@ -80,141 +83,125 @@ impl LookupStatistic {
         }
     }
 
-    fn upsets<'a, A>(iter: A, name: &str) -> f64
-        where A: Iterator<Item = &'a Record> {
+    fn iterate<'a, A, B>(iter: A, initial: f64, mut f: B) -> f64
+        where A: IntoIterator<Item = &'a Record>,
+              B: FnMut(f64, &'a Record) -> f64 {
+        let mut output: f64 = initial;
+        let mut len: f64 = 0.0;
+
+        for record in iter {
+            len += 1.0;
+            output = f(output, record);
+        }
+
+        if len == 0.0 {
+            // TODO should this return 0.0 instead ?
+            output
+
+        } else {
+            output / len
+        }
+    }
+
+    pub fn upsets<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
         // TODO is 0.0 or 0.5 better ?
-        LookupStatistic::iterate_percentage(iter, || 0.0, |record|
+        iterate_percentage(iter, || 0.0, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             (record.left.name == name &&
              (record.right.bet_amount / record.left.bet_amount) > 1.0) ||
 
             (record.right.name == name &&
-             (record.left.bet_amount / record.right.bet_amount) > 1.0))
+             (record.left.bet_amount / record.right.bet_amount) > 1.0)
+        })
     }
 
-    fn favored<'a, A>(iter: A, name: &str) -> f64
-        where A: Iterator<Item = &'a Record> {
+    pub fn favored<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
         // TODO is 0.0 or 0.5 better ?
-        LookupStatistic::iterate_percentage(iter, || 0.0, |record|
+        iterate_percentage(iter, || 0.0, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             (record.left.name == name &&
              (record.left.bet_amount / record.right.bet_amount) > 1.0) ||
 
             (record.right.name == name &&
-             (record.right.bet_amount / record.left.bet_amount) > 1.0))
+             (record.right.bet_amount / record.left.bet_amount) > 1.0)
+        })
     }
 
-    fn bet_amount<'a, A>(iter: A, name: &str) -> f64
-        where A: Iterator<Item = &'a Record> {
-        let mut bet_amount: f64 = 0.0;
-        let mut len: f64 = 0.0;
-
-        for record in iter {
-            len += 1.0;
-
+    pub fn bet_amount<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate(iter, 0.0, |bet_amount, record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             if record.left.name == name {
-                bet_amount += record.left.bet_amount;
+                bet_amount + record.left.bet_amount
 
             } else {
-                bet_amount += record.right.bet_amount;
+                bet_amount + record.right.bet_amount
             }
-        }
-
-        if len == 0.0 {
-            0.0
-
-        } else {
-            bet_amount / len
-        }
+        })
     }
 
-    fn duration<'a, A>(iter: A) -> f64
-        where A: Iterator<Item = &'a Record> {
-        let mut duration: f64 = 0.0;
-        let mut len: f64 = 0.0;
-
-        for record in iter {
-            len += 1.0;
-            duration += record.duration as f64;
-        }
-
-        if len == 0.0 {
-            0.0
-
-        } else {
-            duration / len
-        }
+    pub fn duration<'a, A>(iter: A) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate(iter, 0.0, |duration, record| duration + (record.duration as f64))
     }
 
-    fn winrate<'a, A>(iter: A, name: &str) -> f64
-        where A: Iterator<Item = &'a Record> {
+    pub fn winrate<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
         // TODO what about mirror matches ?
-        LookupStatistic::iterate_percentage(iter, || 0.5, |record| record.is_winner(name))
+        iterate_percentage(iter, || 0.5, |record| record.is_winner(name))
     }
 
-    fn odds<'a, A>(iter: A, name: &str) -> f64
-        where A: Iterator<Item = &'a Record> {
-        let mut len: f64 = 0.0;
-
-        let mut odds: f64 = 0.0;
-
-        for record in iter {
-            len += 1.0;
-
+    pub fn odds<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate(iter, 0.0, |odds, record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             if record.left.name == name {
-                odds += record.right.bet_amount / record.left.bet_amount;
+                odds + (record.right.bet_amount / record.left.bet_amount)
 
             } else {
-                odds += record.left.bet_amount / record.right.bet_amount;
+                odds + (record.left.bet_amount / record.right.bet_amount)
             }
-        }
-
-        if len == 0.0 {
-            // TODO is this correct ?
-            0.0
-
-        } else {
-            odds / len
-        }
+        })
     }
 
-    fn earnings<'a, A>(iter: A, name: &str) -> f64
-        where A: Iterator<Item = &'a Record> {
+    pub fn earnings<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
+        where A: IntoIterator<Item = &'a Record> {
         let mut earnings: f64 = 0.0;
 
         for record in iter {
-            match record.winner {
-                // TODO what about mirror matches ?
-                // TODO better detection for whether the character matches or not
-                Winner::Left => if record.left.name == name {
-                    earnings += record.right.bet_amount / record.left.bet_amount;
+            // TODO is this correct ?
+            if record.left.name != record.right.name {
+                match record.winner {
+                    // TODO better detection for whether the character matches or not
+                    Winner::Left => if record.left.name == name {
+                        earnings += bet_amount * (record.right.bet_amount / (record.left.bet_amount + bet_amount));
 
-                } else {
-                    earnings -= 1.0;
-                },
+                    } else {
+                        earnings -= bet_amount;
+                    },
 
-                // TODO what about mirror matches ?
-                // TODO better detection for whether the character matches or not
-                Winner::Right => if record.right.name == name {
-                    earnings += record.left.bet_amount / record.right.bet_amount;
+                    // TODO better detection for whether the character matches or not
+                    Winner::Right => if record.right.name == name {
+                        earnings += bet_amount * (record.left.bet_amount / (record.right.bet_amount + bet_amount));
 
-                } else {
-                    earnings -= 1.0;
-                },
+                    } else {
+                        earnings -= bet_amount;
+                    },
+                }
             }
         }
 
         earnings
     }
 
-    fn matches_len<'a, A>(iter: A) -> f64
-        where A: Iterator<Item = &'a Record> {
+    pub fn matches_len<'a, A>(iter: A) -> f64
+        where A: IntoIterator<Item = &'a Record> {
         let mut len: f64 = 0.0;
 
         for _ in iter {
@@ -223,18 +210,21 @@ impl LookupStatistic {
 
         len
     }
+}
 
+
+impl LookupStatistic {
     fn lookup<'a, A>(&self, name: &str, iter: A) -> f64
         where A: Iterator<Item = &'a Record> {
         match *self {
-            LookupStatistic::Upsets => LookupStatistic::upsets(iter, name),
-            LookupStatistic::Favored => LookupStatistic::favored(iter, name),
-            LookupStatistic::Winrate => LookupStatistic::winrate(iter, name),
-            LookupStatistic::Earnings => LookupStatistic::earnings(iter, name),
-            LookupStatistic::Odds => LookupStatistic::odds(iter, name),
-            LookupStatistic::BetAmount => LookupStatistic::bet_amount(iter, name),
-            LookupStatistic::Duration => LookupStatistic::duration(iter),
-            LookupStatistic::MatchesLen => LookupStatistic::matches_len(iter),
+            LookupStatistic::Upsets => lookup::upsets(iter, name),
+            LookupStatistic::Favored => lookup::favored(iter, name),
+            LookupStatistic::Winrate => lookup::winrate(iter, name),
+            LookupStatistic::Earnings => unimplemented!(), //lookup::earnings(iter, name),
+            LookupStatistic::Odds => lookup::odds(iter, name),
+            LookupStatistic::BetAmount => lookup::bet_amount(iter, name),
+            LookupStatistic::Duration => lookup::duration(iter),
+            LookupStatistic::MatchesLen => lookup::matches_len(iter),
         }
     }
 }
@@ -348,10 +338,10 @@ impl Calculate<f64> for Lookup {
 
             Lookup::Character(ref side, ref filter, ref stat) => match *side {
                 LookupSide::Left =>
-                    filter.lookup(stat, left, right, simulation.lookup_character(left).unwrap_or(&[])),
+                    filter.lookup(stat, left, right, simulation.lookup_character(left)),
 
                 LookupSide::Right =>
-                    filter.lookup(stat, right, left, simulation.lookup_character(right).unwrap_or(&[])),
+                    filter.lookup(stat, right, left, simulation.lookup_character(right)),
             },
         }
     }
@@ -483,29 +473,33 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     }
 
     pub fn pick_winner<C>(&self, strategy: &C, tier: &Tier, left: &str, right: &str) -> Bet where C: Strategy {
-        let bet = if left == right {
-            Bet::None
+        if left != right {
+            match strategy.bet(self, tier, left, right) {
+                Bet::Left(bet_amount) => if bet_amount > 0.0 {
+                    return Bet::Left(self.clamp(bet_amount))
+                },
 
-        } else {
-            strategy.bet(self, tier, left, right)
-        };
+                Bet::Right(bet_amount) => if bet_amount > 0.0 {
+                    return Bet::Right(self.clamp(bet_amount))
+                },
 
-        match bet {
-            Bet::Left(bet_amount) => Bet::Left(self.clamp(bet_amount)),
+                Bet::None => {},
+            }
+        }
 
-            Bet::Right(bet_amount) => Bet::Right(self.clamp(bet_amount)),
+        if self.is_in_mines() {
+            Bet::Left(self.sum())
 
-            Bet::None => if self.is_in_mines() {
-                if Gene::new() {
-                    Bet::Left(self.sum())
-
-                } else {
-                    Bet::Right(self.sum())
-                }
+            // TODO use randomness
+            /*if Gene::new() {
+                Bet::Left(self.sum())
 
             } else {
-                Bet::None
-            },
+                Bet::Right(self.sum())
+            }*/
+
+        } else {
+            Bet::None
         }
     }
 
@@ -602,14 +596,22 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             self.insert_record(record);
         }
     }
+
+    pub fn winrate(&self, name: &str) -> f64 {
+        lookup::winrate(self.lookup_character(name), name)
+    }
 }
 
 impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
+    fn matches_len(&self, name: &str) -> usize {
+        self.lookup_character(name).len()
+    }
+
     fn current_money(&self) -> f64 {
         self.sum()
     }
 
-    fn lookup_character(&self, name: &str) -> Option<&[Record]> {
-        self.characters.get(name).map(|x| x.as_slice())
+    fn lookup_character(&self, name: &str) -> &[Record] {
+        self.characters.get(name).map(|x| x.as_slice()).unwrap_or(&[])
     }
 }
