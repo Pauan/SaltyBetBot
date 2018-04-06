@@ -281,11 +281,11 @@ fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), s
 }
 
 
-fn run_strategy<A: Strategy + Copy>(left: &mut [Record], right: &mut [Record], strategy: A) {
-    println!("Matchmaking   -> {}   -> {}",
+fn run_strategy<A: Strategy + Copy>(name: &str, left: &mut [Record], right: &mut [Record], strategy: A) {
+    println!("Matchmaking {}   -> {}   -> {}", name,
         test_strategy(Mode::Matchmaking, left, strategy),
         test_strategy(Mode::Matchmaking, right, strategy));
-    println!("Tournament   -> {}   -> {}",
+    println!("Tournament {}   -> {}   -> {}", name,
         test_strategy(Mode::Tournament, left, strategy),
         test_strategy(Mode::Tournament, right, strategy));
 }
@@ -308,8 +308,8 @@ fn run_bet_strategy(date: String, left: &mut [Record], right: &mut [Record]) -> 
     let tournament_test1 = test_strategy(Mode::Tournament, right, tournament1.clone());
     let tournament_test2 = test_strategy(Mode::Tournament, left, tournament2.clone());
 
-    println!("Matchmaking  {} -> {}  {} -> {}", matchmaking1.fitness, matchmaking_test1, matchmaking2.fitness, matchmaking_test2);
-    println!("Tournament  {} -> {}  {} -> {}", tournament1.fitness, tournament_test1, tournament2.fitness, tournament_test2);
+    println!("Matchmaking Genetic  {} -> {}  {} -> {}", matchmaking1.fitness, matchmaking_test1, matchmaking2.fitness, matchmaking_test2);
+    println!("Tournament Genetic  {} -> {}  {} -> {}", tournament1.fitness, tournament_test1, tournament2.fitness, tournament_test2);
 
     let matchmaking = if matchmaking_test1 > matchmaking_test2 { matchmaking1 } else { matchmaking2 };
     let tournament = if tournament_test1 > tournament_test2 { tournament1 } else { tournament2 };
@@ -324,12 +324,13 @@ fn run_bet_strategy(date: String, left: &mut [Record], right: &mut [Record]) -> 
 fn run_simulation() -> Result<(), std::io::Error> {
     let date = current_time();
 
-    let records: Vec<Record> = read("../records/SaltyBet Records (2018-03-22T07_31_54.050Z).json")?;
+    let records: Vec<Record> = read("../records/SaltyBet Records (2018-04-06T11_46_11.928Z).json")?;
+    println!("Read in {} records", records.len());
 
     let (mut left, mut right) = split_records(records);
 
-    run_strategy(&mut left, &mut right, EarningsStrategy);
-    run_strategy(&mut left, &mut right, AllInStrategy);
+    run_strategy("Earnings", &mut left, &mut right, EarningsStrategy);
+    run_strategy("AllIn", &mut left, &mut right, AllInStrategy);
     run_old_simulation(&mut left, &mut right)?;
     run_bet_strategy(date, &mut left, &mut right)?;
 

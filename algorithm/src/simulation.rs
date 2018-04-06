@@ -6,17 +6,17 @@ use types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
 
 
 // TODO this should take into account the user's real limit
-const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
+pub const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
 
 // TODO this should take into account the user's real limit
 const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Bet {
+    None,
     Left(f64),
     Right(f64),
-    None,
 }
 
 impl Bet {
@@ -173,10 +173,13 @@ pub mod lookup {
     pub fn earnings<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
         where A: IntoIterator<Item = &'a Record> {
         let mut earnings: f64 = 0.0;
+        let mut len: f64 = 0.0;
 
         for record in iter {
             // TODO is this correct ?
             if record.left.name != record.right.name {
+                len += 1.0;
+
                 match record.winner {
                     // TODO better detection for whether the character matches or not
                     Winner::Left => if record.left.name == name {
@@ -197,7 +200,12 @@ pub mod lookup {
             }
         }
 
-        earnings
+        if len == 0.0 {
+            earnings
+
+        } else {
+            earnings / len
+        }
     }
 
     pub fn matches_len<'a, A>(iter: A) -> f64
@@ -220,7 +228,8 @@ impl LookupStatistic {
             LookupStatistic::Upsets => lookup::upsets(iter, name),
             LookupStatistic::Favored => lookup::favored(iter, name),
             LookupStatistic::Winrate => lookup::winrate(iter, name),
-            LookupStatistic::Earnings => unimplemented!(), //lookup::earnings(iter, name),
+            // TODO this is wrong
+            LookupStatistic::Earnings => lookup::earnings(iter, name, 1.0),
             LookupStatistic::Odds => lookup::odds(iter, name),
             LookupStatistic::BetAmount => lookup::bet_amount(iter, name),
             LookupStatistic::Duration => lookup::duration(iter),

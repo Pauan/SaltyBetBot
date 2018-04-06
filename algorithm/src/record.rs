@@ -33,7 +33,7 @@ fn parse_odds(input: &str) -> Result<(f64, f64), Box<std::error::Error>> {
 }*/
 
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Winner {
     Left,
     Right,
@@ -57,14 +57,14 @@ impl Winner {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tier {
     New,
-    X,
-    S,
-    A,
-    B,
     P,
+    B,
+    A,
+    S,
+    X,
 }
 
 /*impl Tier {
@@ -81,7 +81,7 @@ pub enum Tier {
 }*/
 
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Mode {
     Matchmaking,
     Tournament,
@@ -98,7 +98,7 @@ pub enum Mode {
 }*/
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Character {
     pub name: String,
     pub bet_amount: f64,
@@ -108,7 +108,7 @@ pub struct Character {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Record {
     pub left: Character,
     pub right: Character,

@@ -125,19 +125,26 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 
                 match bet {
                     Bet::Left(amount) => {
-                        wager_box.set_raw_value(&amount.to_string());
-                        click(&left_button);
+                        if !amount.is_nan() {
+                            wager_box.set_raw_value(&amount.to_string());
+                            click(&left_button);
+                            return;
+                        }
                     },
                     Bet::Right(amount) => {
-                        wager_box.set_raw_value(&amount.to_string());
-                        click(&right_button);
+                        if !amount.is_nan() {
+                            wager_box.set_raw_value(&amount.to_string());
+                            click(&right_button);
+                            return;
+                        }
                     },
-                    Bet::None => {},
+                    Bet::None => {
+                        return;
+                    },
                 }
-
-            } else {
-                log!("Invalid state: {:#?} {:#?} {:#?} {:#?}", open, left_name, right_name, in_tournament);
             }
+
+            log!("Invalid state: {:#?} {:#?} {:#?} {:#?} {:#?}", current_balance, open, left_name, right_name, in_tournament);
         }}}}}
     }
 }
@@ -186,13 +193,6 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
             }
         });
     }
-}
-
-
-fn lookup(state: Rc<RefCell<State>>) {
-    lookup_bet(&state);
-    lookup_information(&state);
-    set_timeout(|| lookup(state), 1000);
 }
 
 
@@ -294,12 +294,14 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
 
                                         let duration = date - closed.date;
 
-                                        if duration >= 0.0 &&
-                                           duration <= MAX_MATCH_TIME_LIMIT &&
-                                           match winner.side {
-                                               Winner::Left => winner.name == closed.left.name,
-                                               Winner::Right => winner.name == closed.right.name,
-                                           } {
+                                        let is_winner_correct = match winner.side {
+                                            Winner::Left => winner.name == closed.left.name,
+                                            Winner::Right => winner.name == closed.right.name,
+                                        };
+
+                                        if is_winner_correct &&
+                                           duration >= 0.0 &&
+                                           duration <= MAX_MATCH_TIME_LIMIT {
 
                                             // TODO figure out a way to avoid the clone
                                             let mut information = information.clone();
@@ -328,29 +330,39 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                                                 Bet::None => {},
                                             }
 
-                                            // TODO figure out a way to avoid clone
-                                            Some(Record {
-                                                left: Character {
-                                                    name: closed.left.name.clone(),
-                                                    bet_amount: closed.left.bet_amount,
-                                                    win_streak: closed.left.win_streak,
-                                                    illuminati_bettors: information.left_bettors_illuminati,
-                                                    normal_bettors: information.left_bettors_normal,
-                                                },
-                                                right: Character {
-                                                    name: closed.right.name.clone(),
-                                                    bet_amount: closed.right.bet_amount,
-                                                    win_streak: closed.right.win_streak,
-                                                    illuminati_bettors: information.right_bettors_illuminati,
-                                                    normal_bettors: information.right_bettors_normal,
-                                                },
-                                                winner: winner.side,
-                                                tier: open.tier.clone(),
-                                                mode: open.mode.clone(),
-                                                bet: information.bet.clone(),
-                                                duration,
-                                                date,
-                                            })
+                                            if closed.left.bet_amount > 0.0 &&
+                                               closed.right.bet_amount > 0.0 &&
+                                               (information.left_bettors_illuminati + information.left_bettors_normal) > 0.0 &&
+                                               (information.right_bettors_illuminati + information.right_bettors_normal) > 0.0 {
+
+                                                // TODO figure out a way to avoid clone
+                                                Some(Record {
+                                                    left: Character {
+                                                        name: closed.left.name.clone(),
+                                                        bet_amount: closed.left.bet_amount,
+                                                        win_streak: closed.left.win_streak,
+                                                        illuminati_bettors: information.left_bettors_illuminati,
+                                                        normal_bettors: information.left_bettors_normal,
+                                                    },
+                                                    right: Character {
+                                                        name: closed.right.name.clone(),
+                                                        bet_amount: closed.right.bet_amount,
+                                                        win_streak: closed.right.win_streak,
+                                                        illuminati_bettors: information.right_bettors_illuminati,
+                                                        normal_bettors: information.right_bettors_normal,
+                                                    },
+                                                    winner: winner.side,
+                                                    tier: open.tier.clone(),
+                                                    mode: open.mode.clone(),
+                                                    bet: information.bet.clone(),
+                                                    duration,
+                                                    date,
+                                                })
+
+                                            } else {
+                                                log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                                None
+                                            }
 
                                         } else {
                                             log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
@@ -541,7 +553,7 @@ impl InfoSide {
 
     pub fn set_expected_profit(&self, profits: f64, cmp: Ordering) {
         self.expected_profit.set_color(cmp);
-        self.expected_profit.set(&format!("Past expected profit: ${}", profits.round()));
+        self.expected_profit.set(&format!("Expected profit: ${}", profits.round()));
     }
 
     pub fn set_matches_len(&self, len: usize, cmp: Ordering) {
@@ -603,6 +615,20 @@ impl InfoContainer {
 }
 
 
+fn migrate_records(mut records: Vec<Record>) -> Vec<Record> {
+    records = records.into_iter().filter(|record| {
+        record.left.bet_amount > 0.0 &&
+        record.right.bet_amount > 0.0 &&
+        (record.left.illuminati_bettors + record.left.normal_bettors) > 0.0 &&
+        (record.right.illuminati_bettors + record.right.normal_bettors) > 0.0
+    }).collect();
+
+    set_storage("matches", &serde_json::to_string(&records).unwrap());
+
+    records
+}
+
+
 fn main() {
     stdweb::initialize();
 
@@ -652,6 +678,8 @@ fn main() {
             None => vec![],
         };
 
+        //let matches = migrate_records(matches);
+
         log!("Initialized {} records", matches.len());
 
         let mut simulation = Simulation::new();
@@ -678,7 +706,19 @@ fn main() {
         }));
 
         observe_changes(state.clone());
-        lookup(state);
+
+        fn loop_bet(state: Rc<RefCell<State>>) {
+            lookup_bet(&state);
+            set_timeout(|| loop_bet(state), 1000);
+        }
+
+        fn loop_information(state: Rc<RefCell<State>>) {
+            lookup_information(&state);
+            set_timeout(|| loop_information(state), 5000);
+        }
+
+        loop_bet(state.clone());
+        loop_information(state);
     });
 
     create_tab(|| {
