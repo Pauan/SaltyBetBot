@@ -2,6 +2,12 @@ use record::Tier;
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
+fn weight(len: f64, general: f64, specific: f64) -> f64 {
+    let weight = (len / 10.0).max(0.0).min(1.0);
+
+    (general * (1.0 - weight)) + (specific * weight)
+}
+
 fn normalize(value: f64, min: f64, max: f64) -> f64 {
     // TODO is this correct ?
     if min == max {
@@ -25,7 +31,7 @@ impl EarningsStrategy {
         // TODO these f64 conversions are a little bit gross
         let left_len = simulation.matches_len(left) as f64;
         let right_len = simulation.matches_len(right) as f64;
-        let len = normalize(left_len.min(right_len), 0.0, 10.0);
+        let len = normalize(left_len.min(right_len), 2.0, 10.0);
 
         if current_money < (SALT_MINE_AMOUNT * 100.0) {
             (current_money * bet_amount)
@@ -38,9 +44,20 @@ impl EarningsStrategy {
     pub fn expected_profits<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> (f64, f64) {
         let bet_amount = self.bet_amount(simulation, tier, left, right);
 
+        let left_earnings = lookup::earnings(simulation.lookup_character(left), left, bet_amount);
+        let right_earnings = lookup::earnings(simulation.lookup_character(right), right, bet_amount);
+
+        let specific_matches = simulation.lookup_specific_character(left, right);
+        // TODO this f64 conversions is a bit gross
+        let specific_matches_len = specific_matches.len() as f64;
+
+        // TODO gross, figure out how to avoid the clone
+        let left_specific_earnings = lookup::earnings(specific_matches.clone(), left, bet_amount);
+        let right_specific_earnings = lookup::earnings(specific_matches, right, bet_amount);
+
         (
-            lookup::earnings(simulation.lookup_character(left), left, bet_amount),
-            lookup::earnings(simulation.lookup_character(right), right, bet_amount)
+            weight(specific_matches_len, left_earnings, left_specific_earnings),
+            weight(specific_matches_len, right_earnings, right_specific_earnings)
         )
     }
 }

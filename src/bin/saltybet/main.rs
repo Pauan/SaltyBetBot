@@ -436,6 +436,10 @@ impl State {
         self.info_container.left.set_matches_len(left_matches, left_matches.partial_cmp(&right_matches).unwrap_or(Ordering::Equal));
         self.info_container.right.set_matches_len(right_matches, right_matches.partial_cmp(&left_matches).unwrap_or(Ordering::Equal));
 
+        let specific_matches = self.simulation.specific_matches_len(left, right);
+        self.info_container.left.set_specific_matches_len(specific_matches, Ordering::Equal);
+        self.info_container.right.set_specific_matches_len(specific_matches, Ordering::Equal);
+
         match *mode {
             Mode::Matchmaking => {
                 let (left_profit, right_profit) = EarningsStrategy.expected_profits(&self.simulation, tier, left, right);
@@ -495,6 +499,7 @@ struct InfoSide {
     name: Element,
     expected_profit: InfoBar,
     matches_len: InfoBar,
+    specific_matches_len: InfoBar,
     winrate: InfoBar,
 }
 
@@ -538,11 +543,15 @@ impl InfoSide {
         let matches_len = InfoBar::new();
         element.append_child(&matches_len.element);
 
+        let specific_matches_len = InfoBar::new();
+        element.append_child(&specific_matches_len.element);
+
         Self {
             element,
             name,
             expected_profit,
             matches_len,
+            specific_matches_len,
             winrate
         }
     }
@@ -558,7 +567,12 @@ impl InfoSide {
 
     pub fn set_matches_len(&self, len: usize, cmp: Ordering) {
         self.matches_len.set_color(cmp);
-        self.matches_len.set(&format!("Number of past matches: {}", len));
+        self.matches_len.set(&format!("Number of past matches (in general): {}", len));
+    }
+
+    pub fn set_specific_matches_len(&self, len: usize, cmp: Ordering) {
+        self.specific_matches_len.set_color(cmp);
+        self.specific_matches_len.set(&format!("Number of past matches (in specific): {}", len));
     }
 
     pub fn set_winrate(&self, percentage: f64, cmp: Ordering) {
@@ -570,6 +584,7 @@ impl InfoSide {
         self.name.set_text_content("");
         self.expected_profit.set("");
         self.matches_len.set("");
+        self.specific_matches_len.set("");
         self.winrate.set("");
     }
 }
@@ -709,12 +724,12 @@ fn main() {
 
         fn loop_bet(state: Rc<RefCell<State>>) {
             lookup_bet(&state);
-            set_timeout(|| loop_bet(state), 1000);
+            set_timeout(|| loop_bet(state), 500);
         }
 
         fn loop_information(state: Rc<RefCell<State>>) {
             lookup_information(&state);
-            set_timeout(|| loop_information(state), 5000);
+            set_timeout(|| loop_information(state), 10000);
         }
 
         loop_bet(state.clone());

@@ -34,6 +34,7 @@ pub trait Simulator {
     fn matches_len(&self, &str) -> usize;
     fn current_money(&self) -> f64;
     fn lookup_character(&self, &str) -> &[Record];
+    fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record>;
 }
 
 
@@ -609,6 +610,10 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     pub fn winrate(&self, name: &str) -> f64 {
         lookup::winrate(self.lookup_character(name), name)
     }
+
+    pub fn specific_matches_len(&self, left: &str, right: &str) -> usize {
+        self.lookup_specific_character(left, right).len()
+    }
 }
 
 impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
@@ -622,5 +627,18 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
 
     fn lookup_character(&self, name: &str) -> &[Record] {
         self.characters.get(name).map(|x| x.as_slice()).unwrap_or(&[])
+    }
+
+    fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record> {
+        if left == right {
+            self.lookup_character(left).into_iter().filter(|record|
+                (record.left.name == right) &&
+                (record.right.name == right)).collect()
+
+        } else {
+            self.lookup_character(left).into_iter().filter(|record|
+                (record.left.name == right) ||
+                (record.right.name == right)).collect()
+        }
     }
 }
