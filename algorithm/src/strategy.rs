@@ -28,7 +28,7 @@ pub struct EarningsStrategy;
 
 impl EarningsStrategy {
     // TODO better behavior for this ?
-    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {
         let current_money = simulation.current_money();
 
         if simulation.is_in_mines() {
