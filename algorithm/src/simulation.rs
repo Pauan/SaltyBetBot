@@ -33,6 +33,7 @@ impl Bet {
 pub trait Simulator {
     fn matches_len(&self, &str) -> usize;
     fn current_money(&self) -> f64;
+    fn is_in_mines(&self) -> bool;
     fn lookup_character(&self, &str) -> &[Record];
     fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record>;
 }
@@ -452,15 +453,6 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn is_in_mines(&self) -> bool {
-        if self.in_tournament {
-            self.tournament_sum <= TOURNAMENT_BALANCE
-
-        } else {
-            self.sum <= SALT_MINE_AMOUNT
-        }
-    }
-
     fn clamp(&self, bet_amount: f64) -> f64 {
         let sum = self.sum();
 
@@ -623,6 +615,15 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
 
     fn current_money(&self) -> f64 {
         self.sum()
+    }
+
+    fn is_in_mines(&self) -> bool {
+        if self.in_tournament {
+            self.tournament_sum <= TOURNAMENT_BALANCE
+
+        } else {
+            self.sum <= SALT_MINE_AMOUNT
+        }
     }
 
     fn lookup_character(&self, name: &str) -> &[Record] {

@@ -2,6 +2,10 @@ use record::Tier;
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
+const MINIMUM_MATCHES_MATCHMAKING: f64 = 1.0;
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.08;
+
+
 fn weight(len: f64, general: f64, specific: f64) -> f64 {
     let weight = (len / 10.0).max(0.0).min(1.0);
 
@@ -26,18 +30,28 @@ impl EarningsStrategy {
     // TODO better behavior for this ?
     fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {
         let current_money = simulation.current_money();
-        let bet_amount = (SALT_MINE_AMOUNT / current_money).min(1.0).max(0.01);
 
-        // TODO these f64 conversions are a little bit gross
-        let left_len = simulation.matches_len(left) as f64;
-        let right_len = simulation.matches_len(right) as f64;
-        let len = normalize(left_len.min(right_len), 2.0, 10.0);
-
-        if current_money < (SALT_MINE_AMOUNT * 100.0) {
-            (current_money * bet_amount)
+        if simulation.is_in_mines() {
+            current_money
 
         } else {
-            (current_money * bet_amount) * len
+            // When at low money, bet high. When at high money, bet at most MAXIMUM_BET_PERCENTAGE of current money
+            let bet_amount = (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE);
+
+            // TODO these f64 conversions are a little bit gross
+            let left_len = simulation.matches_len(left) as f64;
+            let right_len = simulation.matches_len(right) as f64;
+
+            // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
+            let len = normalize(left_len.min(right_len), MINIMUM_MATCHES_MATCHMAKING - 1.0, 10.0);
+
+            // Bet high when at low money, to try and get out of mines faster
+            if current_money < (SALT_MINE_AMOUNT * 100.0) {
+                (current_money * bet_amount)
+
+            } else {
+                (current_money * bet_amount) * len
+            }
         }
     }
 
@@ -55,6 +69,7 @@ impl EarningsStrategy {
         let left_specific_earnings = lookup::earnings(specific_matches.clone(), left, bet_amount);
         let right_specific_earnings = lookup::earnings(specific_matches, right, bet_amount);
 
+        // Scales it so that as it collects more matchup-specific data it favors the matchup-specific data more
         (
             weight(specific_matches_len, left_earnings, left_specific_earnings),
             weight(specific_matches_len, right_earnings, right_specific_earnings)
@@ -68,16 +83,16 @@ impl Strategy for EarningsStrategy {
 
         let (left_earnings, right_earnings) = self.expected_profits(simulation, tier, left, right);
 
-        if (left_earnings - right_earnings).abs() > (bet_amount * 0.20) {
-            if left_earnings > right_earnings {
-                Bet::Left(bet_amount)
+        let diff = (left_earnings - right_earnings).abs();
 
-            } else if right_earnings > left_earnings {
-                Bet::Right(bet_amount)
+        // TODO use the fixed point of expected_profits(diff) for this ?
+        let bet_amount = if simulation.is_in_mines() { bet_amount } else { diff.min(bet_amount) };
 
-            } else {
-                Bet::None
-            }
+        if left_earnings > right_earnings {
+            Bet::Left(bet_amount)
+
+        } else if right_earnings > left_earnings {
+            Bet::Right(bet_amount)
 
         } else {
             Bet::None
@@ -89,27 +104,24 @@ impl Strategy for EarningsStrategy {
 #[derive(Debug, Clone, Copy)]
 pub struct AllInStrategy;
 
-impl AllInStrategy {
-    fn calculate_money<A: Simulator>(&self, simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> f64 {
-        simulation.current_money()
-    }
-}
-
 impl Strategy for AllInStrategy {
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+    fn bet<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> Bet {
         let left_winrate = lookup::winrate(simulation.lookup_character(left), left);
         let right_winrate = lookup::winrate(simulation.lookup_character(right), right);
 
-        if (left_winrate - right_winrate).abs() > 0.20 {
-            if left_winrate > right_winrate {
-                Bet::Left(self.calculate_money(simulation, tier, left, right))
+        let diff = (left_winrate - right_winrate).abs();
 
-            } else if right_winrate > left_winrate {
-                Bet::Right(self.calculate_money(simulation, tier, right, left))
+        let mut bet_amount = simulation.current_money();
 
-            } else {
-                Bet::None
-            }
+        if !simulation.is_in_mines() {
+            bet_amount = bet_amount * normalize(diff, 0.0, 0.50);
+        }
+
+        if left_winrate > right_winrate {
+            Bet::Left(bet_amount)
+
+        } else if right_winrate > left_winrate {
+            Bet::Right(bet_amount)
 
         } else {
             Bet::None

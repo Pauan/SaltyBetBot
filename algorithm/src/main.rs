@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate indicatif;
 extern crate rayon;
 extern crate algorithm;
@@ -291,7 +293,9 @@ fn run_strategy<A: Strategy + Copy>(name: &str, left: &mut [Record], right: &mut
 }
 
 
-fn run_bet_strategy(date: String, left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
+fn run_bet_strategy(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
+    let date = current_time();
+
     let progress_bar = indicatif::ProgressBar::new((GENERATIONS + 1) * 4);
 
     let matchmaking1 = simulate(&progress_bar, Mode::Matchmaking, left);
@@ -322,9 +326,7 @@ fn run_bet_strategy(date: String, left: &mut [Record], right: &mut [Record]) -> 
 
 
 fn run_simulation() -> Result<(), std::io::Error> {
-    let date = current_time();
-
-    let records: Vec<Record> = read("../records/SaltyBet Records (2018-04-06T11_46_11.928Z).json")?;
+    let records: Vec<Record> = read("../records/SaltyBet Records (2018-04-23T08_40_54.348Z).json")?;
     println!("Read in {} records", records.len());
 
     let (mut left, mut right) = split_records(records);
@@ -332,7 +334,7 @@ fn run_simulation() -> Result<(), std::io::Error> {
     run_strategy("Earnings", &mut left, &mut right, EarningsStrategy);
     run_strategy("AllIn", &mut left, &mut right, AllInStrategy);
     run_old_simulation(&mut left, &mut right)?;
-    run_bet_strategy(date, &mut left, &mut right)?;
+    //run_bet_strategy(&mut left, &mut right)?;
 
     Ok(())
 }
