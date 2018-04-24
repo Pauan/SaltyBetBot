@@ -3,7 +3,7 @@ use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 1.0;
-const MAXIMUM_BET_PERCENTAGE: f64 = 0.08;
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.01;
 
 
 fn weight(len: f64, general: f64, specific: f64) -> f64 {

@@ -6,7 +6,7 @@ function noop() {}
 function remove_twitch_tabs(f) {
     // TODO handle error messages
     chrome.tabs.query({
-        url: "https://www.twitch.tv/saltybet/chat"
+        url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
     }, function (tabs) {
         if (tabs.length) {
             var mapped = tabs.map(function (tab) { return tab.id; });
@@ -71,7 +71,7 @@ chrome.runtime.onMessage.addListener(function (message, _sender, reply) {
 
         // TODO error checking
         chrome.tabs.create({
-            url: "https://www.twitch.tv/saltybet/chat",
+            url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout",
             active: false
         }, function (tab) {
             done();

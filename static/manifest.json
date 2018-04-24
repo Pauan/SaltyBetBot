@@ -28,8 +28,7 @@
     "all_frames": false
   }, {
     "matches": [
-      "http://www.twitch.tv/saltybet/chat",
-      "https://www.twitch.tv/saltybet/chat"
+      "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
     ],
     "js": [
       "twitch_chat.js"

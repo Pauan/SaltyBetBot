@@ -32,8 +32,7 @@ extern crate algorithm;
 use std::iter::Iterator;
 use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp};
 use algorithm::record::{Tier, Mode, Winner};
-use stdweb::web::{IParentNode, Element, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
-use stdweb::unstable::{TryInto};
+use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
 
 
 fn parse_tier(input: &str) -> Option<Tier> {
@@ -59,7 +58,7 @@ fn parse_mode(input: &str) -> Option<Mode> {
 fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
         static ref BET_OPEN_REGEX: regexp::RegExp = regexp::RegExp::new(
-            r"^Bets are OPEN for (.+) vs (.+?) *! \(((?:NEW|[XSABP])) Tier\) ((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1))$"
+            r"^Bets are OPEN for (.+) vs (.+?) *! \((NEW|[XSABP]) Tier\) ((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1))$"
         );
     }
 
@@ -166,7 +165,7 @@ fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
     lazy_static! {
         // wtfSALTY Bridget has been demoted!
         static ref UNKNOWN_REGEX: regexp::RegExp = regexp::RegExp::new(
-            r"(?:^wtfSalt ♫ )|(?:^(?:NEW|[XSABP])(?: / (?:NEW|[XSABP]))? Tier$)|(?:^Current stage: )|(?:^(?:.+) by(?: .+?)? *, (?:.+) by(?: .+)?$)|(?:^Current odds: [0-9\.]+:[0-9\.]+$)|(?:^The current game mode is: (?:matchmaking|tournament|exhibitions)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket|exhibition matches left)!$)|(?:^Download WAIFU Wars at www\.waifuwars\.com !$)|(?:^Current pot total: \$[0-9]+$)|(?:^The current tournament bracket can be found at: http://www\.saltybet\.com/shaker\?bracket=1$)|(?:^wtfVeku Note: (?:.+) \(from (?:.+?) *\)$)|(?:^wtfSALTY (?:.+) is fighting to stay in [SAB] Tier!$)|(?:^wtfSALTY New Waifu Wars bounties available! Winner: (?:.+) \(wave [0-9,]+\)! Play for free at http://www\.waifuwars\.com$)|(?:^wtfSalt Congrats tournament winner! (?:.+) \(\+\$[0-9,]+\)$)|(?:^The current game mode is: (?:tournament|exhibitions)\. FINAL ROUND! Stay tuned for exhibitions after the tournament!$)|(?:^Bets are locked\. (?:.+?) *- \$[0-9,]+, (?:.+?) *- \$[0-9,]+$)|(?:^(?:.+) vs (?:.+) was requested by (?:.+?) *\. OMGScoots$)|(?:^Palettes of previous match: [0-9]+(?: / [0-9]+)?, [0-9]+(?: / [0-9]+)?$)|(?:^Bets are OPEN for (?:.+) vs (?:.+?) *!(?: \((?:NEW|[XSABP])(?: / (?:NEW|[XSABP]))? Tier\))? \(Requested by (?:.+?) *\) \(exhibitions\) www\.saltybet\.com$)|(?:^The current game mode is: (?:matchmaking|exhibitions)\. Matchmaking mode will be activated after the next exhibition match!$)|(?:^The current game mode is: tournament\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) has been demoted!$)|(?:^(?:.+) vs (?:.+) was requested by RNG\. Kappa$)|(?:^The current game mode is: matchmaking\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) is fighting for a promotion from [ABP] to [SAB] Tier!$)|(?:^wtfSALTY (?:.+) has been promoted!$)|(?:^[0-9,]+ characters are left in NEW tier: http://www\.saltybet\.com/stats\?playerstats=1&new=1$)|(?:^Join the official Salty Bet Illuminati Discord! https://discord\.gg/Yf4vh9p$)"
+            r"(?:^♫ )|(?:^(?:NEW|[XSABP])(?: / (?:NEW|[XSABP]))? Tier$)|(?:^Current stage: )|(?:^(?:.+) by(?: .+?)? *, (?:.+) by(?: .+)?$)|(?:^Current odds: [0-9\.]+:[0-9\.]+$)|(?:^The current game mode is: (?:matchmaking|tournament|exhibitions)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket|exhibition matches left)!$)|(?:^Download WAIFU Wars at www\.waifuwars\.com !$)|(?:^Current pot total: \$[0-9]+$)|(?:^The current tournament bracket can be found at: http://www\.saltybet\.com/shaker\?bracket=1$)|(?:^wtfVeku Note: (?:.+) \(from (?:.+?) *\)$)|(?:^wtfSALTY (?:.+) is fighting to stay in [SAB] Tier!$)|(?:^wtfSALTY New Waifu Wars bounties available! Winner: (?:.+) \(wave [0-9,]+\)! Play for free at http://www\.waifuwars\.com$)|(?:^wtfSalt Congrats tournament winner! (?:.+) \(\+\$[0-9,]+\)$)|(?:^The current game mode is: (?:tournament|exhibitions)\. FINAL ROUND! Stay tuned for exhibitions after the tournament!$)|(?:^Bets are locked\. (?:.+?) *- \$[0-9,]+, (?:.+?) *- \$[0-9,]+$)|(?:^(?:.+) vs (?:.+) was requested by (?:.+?) *\. OMGScoots$)|(?:^Palettes of previous match: [0-9]+(?: / [0-9]+)?, [0-9]+(?: / [0-9]+)?$)|(?:^Bets are OPEN for (?:.+) vs (?:.+?) *!(?: \((?:NEW|[XSABP])(?: / (?:NEW|[XSABP]))? Tier\))? \(Requested by (?:.+?) *\) \(exhibitions\) www\.saltybet\.com$)|(?:^The current game mode is: (?:matchmaking|exhibitions)\. Matchmaking mode will be activated after the next exhibition match!$)|(?:^The current game mode is: tournament\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) has been demoted!$)|(?:^(?:.+) vs (?:.+) was requested by RNG\.$)|(?:^The current game mode is: matchmaking\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) is fighting for a promotion from [ABP] to [SAB] Tier!$)|(?:^wtfSALTY (?:.+) has been promoted!$)|(?:^[0-9,]+ characters are left in NEW tier: http://www\.saltybet\.com/stats\?playerstats=1&new=1$)|(?:^Join the official Salty Bet Illuminati Discord! https://discord\.gg/Yf4vh9p$)"
         );
     }
 
@@ -178,36 +177,37 @@ fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
 }
 
 fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
-    parse_bets_open(input, date).or_else(||
-    parse_bets_closed(input, date).or_else(||
-    parse_winner(input, date).or_else(||
-    parse_mode_switch(input, date).or_else(||
-    check_unknown_message(input)))))
+    lazy_static! {
+        static ref NAME_REGEX: regexp::RegExp = regexp::RegExp::new(r"^([^:]+): *(.*)$");
+    }
+
+    NAME_REGEX.first_match(input).and_then(|captures|
+        captures[1].as_ref().and_then(|name| {
+            if name == "WAIFU4u" || name == "SaltyBet" {
+                captures[2].as_ref().and_then(|message| {
+                    parse_bets_open(message, date).or_else(||
+                    parse_bets_closed(message, date).or_else(||
+                    parse_winner(message, date).or_else(||
+                    parse_mode_switch(message, date).or_else(||
+                    check_unknown_message(message)))))
+                })
+
+            } else {
+                None
+            }
+        }))
 }
 
 
 fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
-    // TODO better error handling ?
-    node.try_into().ok().and_then(|node: Element|
-        node.query_selector("span.from").unwrap()
-            .and_then(get_text_content)
-            .and_then(|name| {
-                if name == "WAIFU4u" || name == "SaltyBet" {
-                    node.query_selector("span.message").unwrap()
-                        .and_then(get_text_content)
-                        .and_then(|x| parse_message(&x, date))
-
-                } else {
-                    None
-                }
-            }))
+    get_text_content(node).and_then(|x| parse_message(&x, date))
 }
 
 
 pub fn get_waifu_messages() -> Vec<WaifuMessage> {
     let now: f64 = Date::now();
 
-    query_all("ul.chat-lines > li.message-line.chat-line").into_iter()
+    query_all("[data-a-target='chat-line-message']").into_iter()
         .filter_map(|x| get_waifu_message(x, now))
         .collect()
 }
@@ -221,7 +221,7 @@ pub fn observe_changes() {
     let observer = MutationObserver::new(move |records, _| {
         let now: f64 = Date::now();
 
-        let messages: Vec<WaifuMessage> = records.into_iter().filter_map(|record|
+        let messages: Vec<WaifuMessage> = records.into_iter().filter_map(|record| {
             match record {
                 MutationRecord::ChildList { inserted_nodes, .. } => Some(
                     inserted_nodes.into_iter()
@@ -229,7 +229,7 @@ pub fn observe_changes() {
                 ),
                 _ => None,
             }
-        ).flat_map(|x| x).collect();
+        }).flat_map(|x| x).collect();
 
         if messages.len() != 0 {
             port.send_message(&serde_json::to_string(&messages).unwrap());
@@ -244,8 +244,8 @@ pub fn observe_changes() {
         log!("Body hidden");
     });
 
-    wait_until_defined(|| query("ul.chat-lines"), move |lines| {
-        observer.observe(&lines, MutationObserverInit {
+    wait_until_defined(|| query("[data-a-target='chat-welcome-message']"), move |welcome| {
+        observer.observe(&welcome.parent_node().unwrap(), MutationObserverInit {
             child_list: true,
             attributes: false,
             character_data: false,

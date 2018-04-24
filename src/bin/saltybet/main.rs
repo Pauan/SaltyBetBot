@@ -468,8 +468,8 @@ impl InfoBar {
             var element = @{&element};
             element.style.display = "flex";
             element.style.alignItems = "center";
-            element.style.padding = "0px 5px";
-            element.style.color = "black";
+            element.style.padding = "0px 7px";
+            element.style.color = "white";
         }
 
         InfoBar {
@@ -483,7 +483,7 @@ impl InfoBar {
 
     pub fn set_color(&self, cmp: Ordering) {
         let color = match cmp {
-            Ordering::Equal => "black",
+            Ordering::Equal => "white",
             Ordering::Less => "lightcoral",
             Ordering::Greater => "limegreen",
         };
@@ -510,9 +510,8 @@ impl InfoSide {
         js! { @(no_return)
             var element = @{&element};
             element.style.flex = "1";
-            element.style.border = "1px solid black";
-            element.style.borderRight = "none";
-            element.style.borderLeftColor = "rgb(100, 65, 165)";
+            element.style.borderRight = "1px solid #6441a5";
+            element.style.marginRight = "-1px";
         }
 
         let name = document().create_element("div").unwrap();
@@ -526,9 +525,8 @@ impl InfoSide {
             name.style.padding = "5px";
             name.style.color = "white";
             name.style.fontSize = "15px";
-            name.style.borderBottom = "2px solid black";
-            name.style.boxShadow = "0px 0px 5px black";
-            name.style.marginBottom = "5px";
+            name.style.boxShadow = "hsla(0, 0%, 0%, 0.5) 0px -1px 2px inset";
+            name.style.marginBottom = "2px";
             name.style.backgroundColor = @{color};
         }
 
@@ -602,7 +600,8 @@ impl InfoContainer {
         js! { @(no_return)
             var element = @{&element};
             element.style.display = "flex";
-            element.style.backgroundColor = "#f2f2f2"; // rgba(100, 65, 165, 0.09)
+            element.style.backgroundColor = "#201d2b"; // rgba(100, 65, 165, 0.09)
+            element.style.borderBottom = "1px solid #6441a5";
             element.style.width = "100%";
             element.style.height = "100%";
             element.style.position = "absolute";
