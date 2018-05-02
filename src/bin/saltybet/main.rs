@@ -437,8 +437,8 @@ impl State {
         self.info_container.right.set_matches_len(right_matches, right_matches.partial_cmp(&left_matches).unwrap_or(Ordering::Equal));
 
         let specific_matches = self.simulation.specific_matches_len(left, right);
-        self.info_container.left.set_specific_matches_len(specific_matches, Ordering::Equal);
-        self.info_container.right.set_specific_matches_len(specific_matches, Ordering::Equal);
+        self.info_container.left.set_specific_matches_len(specific_matches, specific_matches.cmp(&0));
+        self.info_container.right.set_specific_matches_len(specific_matches, specific_matches.cmp(&0));
 
         match *mode {
             Mode::Matchmaking => {

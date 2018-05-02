@@ -3,8 +3,16 @@ use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 1.0;
-const MAXIMUM_BET_PERCENTAGE: f64 = 0.01;
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.02;
 
+
+const MAGNITUDE: f64 = 10.0;
+
+// TODO is this optimal ?
+// TODO use something like round instead ?
+fn round_to_order_of_magnitude(input: f64) -> f64 {
+    MAGNITUDE.powf(input.log10().trunc())
+}
 
 fn weight(len: f64, general: f64, specific: f64) -> f64 {
     let weight = (len / 10.0).max(0.0).min(1.0);
@@ -47,10 +55,11 @@ impl EarningsStrategy {
 
             // Bet high when at low money, to try and get out of mines faster
             if current_money < (SALT_MINE_AMOUNT * 100.0) {
-                (current_money * bet_amount)
+                round_to_order_of_magnitude(current_money * bet_amount)
 
             } else {
-                (current_money * bet_amount) * len
+                // TODO verify that this is correct
+                round_to_order_of_magnitude(current_money * bet_amount) * len
             }
         }
     }
