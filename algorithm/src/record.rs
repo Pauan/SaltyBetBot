@@ -109,6 +109,14 @@ pub struct Character {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+pub enum Profit {
+    Gain(f64),
+    Loss(f64),
+    None,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Record {
     pub left: Character,
     pub right: Character,
@@ -136,6 +144,39 @@ impl Record {
                 duration: self.duration,
                 date: self.date,
             }
+        }
+    }
+
+    pub fn odds_left(&self) -> f64 {
+        self.right.bet_amount / self.left.bet_amount
+    }
+
+    pub fn odds_right(&self) -> f64 {
+        self.left.bet_amount / self.right.bet_amount
+    }
+
+    // TODO handle tournaments
+    pub fn profit(&self, bet: &Bet) -> Profit {
+        match bet {
+            Bet::Left(amount) => match self.winner {
+                Winner::Left => {
+                    Profit::Gain(amount * self.odds_left())
+                },
+                Winner::Right => {
+                    Profit::Loss(*amount)
+                },
+            },
+            Bet::Right(amount) => match self.winner {
+                Winner::Right => {
+                    Profit::Gain(amount * self.odds_right())
+                },
+                Winner::Left => {
+                    Profit::Loss(*amount)
+                },
+            },
+            Bet::None => {
+                Profit::None
+            },
         }
     }
 

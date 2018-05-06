@@ -9,7 +9,7 @@ use types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
 pub const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
 
 // TODO this should take into account the user's real limit
-const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
+pub const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
@@ -25,6 +25,14 @@ impl Bet {
             Bet::Left(a) => Bet::Right(a),
             Bet::Right(a) => Bet::Left(a),
             Bet::None => Bet::None,
+        }
+    }
+
+    pub fn amount(&self) -> Option<f64> {
+        match *self {
+            Bet::Left(a) => Some(a),
+            Bet::Right(a) => Some(a),
+            Bet::None => None,
         }
     }
 }
@@ -433,14 +441,14 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     }
 
     // TODO figure out a way to remove the clones
-    pub fn insert_record(&mut self, record: Record) {
+    pub fn insert_record(&mut self, record: &Record) {
         let left = record.left.name.clone();
         let right = record.right.name.clone();
 
         if left != right {
             self.record_len += 1.0;
             self.insert_match(left, record.clone());
-            self.insert_match(right, record);
+            self.insert_match(right, record.clone());
         }
     }
 
@@ -478,11 +486,11 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         if left != right {
             match strategy.bet(self, tier, left, right) {
                 Bet::Left(bet_amount) => if bet_amount > 0.0 {
-                    return Bet::Left(self.clamp(bet_amount))
+                    return Bet::Left(self.clamp(bet_amount));
                 },
 
                 Bet::Right(bet_amount) => if bet_amount > 0.0 {
-                    return Bet::Right(self.clamp(bet_amount))
+                    return Bet::Right(self.clamp(bet_amount));
                 },
 
                 Bet::None => {},
@@ -505,35 +513,43 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn calculate(&mut self, record: &Record) {
-        // TODO make this more efficient
-        let record = record.clone().shuffle();
+    pub fn bet(&self, record: &Record) -> Bet {
+        match record.mode {
+            Mode::Matchmaking => match self.matchmaking_strategy {
+                Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
+                None => Bet::None,
+            },
+            Mode::Tournament => match self.tournament_strategy {
+                Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
+                None => Bet::None,
+            },
+        }
+    }
 
+    pub fn is_exiting_tournament(&self, mode: &Mode) -> bool {
         // TODO if there is too long of a duration between two tournament matches, treat it as two different tournaments
-        let winner = match record.mode {
+        match mode {
+            Mode::Matchmaking => self.in_tournament,
+            Mode::Tournament => false,
+        }
+    }
+
+    pub fn calculate(&mut self, record: &Record, bet: &Bet) {
+        // TODO if there is too long of a duration between two tournament matches, treat it as two different tournaments
+        match record.mode {
             Mode::Matchmaking => {
                 if self.in_tournament {
                     self.in_tournament = false;
                     self.sum += self.tournament_sum;
                     self.tournament_sum = TOURNAMENT_BALANCE;
                 }
-
-                match self.matchmaking_strategy {
-                    Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
-                    None => return,
-                }
             },
             Mode::Tournament => {
                 self.in_tournament = true;
-
-                match self.tournament_strategy {
-                    Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
-                    None => return,
-                }
             },
-        };
+        }
 
-        let increase = match winner {
+        let increase = match bet {
             Bet::Left(bet_amount) => match record.winner {
                 Winner::Left => {
                     let odds = record.right.bet_amount / record.left.bet_amount;
@@ -581,8 +597,14 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
 
     pub fn simulate(&mut self, records: Vec<Record>) {
         for record in records.into_iter() {
-            self.calculate(&record);
-            self.insert_record(record);
+            // TODO make this more efficient
+            let record = record.shuffle();
+
+            let bet = self.bet(&record);
+
+            self.calculate(&record, &bet);
+
+            self.insert_record(&record);
         }
 
         // TODO code duplication
@@ -593,8 +615,8 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn insert_records(&mut self, records: Vec<Record>) {
-        for record in records.into_iter() {
+    pub fn insert_records<'a, C: IntoIterator<Item = &'a Record>>(&mut self, records: C) {
+        for record in records {
             self.insert_record(record);
         }
     }

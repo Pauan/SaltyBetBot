@@ -36,8 +36,10 @@
     "run_at": "document_end",
     "all_frames": false
   }],
+  "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",
   "web_accessible_resources": [
     "saltybet.wasm",
-    "twitch_chat.wasm"
+    "twitch_chat.wasm",
+    "chart.wasm"
   ]
 }

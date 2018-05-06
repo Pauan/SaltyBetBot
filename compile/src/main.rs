@@ -28,6 +28,14 @@ fn replace_fetch<'a>(re: &Regex, input: &'a str) -> String {
 }
 
 
+fn bin(name: &str) -> Result<()> {
+    let re = Regex::new("fetch\\( *(\"[^\"]+\") *\\)").unwrap();
+    copy_map(&format!("./target/wasm32-unknown-unknown/release/{}.js", name), &format!("./static/{}.js", name), |x| replace_fetch(&re, &x))?;
+    fs::copy(format!("./target/wasm32-unknown-unknown/release/{}.wasm", name), format!("./static/{}.wasm", name))?;
+    Ok(())
+}
+
+
 fn run() -> Result<()> {
     env::set_current_dir("..")?;
 
@@ -40,13 +48,9 @@ fn run() -> Result<()> {
         .arg("wasm32-unknown-unknown")
         .status()?;
 
-    let re = Regex::new("fetch\\( *(\"[^\"]+\") *\\)").unwrap();
-
-    copy_map("./target/wasm32-unknown-unknown/release/saltybet.js", "./static/saltybet.js", |x| replace_fetch(&re, &x))?;
-    fs::copy("./target/wasm32-unknown-unknown/release/saltybet.wasm", "./static/saltybet.wasm")?;
-
-    copy_map("./target/wasm32-unknown-unknown/release/twitch_chat.js", "./static/twitch_chat.js", |x| replace_fetch(&re, &x))?;
-    fs::copy("./target/wasm32-unknown-unknown/release/twitch_chat.wasm", "./static/twitch_chat.wasm")?;
+    bin("saltybet")?;
+    bin("twitch_chat")?;
+    bin("chart")?;
 
     Ok(())
 }

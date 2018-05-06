@@ -387,7 +387,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
 
                     if let Some(record) = record {
                         // TODO figure out a way to avoid this clone
-                        state.simulation.insert_record(record.clone());
+                        state.simulation.insert_record(&record);
 
                         state.matches.push(record);
 
@@ -707,8 +707,7 @@ fn main() {
         simulation.matchmaking_strategy = Some(EarningsStrategy);
         simulation.tournament_strategy = Some(AllInStrategy);
 
-        // TODO figure out a way to avoid the clone
-        simulation.insert_records(matches.clone());
+        simulation.insert_records(&matches);
 
         let state = Rc::new(RefCell::new(State {
             did_bet: false,

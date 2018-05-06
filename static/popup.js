@@ -17,3 +17,10 @@ document.getElementById("export-button").addEventListener("click", function () {
         download("SaltyBet Records (" + new Date().toISOString().replace(/\:/g, "_") + ").json", obj.matches);
     });
 }, true);
+
+document.getElementById("open-chart").addEventListener("click", function () {
+    // TODO error handling
+    chrome.tabs.create({
+        url: chrome.runtime.getURL("chart.html")
+    });
+}, true);

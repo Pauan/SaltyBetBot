@@ -10,7 +10,7 @@ if( typeof Rust === "undefined" ) {
     } else if( typeof module === "object" && module.exports ) {
         module.exports = factory();
     } else {
-        Rust.twitch_chat = factory();
+        Rust.chart = factory();
     }
 }( this, function() {
     function __initialize( __wasm_module, __load_asynchronously ) {
@@ -445,140 +445,89 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
 
     const __imports = {
         env: {
-            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
-                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
-            },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
-            },
-            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
-                Module.STDWEB_PRIVATE.decrement_refcount( $0 );
-            },
-            "__extjs_5a8154fbd402ca3caf279840036957548ba1a928": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). oldValue ;})());
-            },
-            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
-            },
-            "__extjs_9e085d49feb14972b7db6f6771889fc83df11361": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). type ;})());
-            },
-            "__extjs_f792eb25b1a274917a8784443723d306b82ecc5c": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). removedNodes ;})());
-            },
-            "__extjs_2dfe8dffeb3dc174faba9488e782ed7b2832c864": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof RegExp) | 0;
-            },
-            "__extjs_fe1e80bdcfe7f7cb820b64a40f6d286cbd345955": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Array) | 0;
-            },
-            "__extjs_564c2e4da2b413702d80d2fcaf5092dffdfbaaeb": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). postMessage (($1));
-            },
-            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
-            },
-            "__extjs_cf32fb39093cd2549f37c2d392ef3198dcaa2ad4": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Node) | 0;
-            },
-            "__extjs_59716168801dbdc3d0c93b11d42dfffd865a7ce2": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof NodeList) | 0;
-            },
-            "__extjs_1eb4917b02a17cde3e29c67a46b0abf5e46dcd49": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return new RegExp (($1), ($2));})());
-            },
-            "__extjs_549e982121a9e76fa0c1295dd69b3084ab9688ff": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). textContent ;})());
-            },
-            "__extjs_917df8ec69de0149c83d0d469b1c108a8a5ed5da": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). attributeNamespace ;})());
-            },
-            "__extjs_a38e0df513e86ef39d7fdb7a78f923c34a1094b5": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). previousSibling ;})());
-            },
-            "__extjs_d53cec18d02fb719364be5a05a90d71e4ef4189b": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var wrapper = function (){if (! callback.dropped){callback ()}}; var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){callback.dropped = true ; callback.drop ();}; return nextTick ;})());
-            },
-            "__extjs_1458d968803f0ead5043da77c58d02a82094eda9": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). style.display = "none" ;
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
             },
             "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
             },
-            "__extjs_496ebd7b1bc0e6eebd7206e8bee7671ea3b8006f": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). querySelector (($2));})());
+            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
+                Module.STDWEB_PRIVATE.decrement_refcount( $0 );
             },
-            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
             },
-            "__extjs_468898dd5d62782c778f33a327bad2f104d7a61a": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new MutationObserver (($1));})());
+            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
+                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
             },
-            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
-                console.error( 'Encountered a panic!' );
+            "__extjs_6d2b1e418b06d7d7e78e43902f76133d1cb78933": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.style.position = "absolute" ; node.style.top = "0px" ; node.style.left = "0px" ; node.style.width = "100%" ; node.style.height = "100%" ; node.setAttribute ("xmlns" , "http://www.w3.org/2000/svg"); node.setAttribute ("viewBox" , "0 0 100 100"); node.setAttribute ("preserveAspectRatio" , "none");
             },
-            "__extjs_222c2fb5a29f68d0c91605a201d353ebe248e0ee": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1)[($2)];})());
-            },
-            "__extjs_ee41f864457c794c278cdcafc28967ffbac29706": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1);})());
-            },
-            "__extjs_dffdd2995e5395685cd5bd170187cded66f46931": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof MutationObserver) | 0;
-            },
-            "__extjs_84355afea1755aaf0e679669281585900c995537": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). parentNode ;})());
-            },
-            "__extjs_5a28035dd3dcfffc74f0f8430285cbf50c13038b": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var is_match = self.test (($2)); self.lastIndex = 0 ; return is_match ;})());
-            },
-            "__extjs_e5fb9179be14d883494f9afd3d5f19a87ee532cc": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). nextSibling ;})());
-            },
-            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
-            },
-            "__extjs_f6dede91bad1901e954e3cca1b91ea50e10ca596": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return Date.now ();})());
-            },
-            "__extjs_bbc99df876df69bfb6a4a8650c37c610a3e06e61": function($0, $1, $2, $3) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). replace (($2), ($3));})());
-            },
-            "__extjs_5c69414fc5b52abfa843f7c56b2130f1c171f042": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). attributeName ;})());
-            },
-            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
-                Module.STDWEB_PRIVATE.increment_refcount( $0 );
+            "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
             },
             "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
                 console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
             },
-            "__extjs_b1774e1fe55a3f500664242d9b31145a094d7794": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). disconnect ();
+            "__extjs_1bec6cd85a41c300a38db6f77d11403ddcfae787": function($0) {
+                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Element) | 0;
             },
-            "__extjs_a4cc03a02e37d61a05906d27d04aabaf2011c13b": function($0, $1, $2, $3, $4, $5, $6, $7, $8) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);$4 = Module.STDWEB_PRIVATE.to_js($4);$5 = Module.STDWEB_PRIVATE.to_js($5);$6 = Module.STDWEB_PRIVATE.to_js($6);$7 = Module.STDWEB_PRIVATE.to_js($7);$8 = Module.STDWEB_PRIVATE.to_js($8);($0). observe (($1), {childList : ($2), attributes : ($3), characterData : ($4), subtree : ($5), attributeOldValue : ($6), characterDataOldValue : ($7), attributeFilter : ($8)});
+            "__extjs_812f3897136c474e384f39f1fad20d78b6e4171d": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.setAttribute ("x" , "1"); node.setAttribute ("y" , "4"); node.setAttribute ("font-size" , "2px"); node.setAttribute ("fill" , "white"); node.textContent = ($1);
             },
-            "__extjs_2034053b7b6771271a2dad3e5416b045a74488a1": function($0, $1, $2, $3) {
-                Module.STDWEB_PRIVATE.acquire_js_reference( $0 ).setTimeout( function() {Module.STDWEB_PRIVATE.dyncall( 'vi', $1, [$2] );}, $3 );
+            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
             },
-            "__extjs_d307ae261eb254e327a31a3ea462bf3cd9d25c54": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return chrome.runtime.connect (null , {name : ($1)});})());
+            "__extjs_c95074991c0d23b88edbe5670eb93adfef3caed1": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var node = ($0); node.setAttribute ("stroke" , ($1)); node.setAttribute ("stroke-width" , "1px"); node.setAttribute ("stroke-opacity" , "1"); node.setAttribute ("fill-opacity" , "0"); node.setAttribute ("vector-effect" , "non-scaling-stroke"); node.setAttribute ("d" , ($2));
             },
-            "__extjs_89b1c8f6c89dff45959ddb2f206a030d5c298093": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). addedNodes ;})());
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
             },
-            "__extjs_74d5764ddc102a8d3b6252116087a68f2db0c9d4": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return window ;})());
+            "__extjs_7fe07f5aa189513dce42fd7bd52bb982185429ab": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.setAttribute ("x" , "1"); node.setAttribute ("y" , "48"); node.setAttribute ("font-size" , "2px"); node.setAttribute ("fill" , "white"); node.textContent = ($1);
             },
-            "__extjs_23afc1c374218c72ec11a37442c756ed5f471943": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var array = self.exec (($2)); self.lastIndex = 0 ; return array ;})());
+            "__extjs_d53cec18d02fb719364be5a05a90d71e4ef4189b": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var wrapper = function (){if (! callback.dropped){callback ()}}; var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){callback.dropped = true ; callback.drop ();}; return nextTick ;})());
             },
-            "__extjs_49338674d01c4f5280cdde19baf85b3068471164": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). target ;})());
+            "__extjs_0b250fd9f0a918dc6b7ab81ac7bf1988e9feb282": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.setAttribute ("x" , "1"); node.setAttribute ("y" , "96"); node.setAttribute ("font-size" , "2px"); node.setAttribute ("fill" , "white"); node.textContent = ($1);
             },
-            "__extjs_8c32019649bb581b1b742eeedfc410e2bedd56a6": function($0, $1) {
-                var array = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );Module.STDWEB_PRIVATE.serialize_array( $1, array );
+            "__extjs_02719998c6ece772fc2c8c3dd585272cdb2a127e": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). add (($1));
+            },
+            "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
+            },
+            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
+            },
+            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
+                console.error( 'Encountered a panic!' );
+            },
+            "__extjs_a1d14270b205dd0f111ade87102d4d1319a9449c": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){var date = new Date (); date.setUTCDate (date.getUTCDate ()- 1); return date.getTime ();})());
+            },
+            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            },
+            "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
+            },
+            "__extjs_a9677ceb873568f1ae80377395830d53f95a105e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS ("http://www.w3.org/2000/svg" , ($1));})());
+            },
+            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
+            },
+            "round": function($0) {
+                return Math.round( $0 );
+            },
+            "log10": function($0) {
+                return Math.log10( $0 );
+            },
+            "pow": function($0, $1) {
+                return Math.pow( $0, $1 );
             },
             "__web_on_grow": function() {
                 const buffer = Module.instance.exports.memory.buffer;
@@ -609,11 +558,11 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
         return WebAssembly.instantiate( __wasm_module, __imports )
             .then( instance => {
                 __instantiate( instance );
-                console.log( "Finished loading Rust wasm module 'twitch_chat'" );
+                console.log( "Finished loading Rust wasm module 'chart'" );
                 return Module.exports;
             })
             .catch( error => {
-                console.log( "Error loading Rust wasm module 'twitch_chat':", error );
+                console.log( "Error loading Rust wasm module 'chart':", error );
                 throw error;
             });
     } else {
@@ -627,13 +576,13 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     if( typeof window === "undefined" && typeof process === "object" ) {
         const fs = require( "fs" );
         const path = require( "path" );
-        const wasm_path = path.join( __dirname, "twitch_chat.wasm" );
+        const wasm_path = path.join( __dirname, "chart.wasm" );
         const buffer = fs.readFileSync( wasm_path );
         const mod = new WebAssembly.Module( buffer );
 
         return __initialize( mod, false );
     } else {
-        return fetch(chrome.runtime.getURL("twitch_chat.wasm"))
+        return fetch(chrome.runtime.getURL("chart.wasm"))
             .then( response => response.arrayBuffer() )
             .then( bytes => WebAssembly.compile( bytes ) )
             .then( mod => __initialize( mod, true ) );

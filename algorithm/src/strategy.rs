@@ -3,7 +3,7 @@ use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 1.0;
-const MAXIMUM_BET_PERCENTAGE: f64 = 0.02;
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.07;
 
 
 const MAGNITUDE: f64 = 10.0;
@@ -118,13 +118,13 @@ impl Strategy for AllInStrategy {
         let left_winrate = lookup::winrate(simulation.lookup_character(left), left);
         let right_winrate = lookup::winrate(simulation.lookup_character(right), right);
 
-        let diff = (left_winrate - right_winrate).abs();
+        //let diff = (left_winrate - right_winrate).abs();
 
-        let mut bet_amount = simulation.current_money();
+        let bet_amount = simulation.current_money();
 
-        if !simulation.is_in_mines() {
+        /*if !simulation.is_in_mines() {
             bet_amount = bet_amount * normalize(diff, 0.0, 0.50);
-        }
+        }*/
 
         if left_winrate > right_winrate {
             Bet::Left(bet_amount)
