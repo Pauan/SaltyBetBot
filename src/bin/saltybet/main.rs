@@ -13,7 +13,7 @@ use std::cell::RefCell;
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator};
-use algorithm::strategy::{EarningsStrategy, AllInStrategy};
+use algorithm::strategy::{EarningsStrategy, AllInStrategy, expected_profits, winrates};
 use stdweb::web::{document, set_timeout, Element, INode};
 
 
@@ -426,8 +426,7 @@ impl State {
         self.info_container.left.set_name(left);
         self.info_container.right.set_name(right);
 
-        let left_winrate = self.simulation.winrate(left);
-        let right_winrate = self.simulation.winrate(right);
+        let (left_winrate, right_winrate) = winrates(&self.simulation, tier, left, right);
         self.info_container.left.set_winrate(left_winrate, left_winrate.partial_cmp(&right_winrate).unwrap_or(Ordering::Equal));
         self.info_container.right.set_winrate(right_winrate, right_winrate.partial_cmp(&left_winrate).unwrap_or(Ordering::Equal));
 
@@ -442,9 +441,9 @@ impl State {
 
         match *mode {
             Mode::Matchmaking => {
-                let (left_profit, right_profit) = EarningsStrategy.expected_profits(&self.simulation, tier, left, right);
-                self.info_container.left.set_expected_profit(left_profit, left_profit.partial_cmp(&right_profit).unwrap_or(Ordering::Equal));
-                self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));
+                //let (left_profit, right_profit) = expected_profits(&self.simulation, tier, left, right);
+                //self.info_container.left.set_expected_profit(left_profit, left_profit.partial_cmp(&right_profit).unwrap_or(Ordering::Equal));
+                //self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));
             },
             Mode::Tournament => {},
         }

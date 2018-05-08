@@ -10,10 +10,14 @@ extern crate algorithm;
 use std::cmp::{PartialOrd, Ordering};
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
 use algorithm::record::{Record, Profit, Character, Winner, Mode, Tier};
-use algorithm::simulation::{Bet, Simulation, Strategy, SALT_MINE_AMOUNT, TOURNAMENT_BALANCE};
+use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, SALT_MINE_AMOUNT, TOURNAMENT_BALANCE};
 use algorithm::strategy::{EarningsStrategy, AllInStrategy};
 use stdweb::web::{document, INode, Element, IElement};
 use stdweb::unstable::TryInto;
+
+
+const SIMULATE: bool = false;
+const SHOW_ALL: bool = false;
 
 
 // TODO move into utility module
@@ -36,14 +40,25 @@ fn range_inclusive(percentage: f64, low: f64, high: f64) -> f64 {
 #[derive(Debug)]
 enum RecordInformation {
     Tournament {
+        date: f64,
         profit: f64,
         money: f64,
     },
     Matchmaking {
+        date: f64,
         profit: Profit,
         bet: Bet,
         money: f64,
     },
+}
+
+impl RecordInformation {
+    fn date(&self) -> f64 {
+        match *self {
+            RecordInformation::Tournament { date, .. } => date,
+            RecordInformation::Matchmaking { date, .. } => date,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -56,6 +71,12 @@ struct Information {
 
     max_money: f64,
     min_money: f64,
+
+    lowest_date: f64,
+    highest_date: f64,
+
+    wins: f64,
+    losses: f64,
 
     records: Vec<RecordInformation>,
 }
@@ -76,67 +97,131 @@ fn collect_information(input: Vec<Record>) -> Information {
     let mut max_money: f64 = simulation.sum;
     let mut min_money: f64 = simulation.sum;
 
+    let mut lowest_date: f64 = 0.0;
+    let mut highest_date: f64 = 0.0;
+
     // TODO
-    let date: f64 = js!(
+    let start_date: f64 = js!(
         var date = new Date();
-        date.setUTCDate(date.getUTCDate() - 1);
+        date.setUTCDate(date.getUTCDate() - 28);
+        return date.getTime();
+    ).try_into().unwrap();
+
+    // TODO
+    let end_date: f64 = js!(
+        var date = new Date();
+        //date.setUTCDate(date.getUTCDate() - 36);
         return date.getTime();
     ).try_into().unwrap();
 
     let mut records: Vec<RecordInformation> = vec![];
 
+    let mut index: f64 = 0.0;
+
     for record in input {
-        let exiting_tournament = simulation.is_exiting_tournament(&record.mode);
+        let should_calculate = if SIMULATE {
+            simulation.min_matches_len(&record.left.name, &record.right.name) >= 10.0 &&
+            record.mode == Mode::Matchmaking
 
-        let old_sum = simulation.sum;
-
-        let bet = simulation.bet(&record);
-
-        simulation.calculate(&record, &bet);
-        simulation.insert_record(&record);
-
-        let new_sum = simulation.sum;
-
-        let diff = (old_sum - new_sum).abs();
-
-        let profit = match old_sum.partial_cmp(&new_sum).unwrap() {
-            // Gain
-            Ordering::Less => {
-                max_money = max_money.max(new_sum);
-                max_gain = max_gain.max(diff);
-                Profit::Gain(diff)
-            },
-            // Loss
-            Ordering::Greater => {
-                min_money = min_money.min(new_sum);
-                max_loss = max_loss.max(diff);
-                Profit::Loss(diff)
-            },
-            Ordering::Equal => Profit::None,
+        } else {
+            true
         };
 
-        if let Mode::Matchmaking = record.mode {
-            if let Some(amount) = bet.amount() {
-                max_bet = max_bet.max(amount);
-                min_bet = if min_bet == 0.0 { amount } else { min_bet.min(amount) };
-            }
-        }
+        if should_calculate {
+            let should_push = if SHOW_ALL { true } else { record.date >= start_date && record.date <= end_date };
 
-        if record.date >= date || true {
-            if exiting_tournament {
-                records.push(RecordInformation::Tournament {
-                    profit: diff,
-                    money: new_sum
-                });
+            let date = if SIMULATE {
+                let date = index;
+
+                highest_date = date;
+
+                index += 1.0;
+
+                date
+
+            } else {
+                let date = record.date;
+
+                if should_push {
+                    lowest_date = if lowest_date == 0.0 { date } else { lowest_date.min(date) };
+                    highest_date = highest_date.max(date);
+                }
+
+                date
+            };
+
+            let old_sum = simulation.sum;
+
+            let tournament_profit = simulation.tournament_profit(&record.mode);
+
+            if let Some(tournament_profit) = tournament_profit {
+                let new_sum = old_sum + tournament_profit;
+
+                if should_push {
+                    records.push(RecordInformation::Tournament {
+                        date,
+                        profit: tournament_profit,
+                        money: new_sum,
+                    });
+                }
+
+                max_money = max_money.max(new_sum);
+                max_gain = max_gain.max(tournament_profit);
             }
+
+            let bet = if SIMULATE {
+                simulation.bet(&record)
+
+            } else {
+                record.bet.clone()
+            };
+
+            simulation.calculate(&record, &bet);
+
+            let new_sum = simulation.sum - tournament_profit.unwrap_or(0.0);
+
+            let diff = (old_sum - new_sum).abs();
+
+            let profit = match old_sum.partial_cmp(&new_sum).unwrap() {
+                // Gain
+                Ordering::Less => {
+                    max_money = max_money.max(new_sum);
+                    max_gain = max_gain.max(diff);
+                    Profit::Gain(diff)
+                },
+                // Loss
+                Ordering::Greater => {
+                    min_money = min_money.min(new_sum);
+                    max_loss = max_loss.max(diff);
+                    Profit::Loss(diff)
+                },
+                Ordering::Equal => Profit::None,
+            };
 
             if let Mode::Matchmaking = record.mode {
-                records.push(RecordInformation::Matchmaking { bet, profit, money: new_sum });
+                if let Some(amount) = bet.amount() {
+                    max_bet = max_bet.max(amount);
+                    min_bet = if min_bet == 0.0 { amount } else { min_bet.min(amount) };
+                }
+
+                if should_push {
+                    records.push(RecordInformation::Matchmaking {
+                        date,
+                        bet,
+                        profit,
+                        money: new_sum
+                    });
+                }
             }
         }
+
+        simulation.insert_record(&record);
     }
 
-    Information { max_gain, max_loss, max_bet, min_bet, max_money, min_money, records }
+    let wins = simulation.successes;
+    let losses = simulation.failures;
+
+    Information { max_gain, max_loss, max_bet, min_bet, max_money, min_money, lowest_date, highest_date, wins, losses, records }
 }
 
 
@@ -220,20 +305,22 @@ fn display_records(records: Vec<Record>) -> Element {
     let mut d_bets = vec![];
     let mut d_tournaments = vec![];
 
+    let mut final_money: f64 = 0.0;
+
     let total = information.max_gain + information.max_loss;
     let len = information.records.len() as f64;
 
     let y = (information.max_gain / total) * 100.0;
 
     for (index, record) in information.records.iter().enumerate() {
-        let x = normalize(index as f64, 0.0, len) * 100.0;
+        let x = normalize(record.date(), information.lowest_date, information.highest_date) * 100.0;
 
         let money = match record {
-            RecordInformation::Tournament { profit, money } => {
+            RecordInformation::Tournament { profit, money, .. } => {
                 d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, information.max_gain), y, 0.0), x, y));
                 *money
             },
-            RecordInformation::Matchmaking { profit, bet, money } => {
+            RecordInformation::Matchmaking { profit, bet, money, .. } => {
                 match *profit {
                     Profit::Gain(amount) => {
                         d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(amount, 0.0, information.max_gain), y, 0.0), x, y));
@@ -253,6 +340,8 @@ fn display_records(records: Vec<Record>) -> Element {
                 *money
             },
         };
+
+        final_money = money;
 
         d_money.push(format!("L{},{}", x, normalize(money, information.max_money, information.min_money) * 100.0));
 
@@ -307,56 +396,62 @@ fn display_records(records: Vec<Record>) -> Element {
         node.append_child(&make_line(d_tournaments, "hsl(240, 100%, 75%)"));
         node.append_child(&make_line(d_money, "white"));
 
-        node.append_child(&{
-            let node = svg("text");
+        node
+    });
 
-            js! { @(no_return)
-                var node = @{&node};
-                node.setAttribute("x", "1");
-                node.setAttribute("y", "4");
-                node.setAttribute("font-size", "2px");
-                node.setAttribute("fill", "white");
-                //node.setAttribute("text-anchor", "end");
-                node.textContent = @{information.max_money};
-            }
+    fn make_text(x: &str, y: &str, align: &str, text: &str) -> Element {
+        let node = document().create_element("div").unwrap();
 
-            node
-        });
+        js! { @(no_return)
+            var node = @{&node};
+            node.style.position = "absolute";
+            node.style.left = @{x};
+            node.style.top = @{y};
+            //node.style.width = "100%";
+            //node.style.height = "100%";
+            node.style.color = "white";
+            node.style.fontSize = "16px";
+            node.style.textAlign = @{align};
+            node.style.whiteSpace = "pre";
+            node.textContent = @{text};
+        }
 
-        node.append_child(&{
-            let node = svg("text");
+        node
+    }
 
-            js! { @(no_return)
-                var node = @{&node};
-                node.setAttribute("x", "1");
-                node.setAttribute("y", "48");
-                node.setAttribute("font-size", "2px");
-                node.setAttribute("fill", "white");
-                //node.setAttribute("text-anchor", "end");
-                node.textContent = @{(information.max_money - information.min_money).abs() / 2.0};
-            }
+    node.append_child(&make_text("3px", "2px", "left", &format!("Maximum: {}\nAverage gains: {}\nWinrate: {}%", information.max_money, final_money / len, (information.wins / (information.wins + information.losses)) * 100.0)));
 
-            node
-        });
+    /*node.append_child(&{
+        let node = svg("text");
 
-        node.append_child(&{
-            let node = svg("text");
-
-            js! { @(no_return)
-                var node = @{&node};
-                node.setAttribute("x", "1");
-                node.setAttribute("y", "96");
-                node.setAttribute("font-size", "2px");
-                node.setAttribute("fill", "white");
-                //node.setAttribute("text-anchor", "end");
-                node.textContent = @{information.min_money};
-            }
-
-            node
-        });
+        js! { @(no_return)
+            var node = @{&node};
+            node.setAttribute("x", "1");
+            node.setAttribute("y", "48");
+            node.setAttribute("font-size", "2px");
+            node.setAttribute("fill", "white");
+            //node.setAttribute("text-anchor", "end");
+            node.textContent = @{(information.max_money - information.min_money).abs() / 2.0};
+        }
 
         node
     });
+
+    node.append_child(&{
+        let node = svg("text");
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.setAttribute("x", "1");
+            node.setAttribute("y", "96");
+            node.setAttribute("font-size", "2px");
+            node.setAttribute("fill", "white");
+            //node.setAttribute("text-anchor", "end");
+            node.textContent = @{information.min_money};
+        }
+
+        node
+    });*/
 
     node
 }

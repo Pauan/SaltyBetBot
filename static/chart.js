@@ -445,89 +445,77 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
 
     const __imports = {
         env: {
-            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
-            },
-            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
-            },
             "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
                 Module.STDWEB_PRIVATE.decrement_refcount( $0 );
-            },
-            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
-            },
-            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
-                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
-            },
-            "__extjs_6d2b1e418b06d7d7e78e43902f76133d1cb78933": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.style.position = "absolute" ; node.style.top = "0px" ; node.style.left = "0px" ; node.style.width = "100%" ; node.style.height = "100%" ; node.setAttribute ("xmlns" , "http://www.w3.org/2000/svg"); node.setAttribute ("viewBox" , "0 0 100 100"); node.setAttribute ("preserveAspectRatio" , "none");
-            },
-            "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
-            },
-            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
-                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
-            },
-            "__extjs_1bec6cd85a41c300a38db6f77d11403ddcfae787": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Element) | 0;
-            },
-            "__extjs_812f3897136c474e384f39f1fad20d78b6e4171d": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.setAttribute ("x" , "1"); node.setAttribute ("y" , "4"); node.setAttribute ("font-size" , "2px"); node.setAttribute ("fill" , "white"); node.textContent = ($1);
-            },
-            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
-            },
-            "__extjs_c95074991c0d23b88edbe5670eb93adfef3caed1": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var node = ($0); node.setAttribute ("stroke" , ($1)); node.setAttribute ("stroke-width" , "1px"); node.setAttribute ("stroke-opacity" , "1"); node.setAttribute ("fill-opacity" , "0"); node.setAttribute ("vector-effect" , "non-scaling-stroke"); node.setAttribute ("d" , ($2));
-            },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
-            },
-            "__extjs_7fe07f5aa189513dce42fd7bd52bb982185429ab": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.setAttribute ("x" , "1"); node.setAttribute ("y" , "48"); node.setAttribute ("font-size" , "2px"); node.setAttribute ("fill" , "white"); node.textContent = ($1);
-            },
-            "__extjs_d53cec18d02fb719364be5a05a90d71e4ef4189b": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var wrapper = function (){if (! callback.dropped){callback ()}}; var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){callback.dropped = true ; callback.drop ();}; return nextTick ;})());
-            },
-            "__extjs_0b250fd9f0a918dc6b7ab81ac7bf1988e9feb282": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.setAttribute ("x" , "1"); node.setAttribute ("y" , "96"); node.setAttribute ("font-size" , "2px"); node.setAttribute ("fill" , "white"); node.textContent = ($1);
-            },
-            "__extjs_02719998c6ece772fc2c8c3dd585272cdb2a127e": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). add (($1));
             },
             "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
             },
-            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
+            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
+                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
             },
-            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
-                console.error( 'Encountered a panic!' );
-            },
-            "__extjs_a1d14270b205dd0f111ade87102d4d1319a9449c": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){var date = new Date (); date.setUTCDate (date.getUTCDate ()- 1); return date.getTime ();})());
-            },
-            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
-            },
-            "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
-            },
-            "__extjs_a9677ceb873568f1ae80377395830d53f95a105e": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS ("http://www.w3.org/2000/svg" , ($1));})());
+            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
             },
             "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
             },
-            "round": function($0) {
-                return Math.round( $0 );
+            "__extjs_17f925bbe2d7faf821655b3c44a3ad82b7591b2e": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){var date = new Date (); return date.getTime ();})());
             },
-            "log10": function($0) {
-                return Math.log10( $0 );
+            "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
             },
-            "pow": function($0, $1) {
-                return Math.pow( $0, $1 );
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            },
+            "__extjs_6d2b1e418b06d7d7e78e43902f76133d1cb78933": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.style.position = "absolute" ; node.style.top = "0px" ; node.style.left = "0px" ; node.style.width = "100%" ; node.style.height = "100%" ; node.setAttribute ("xmlns" , "http://www.w3.org/2000/svg"); node.setAttribute ("viewBox" , "0 0 100 100"); node.setAttribute ("preserveAspectRatio" , "none");
+            },
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            },
+            "__extjs_1bec6cd85a41c300a38db6f77d11403ddcfae787": function($0) {
+                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Element) | 0;
+            },
+            "__extjs_a9677ceb873568f1ae80377395830d53f95a105e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS ("http://www.w3.org/2000/svg" , ($1));})());
+            },
+            "__extjs_c95074991c0d23b88edbe5670eb93adfef3caed1": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var node = ($0); node.setAttribute ("stroke" , ($1)); node.setAttribute ("stroke-width" , "1px"); node.setAttribute ("stroke-opacity" , "1"); node.setAttribute ("fill-opacity" , "0"); node.setAttribute ("vector-effect" , "non-scaling-stroke"); node.setAttribute ("d" , ($2));
+            },
+            "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
+            },
+            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
+            },
+            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
+            },
+            "__extjs_d53cec18d02fb719364be5a05a90d71e4ef4189b": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var wrapper = function (){if (! callback.dropped){callback ()}}; var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){callback.dropped = true ; callback.drop ();}; return nextTick ;})());
+            },
+            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
+            },
+            "__extjs_174520e4364d6808a6ff446c7b3688cb108db7d2": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){var date = new Date (); date.setUTCDate (date.getUTCDate ()- 28); return date.getTime ();})());
+            },
+            "__extjs_fb631f0ccbced780281564457e070e6a30e12c07": function($0, $1, $2, $3, $4) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);$4 = Module.STDWEB_PRIVATE.to_js($4);var node = ($0); node.style.position = "absolute" ; node.style.left = ($1); node.style.top = ($2); node.style.color = "white" ; node.style.fontSize = "16px" ; node.style.textAlign = ($3); node.style.whiteSpace = "pre" ; node.textContent = ($4);
+            },
+            "__extjs_02719998c6ece772fc2c8c3dd585272cdb2a127e": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). add (($1));
+            },
+            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
+                console.error( 'Encountered a panic!' );
+            },
+            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            },
+            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
+                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
             },
             "__web_on_grow": function() {
                 const buffer = Module.instance.exports.memory.buffer;

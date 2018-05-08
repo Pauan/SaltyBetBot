@@ -40,9 +40,10 @@ impl Bet {
 
 pub trait Simulator {
     fn matches_len(&self, &str) -> usize;
+    fn min_matches_len(&self, left: &str, right: &str) -> f64;
     fn current_money(&self) -> f64;
     fn is_in_mines(&self) -> bool;
-    fn lookup_character(&self, &str) -> &[Record];
+    fn lookup_character(&self, &str) -> Vec<&Record>;
     fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record>;
 }
 
@@ -291,7 +292,7 @@ impl Gene for LookupStatistic {
 
 
 impl LookupFilter {
-    fn lookup(&self, stat: &LookupStatistic, left: &str, right: &str, matches: &[Record]) -> f64 {
+    fn lookup(&self, stat: &LookupStatistic, left: &str, right: &str, matches: Vec<&Record>) -> f64 {
         match *self {
             LookupFilter::All => stat.lookup(left, matches.into_iter()),
 
@@ -526,11 +527,17 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn is_exiting_tournament(&self, mode: &Mode) -> bool {
+    pub fn tournament_profit(&self, mode: &Mode) -> Option<f64> {
         // TODO if there is too long of a duration between two tournament matches, treat it as two different tournaments
         match mode {
-            Mode::Matchmaking => self.in_tournament,
-            Mode::Tournament => false,
+            Mode::Matchmaking => if self.in_tournament {
+                Some(self.tournament_sum)
+
+            } else {
+                None
+            },
+
+            Mode::Tournament => None,
         }
     }
 
@@ -635,6 +642,13 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
         self.lookup_character(name).len()
     }
 
+    fn min_matches_len(&self, left: &str, right: &str) -> f64 {
+        // TODO these f64 conversions are a little bit gross
+        let left_len = self.matches_len(left) as f64;
+        let right_len = self.matches_len(right) as f64;
+        left_len.min(right_len)
+    }
+
     fn current_money(&self) -> f64 {
         self.sum()
     }
@@ -648,8 +662,9 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn lookup_character(&self, name: &str) -> &[Record] {
-        self.characters.get(name).map(|x| x.as_slice()).unwrap_or(&[])
+    fn lookup_character(&self, name: &str) -> Vec<&Record> {
+        // TODO a bit gross that it returns a Vec and not a &[]
+        self.characters.get(name).map(|x| x.into_iter().collect()).unwrap_or(vec![])
     }
 
     fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record> {
