@@ -23,7 +23,7 @@ use stdweb::unstable::TryInto;
 enum ChartMode<A> {
     SimulateTournament(A),
     SimulateMatchmaking(A),
-    RealData { days: Option<u32> },
+    RealData { days: Option<u32>, matches: Option<usize> },
 }
 
 
@@ -118,7 +118,7 @@ impl Information {
     fn new<A: Strategy>(input: &[Record], mode: ChartMode<A>, extra_data: bool) -> Self {
         let mut simulation = Simulation::new();
 
-        simulation.sum = SALT_MINE_AMOUNT;
+        simulation.sum = PERCENTAGE_THRESHOLD;
 
         let mut starting_money = simulation.sum;
 
@@ -277,16 +277,26 @@ impl Information {
                 }
             },
 
-            ChartMode::RealData { days } => {
+            ChartMode::RealData { days, matches } => {
+                simulation.sum = SALT_MINE_AMOUNT;
+                starting_money = simulation.sum;
+                max_money = starting_money;
+                min_money = starting_money;
+
                 // TODO
                 let days: Option<f64> = days.map(|days| subtract_days(days));
 
                 let mut first = true;
 
-                for record in input {
+                let input: Vec<&Record> = input.into_iter().filter(|record| record.mode == Mode::Matchmaking).collect();
+
+                let input_len = input.len();
+
+                for (index, record) in input.iter().enumerate() {
                     let date = record.date;
 
-                    if days.map(|days| date >= days).unwrap_or(true) {
+                    if days.map(|days| date >= days).unwrap_or(true) &&
+                       matches.map(|matches| index >= (input_len - matches)).unwrap_or(true) {
                         if first {
                             first = false;
                             starting_money = simulation.sum;
@@ -507,17 +517,22 @@ fn display_records(node: &Element, records: Vec<Record>) {
     }
 
     fn update_svg(svg_root: &Element, text_root: &Element, records: &[Record], expected_profit: bool, winrate: bool, extra_data: bool, use_percentages: bool) {
-        fn make_chart_mode(expected_profit: bool, winrate: bool) -> ChartMode<impl Strategy> {
-            //ChartMode::RealData { days: Some(30) }
+        fn make_chart_mode(expected_profit: bool, winrate: bool, use_percentages: bool) -> ChartMode<()> {
+            ChartMode::RealData { days: None, matches: Some(1000) }
+            //ChartMode::RealData { days: Some(7), matches: None }
             //ChartMode::RealData { days: None }
             //ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages })
-            ChartMode::SimulateMatchmaking(matchmaking_strategy())
+            //ChartMode::SimulateMatchmaking(matchmaking_strategy())
         }
 
-        let information_f_f = Information::new(records, make_chart_mode(false, false), extra_data);
-        let information_t_f = Information::new(records, make_chart_mode(true, false), extra_data);
-        let information_f_t = Information::new(records, make_chart_mode(false, true), extra_data);
-        let information_t_t = Information::new(records, make_chart_mode(true, true), extra_data);
+        let information = Information::new(records, make_chart_mode(expected_profit, winrate, use_percentages), extra_data);
+
+        let statistics = &information.statistics;
+
+        /*let information_f_f = Information::new(records, make_chart_mode(false, false, use_percentages), extra_data);
+        let information_t_f = Information::new(records, make_chart_mode(true, false, use_percentages), extra_data);
+        let information_f_t = Information::new(records, make_chart_mode(false, true, use_percentages), extra_data);
+        let information_t_t = Information::new(records, make_chart_mode(true, true, use_percentages), extra_data);
 
         let statistics = information_f_f.statistics
             .merge(&information_t_f.statistics)
@@ -536,7 +551,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
             } else {
                 information_f_f
             }
-        };
+        };*/
 
         let mut d_gains = vec![];
         let mut d_losses = vec![];
@@ -551,6 +566,8 @@ fn display_records(node: &Element, records: Vec<Record>) {
         let len = information.records.len() as f64;
 
         let y = (statistics.max_gain / total) * 100.0;
+
+        let mut first = true;
 
         for record in information.records.iter() {
             let x = normalize(record.date(), statistics.lowest_date, statistics.highest_date) * 100.0;
@@ -601,7 +618,13 @@ fn display_records(node: &Element, records: Vec<Record>) {
 
             final_money = money;
 
-            d_money.push(format!("L{},{}", x, normalize(money, statistics.max_money, statistics.min_money) * 100.0));
+            if first {
+                first = false;
+                d_money.push(format!("M{},{}", x, normalize(money, statistics.max_money, statistics.min_money) * 100.0));
+
+            } else {
+                d_money.push(format!("L{},{}", x, normalize(money, statistics.max_money, statistics.min_money) * 100.0));
+            }
 
             //simulation.insert_record(&record);
         }

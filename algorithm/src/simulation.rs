@@ -62,6 +62,13 @@ pub trait Strategy: Sized + std::fmt::Debug {
 }
 
 
+impl Strategy for () {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        Bet::None
+    }
+}
+
+
 pub trait Calculate<A> {
     fn calculate<B: Simulator>(&self, &B, &Tier, &str, &str) -> A;
 

@@ -16,6 +16,7 @@ use stdweb::web::{document, Element};
 
 
 const SHOW_DAYS: u32 = 7;
+const SHOW_MATCHES: usize = 1000;
 
 
 fn display_records(node: &Element, records: Vec<Record>) {
@@ -25,12 +26,31 @@ fn display_records(node: &Element, records: Vec<Record>) {
         format!("{:.2}%", p * 100.0)
     }
 
+    fn format_float(f: f64) -> String {
+        js!(
+            return @{f}.toLocaleString("en-US", {
+                style: "currency",
+                currency: "USD",
+                minimumFractionDigits: 0
+            });
+        ).try_into().unwrap()
+    }
+
+    fn decimal(f: f64) -> String {
+        js!(
+            return @{f}.toLocaleString("en-US", {
+                style: "decimal",
+                maximumFractionDigits: 2
+            });
+        ).try_into().unwrap()
+    }
+
     fn money(m: f64) -> String {
         if m < 0.0 {
-            format!("-${}", -m)
+            format!("-{}", format_float(-m))
 
         } else {
-            format!("${}", m)
+            format_float(m)
         }
     }
 
@@ -79,25 +99,26 @@ fn display_records(node: &Element, records: Vec<Record>) {
         node
     }
 
-    fn field(name: &str, value: &str) -> Element {
+    fn field(name: &str, child: &Element) -> Element {
         let node = document().create_element("div").unwrap();
 
         node.append_child(&{
-            let node = document().create_element("strong").unwrap();
+            let node = document().create_element("span").unwrap();
+            node.class_list().add("field").unwrap();
             node.set_text_content(name);
             node
         });
 
-        node.append_child(&document().create_text_node(value));
+        node.append_child(child);
 
         node
     }
 
     // TODO calculate the illuminati and normal bettors correctly (adding 1 depending on whether it bet or not)
-    fn display_character(character: &Character, bet_amount: f64) -> Element {
+    fn display_character(character: &Character, class: &str, bet_amount: f64) -> Element {
         td("character", &[
-            field("Name: ", &character.name),
-            field("Bet amount: ", &format!("${}", character.bet_amount + bet_amount)),
+            field("Name: ", &span(class, &character.name)),
+            field("Bet amount: ", &span("money", &money(character.bet_amount + bet_amount))),
             //field("Win streak: ", &character.win_streak.to_string()),
             //field("Illuminati bettors: ", &character.illuminati_bettors.to_string()),
             //field("Normal bettors: ", &character.normal_bettors.to_string()),
@@ -138,11 +159,15 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 Profit::None => {},
             }
 
+            if *old <= 0.0 {
+                *old = SALT_MINE_AMOUNT;
+            }
+
             Some((*old, record))
         })
         .collect();
 
-    for (sum, record) in iterator.iter().rev().take(1000) {
+    for (sum, record) in iterator.iter().rev().take(SHOW_MATCHES) {
         let profit = record.profit(&record.bet);
         let bet_amount = record.bet.amount();
 
@@ -167,15 +192,15 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 })
             ]));
 
-            row.append_child(&display_character(&record.left, if let Bet::Left(amount) = record.bet { amount } else { 0.0 }));
-            row.append_child(&display_character(&record.right, if let Bet::Right(amount) = record.bet { amount } else { 0.0 }));
+            row.append_child(&display_character(&record.left, "left", if let Bet::Left(amount) = record.bet { amount } else { 0.0 }));
+            row.append_child(&display_character(&record.right, "right", if let Bet::Right(amount) = record.bet { amount } else { 0.0 }));
 
             let (left, right) = record.display_odds();
 
             row.append_child(&td("odds", &[
-                span("left", &left),
+                span("left", &decimal(left)),
                 span("odds-separator", " : "),
-                span("right", &right),
+                span("right", &decimal(right)),
             ]));
 
             row.append_child(&td("winner", &[

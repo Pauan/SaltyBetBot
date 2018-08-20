@@ -182,7 +182,7 @@ impl Record {
         }
     }
 
-    pub fn display_odds(&self) -> (String, String) {
+    pub fn display_odds(&self) -> (f64, f64) {
         let mut left = self.left.bet_amount;
         let mut right = self.right.bet_amount;
 
@@ -197,13 +197,13 @@ impl Record {
         }
 
         if left < right {
-            ("1".to_string(), format!("{:.2}", right / left))
+            (1.0, right / left)
 
         } else if left > right {
-            (format!("{:.2}", left / right), "1".to_string())
+            (left / right, 1.0)
 
         } else {
-            ("1".to_string(), "1".to_string())
+            (1.0, 1.0)
         }
     }
 

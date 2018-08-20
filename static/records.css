@@ -43,8 +43,9 @@ th {
     padding: 2px 5px;
 }
 
-.character {
-}
+/*.field {
+    color: lightgray;
+}*/
 
 .mode, .tier, .odds, .winner, .date {
     text-align: center;
@@ -64,4 +65,8 @@ th {
 
 .right {
     color: rgb(52, 158, 255);
+}
+
+.money {
+    color: orange;
 }

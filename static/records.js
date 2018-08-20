@@ -484,20 +484,26 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
-            },
-            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
-            },
-            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
+                "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
                 Module.STDWEB_PRIVATE.decrement_refcount( $0 );
+            },
+            "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
+            },
+            "__extjs_74b1b0b6327c6d2bad2259c05a1887a099ec3014": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "decimal" , maximumFractionDigits : 2});})());
             },
             "__extjs_412b3bd01e407f1a833248d9eb9e255da2cb0f33": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (($1)). toISOString ();})());
             },
             "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
+            },
+            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
+            },
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
             },
             "__extjs_ecb41cb66cfcd8472a5497d436c79755d87fa6a7": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). textContent = ($1);
@@ -513,9 +519,6 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             },
             "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
-            },
-            "__extjs_dc4a9844a3da9e83cb7a74b4e08eed6ff1be91f9": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createTextNode (($2));})());
             },
             "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
