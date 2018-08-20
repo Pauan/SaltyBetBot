@@ -28,16 +28,6 @@ const MAX_BET_TIME_LIMIT: f64 = 1000.0 * 60.0 * 10.0;
 const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 50.0;
 
 
-// ~7.7 minutes
-const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
-
-// TODO
-const MAX_EXHIBITS_DURATION: f64 = NORMAL_MATCH_TIME * 1.0;
-
-// ~1.92 hours
-const MAX_TOURNAMENT_DURATION: f64 = NORMAL_MATCH_TIME * 15.0;
-
-
 #[derive(Debug, Clone)]
 pub struct Information {
     player_is_illuminati: bool,
@@ -441,9 +431,10 @@ impl State {
 
         match *mode {
             Mode::Matchmaking => {
-                //let (left_profit, right_profit) = expected_profits(&self.simulation, tier, left, right);
-                //self.info_container.left.set_expected_profit(left_profit, left_profit.partial_cmp(&right_profit).unwrap_or(Ordering::Equal));
-                //self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));
+                let bet_amount = self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right, false);
+                let (left_profit, right_profit) = expected_profits(&self.simulation, tier, left, right, bet_amount);
+                self.info_container.left.set_expected_profit(left_profit, left_profit.partial_cmp(&right_profit).unwrap_or(Ordering::Equal));
+                self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));
             },
             Mode::Tournament => {},
         }
@@ -703,7 +694,14 @@ fn main() {
         simulation.matchmaking_strategy = Some(matchmaking_strategy);
         simulation.tournament_strategy = Some(tournament_strategy);*/
 
-        simulation.matchmaking_strategy = Some(EarningsStrategy);
+        simulation.matchmaking_strategy = Some(EarningsStrategy {
+            expected_profit: true,
+            winrate: false,
+            bet_difference: false,
+            winrate_difference: false,
+            use_percentages: true,
+        });
+
         simulation.tournament_strategy = Some(AllInStrategy);
 
         simulation.insert_records(&matches);

@@ -2,8 +2,12 @@ use record::{Tier, Record};
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
-const MINIMUM_MATCHES_MATCHMAKING: f64 = 1.0;
-const MAXIMUM_BET_PERCENTAGE: f64 = 0.01;
+pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
+const MINIMUM_MATCHES_MATCHMAKING: f64 = 10.0;  // minimum match data before it starts betting
+const MAXIMUM_MATCHES_MATCHMAKING: f64 = 10.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
+const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.01;       // maximum percentage that it will bet (of current money)
+const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet
 
 
 const MAGNITUDE: f64 = 10.0;
@@ -15,7 +19,7 @@ fn round_to_order_of_magnitude(input: f64) -> f64 {
 }
 
 fn weight(len: f64, general: f64, specific: f64) -> f64 {
-    let weight = (len / 10.0).max(0.0).min(1.0);
+    let weight = (len / MAXIMUM_WEIGHT).max(0.0).min(1.0);
 
     (general * (1.0 - weight)) + (specific * weight)
 }
@@ -60,11 +64,17 @@ pub fn winrates<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &
 
 
 #[derive(Debug, Clone, Copy)]
-pub struct EarningsStrategy;
+pub struct EarningsStrategy {
+    pub use_percentages: bool,
+    pub expected_profit: bool,
+    pub winrate: bool,
+    pub winrate_difference: bool,
+    pub bet_difference: bool,
+}
 
 impl EarningsStrategy {
     // TODO better behavior for this ?
-    pub fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
         let current_money = simulation.current_money();
 
         if simulation.is_in_mines() {
@@ -74,16 +84,26 @@ impl EarningsStrategy {
             // When at low money, bet high. When at high money, bet at most MAXIMUM_BET_PERCENTAGE of current money
             let bet_amount = (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE);
 
-            // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
-            let len = normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, 10.0);
-
             // Bet high when at low money, to try and get out of mines faster
-            if current_money < (SALT_MINE_AMOUNT * 100.0) {
-                current_money * bet_amount
+            if !minimum_matches || current_money < PERCENTAGE_THRESHOLD {
+                if self.use_percentages {
+                    current_money * bet_amount
+
+                } else {
+                    round_to_order_of_magnitude(current_money * bet_amount)
+                }
 
             } else {
+                // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
+                let len = normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING);
+
                 // TODO verify that this is correct
-                current_money * bet_amount * len
+                if self.use_percentages {
+                    current_money * bet_amount * len
+
+                } else {
+                    round_to_order_of_magnitude(current_money * bet_amount) * len
+                }
             }
         }
     }
@@ -91,23 +111,40 @@ impl EarningsStrategy {
 
 impl Strategy for EarningsStrategy {
     fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
-        let bet_amount = self.bet_amount(simulation, tier, left, right);
+        let bet_amount = self.bet_amount(simulation, tier, left, right, true);
 
-        let (left_earnings, right_earnings) = winrates(simulation, tier, left, right);
+        let (left_earnings, right_earnings) = expected_profits(simulation, tier, left, right, bet_amount);
+        let (left_winrate, right_winrate) = winrates(simulation, tier, left, right);
 
-        //let diff = (left_earnings - right_earnings).abs();
+        let diff = (left_winrate - right_winrate).abs();
 
-        // TODO use the fixed point of expected_profits(diff) for this ?
-        //let bet_amount = if simulation.is_in_mines() { bet_amount } else { diff.min(bet_amount) };
+        let bet_amount = if simulation.is_in_mines() {
+            simulation.current_money()
 
-        if left_earnings > right_earnings {
+        } else if self.winrate_difference && diff < MINIMUM_WINRATE {
+            0.0
+
+        } else if self.bet_difference {
+            // TODO use the fixed point of expected_profits(diff) for this ?
+            (left_earnings - right_earnings).abs().min(bet_amount)
+
+        } else {
+            bet_amount
+        };
+
+        // Bet $1 for maximum exp
+        let bet_amount = bet_amount.max(1.0);
+
+        if (if self.expected_profit { left_earnings > right_earnings } else { true }) &&
+           (if self.winrate { left_winrate > right_winrate } else { true }) {
             Bet::Left(bet_amount)
 
-        } else if right_earnings > left_earnings {
+        } else if (if self.expected_profit { right_earnings > left_earnings } else { true }) &&
+                  (if self.winrate { right_winrate > left_winrate } else { true }) {
             Bet::Right(bet_amount)
 
         } else {
-            Bet::None
+            Bet::Left(bet_amount)
         }
     }
 }
@@ -122,6 +159,21 @@ impl Strategy for AllInStrategy {
 
         let (left_winrate, right_winrate) = winrates(simulation, tier, left, right);
 
+        let diff = (left_winrate - right_winrate).abs();
+
+        let bet_amount = if simulation.is_in_mines() {
+            bet_amount
+
+        } else if diff < MINIMUM_WINRATE {
+            0.0
+
+        } else {
+            bet_amount
+        };
+
+        // Bet $1 for maximum exp
+        let bet_amount = bet_amount.max(1.0);
+
         //let diff = (left_winrate - right_winrate).abs();
 
         /*if !simulation.is_in_mines() {
@@ -135,7 +187,7 @@ impl Strategy for AllInStrategy {
             Bet::Right(bet_amount)
 
         } else {
-            Bet::None
+            Bet::Left(bet_amount)
         }
     }
 }

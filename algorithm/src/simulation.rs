@@ -11,6 +11,15 @@ pub const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
 // TODO this should take into account the user's real limit
 pub const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 
+// ~7.7 minutes
+const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
+
+// TODO
+const MAX_EXHIBITS_DURATION: f64 = NORMAL_MATCH_TIME * 1.0;
+
+// ~1.92 hours
+const MAX_TOURNAMENT_DURATION: f64 = NORMAL_MATCH_TIME * 15.0;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Bet {
@@ -406,6 +415,7 @@ pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub record_len: f64,
     pub sum: f64,
     pub tournament_sum: f64,
+    pub tournament_date: Option<f64>,
     pub in_tournament: bool,
     pub successes: f64,
     pub failures: f64,
@@ -421,6 +431,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             record_len: 0.0,
             sum: SALT_MINE_AMOUNT,
             tournament_sum: TOURNAMENT_BALANCE,
+            tournament_date: None,
             in_tournament: false,
             successes: 0.0,
             failures: 0.0,
@@ -483,6 +494,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
+    // TODO in exhibitions it should always bet $1
     pub fn pick_winner<C>(&self, strategy: &C, tier: &Tier, left: &str, right: &str) -> Bet where C: Strategy {
         if left != right {
             match strategy.bet(self, tier, left, right) {
@@ -509,8 +521,13 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
                 Bet::Right(self.sum())
             }*/
 
+        } else if self.sum() >= 1.0 {
+            // TODO use randomness
+            Bet::Left(1.0)
+
         } else {
-            Bet::None
+            // TODO use randomness
+            Bet::Left(self.sum())
         }
     }
 
@@ -527,39 +544,43 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn tournament_profit(&self, mode: &Mode) -> Option<f64> {
-        // TODO if there is too long of a duration between two tournament matches, treat it as two different tournaments
-        match mode {
-            Mode::Matchmaking => if self.in_tournament {
-                Some(self.tournament_sum)
+    fn is_tournament_boundary(&self, record: &Record) -> bool {
+        self.in_tournament && match record.mode {
+            Mode::Matchmaking => true,
+            Mode::Tournament => self.tournament_date.map(|date| (record.date - date).abs() > MAX_TOURNAMENT_DURATION).unwrap_or(false),
+        }
+    }
 
-            } else {
-                None
-            },
+    pub fn tournament_profit(&self, record: &Record) -> Option<f64> {
+        if self.is_tournament_boundary(record) {
+            Some(self.tournament_sum)
 
-            Mode::Tournament => None,
+        } else {
+            None
         }
     }
 
     pub fn calculate(&mut self, record: &Record, bet: &Bet) {
-        // TODO if there is too long of a duration between two tournament matches, treat it as two different tournaments
+        if self.is_tournament_boundary(record) {
+            self.sum += self.tournament_sum;
+            self.tournament_sum = TOURNAMENT_BALANCE;
+        }
+
         match record.mode {
             Mode::Matchmaking => {
-                if self.in_tournament {
-                    self.in_tournament = false;
-                    self.sum += self.tournament_sum;
-                    self.tournament_sum = TOURNAMENT_BALANCE;
-                }
+                self.in_tournament = false;
             },
             Mode::Tournament => {
                 self.in_tournament = true;
+                // TODO use max ?
+                self.tournament_date = Some(record.date);
             },
         }
 
         let increase = match bet {
             Bet::Left(bet_amount) => match record.winner {
                 Winner::Left => {
-                    let odds = record.right.bet_amount / record.left.bet_amount;
+                    let odds = record.right.bet_amount / (record.left.bet_amount + bet_amount);
                     self.successes += 1.0;
                     (bet_amount * odds).ceil()
                 },
@@ -572,7 +593,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
 
             Bet::Right(bet_amount) => match record.winner {
                 Winner::Right => {
-                    let odds = record.left.bet_amount / record.right.bet_amount;
+                    let odds = record.left.bet_amount / (record.right.bet_amount + bet_amount);
                     self.successes += 1.0;
                     (bet_amount * odds).ceil()
                 },

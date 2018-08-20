@@ -1,0 +1,63 @@
+{
+  "fitness": 736.640993421539,
+  "successes": 14999.0,
+  "failures": 12059.0,
+  "record_len": 27058.0,
+  "characters_len": 6790,
+  "max_character_len": 24,
+  "bet_strategy": "True",
+  "prediction_strategy": {
+    "Minus": [
+      {
+        "Base": {
+          "Character": [
+            "Left",
+            "All",
+            "BetAmount"
+          ]
+        }
+      },
+      {
+        "Bezier": [
+          {
+            "from": {
+              "x": -363506.12329383959,
+              "y": 221655.6131678342
+            },
+            "ctrl1": {
+              "x": -493749.7279264081,
+              "y": 154210.0172169285
+            },
+            "ctrl2": {
+              "x": 381588.71857237946,
+              "y": -13493.86171587752
+            },
+            "to": {
+              "x": 710288.3670753721,
+              "y": -877414.8337360681
+            }
+          },
+          {
+            "Base": {
+              "Character": [
+                "Left",
+                "All",
+                "Upsets"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "money_strategy": {
+    "Multiply": [
+      {
+        "Base": "Sum"
+      },
+      {
+        "Percentage": 0.01
+      }
+    ]
+  }
+}

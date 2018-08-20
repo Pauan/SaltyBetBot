@@ -7,17 +7,24 @@ extern crate stdweb_derive;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 extern crate algorithm;
 
 pub mod regexp;
 mod macros;
 
 use algorithm::record::{Tier, Mode, Winner};
+use algorithm::types::BetStrategy;
 use stdweb::{Value, Once};
 use stdweb::web::{document, set_timeout, INode, Element, NodeList};
 use stdweb::web::html_element::InputElement;
 use stdweb::unstable::{TryInto};
 use stdweb::traits::*;
+
+
+pub fn matchmaking_strategy() -> BetStrategy {
+    serde_json::from_str(&include_str!("../strategies/2018-08-20T12.29.43 (matchmaking)")).unwrap()
+}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -253,4 +260,13 @@ impl Drop for Port {
             @{&self.0}.disconnect();
         }
     }
+}
+
+
+pub fn subtract_days(previous_days: u32) -> f64 {
+    js!(
+        var date = new Date();
+        date.setUTCDate(date.getUTCDate() - @{previous_days});
+        return date.getTime();
+    ).try_into().unwrap()
 }

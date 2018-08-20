@@ -1,6 +1,7 @@
 //use std;
 //use regex;
 //use csv;
+use std::cmp::{PartialOrd, Ordering};
 use genetic;
 use simulation::Bet;
 
@@ -115,6 +116,18 @@ pub enum Profit {
     None,
 }
 
+impl Profit {
+    pub fn from_old_new(old: f64, new: f64) -> Self {
+        let diff = (old - new).abs();
+
+        match old.partial_cmp(&new).unwrap() {
+            Ordering::Less => Profit::Gain(diff),
+            Ordering::Greater => Profit::Loss(diff),
+            Ordering::Equal => Profit::None,
+        }
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Record {
@@ -147,12 +160,51 @@ impl Record {
         }
     }
 
-    pub fn odds_left(&self) -> f64 {
-        self.right.bet_amount / self.left.bet_amount
+    pub fn odds_left(&self, bet_amount: f64) -> f64 {
+        self.right.bet_amount / (self.left.bet_amount + bet_amount)
     }
 
-    pub fn odds_right(&self) -> f64 {
-        self.left.bet_amount / self.right.bet_amount
+    pub fn odds_right(&self, bet_amount: f64) -> f64 {
+        self.left.bet_amount / (self.right.bet_amount + bet_amount)
+    }
+
+    pub fn odds(&self, bet: &Bet) -> Option<f64> {
+        match bet {
+            Bet::Left(amount) => match self.winner {
+                Winner::Left => Some(self.odds_left(*amount)),
+                Winner::Right => Some(-1.0),
+            },
+            Bet::Right(amount) => match self.winner {
+                Winner::Right => Some(self.odds_right(*amount)),
+                Winner::Left => Some(-1.0),
+            },
+            Bet::None => None,
+        }
+    }
+
+    pub fn display_odds(&self) -> (String, String) {
+        let mut left = self.left.bet_amount;
+        let mut right = self.right.bet_amount;
+
+        match self.bet {
+            Bet::Left(amount) => {
+                left += amount;
+            },
+            Bet::Right(amount) => {
+                right += amount;
+            },
+            Bet::None => {},
+        }
+
+        if left < right {
+            ("1".to_string(), format!("{:.2}", right / left))
+
+        } else if left > right {
+            (format!("{:.2}", left / right), "1".to_string())
+
+        } else {
+            ("1".to_string(), "1".to_string())
+        }
     }
 
     // TODO handle tournaments
@@ -160,7 +212,7 @@ impl Record {
         match bet {
             Bet::Left(amount) => match self.winner {
                 Winner::Left => {
-                    Profit::Gain(amount * self.odds_left())
+                    Profit::Gain((amount * self.odds_left(*amount)).ceil())
                 },
                 Winner::Right => {
                     Profit::Loss(*amount)
@@ -168,7 +220,7 @@ impl Record {
             },
             Bet::Right(amount) => match self.winner {
                 Winner::Right => {
-                    Profit::Gain(amount * self.odds_right())
+                    Profit::Gain((amount * self.odds_right(*amount)).ceil())
                 },
                 Winner::Left => {
                     Profit::Loss(*amount)

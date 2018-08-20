@@ -3,7 +3,7 @@ use random;
 use record::{ Record, Mode, Tier };
 use rayon::prelude::*;
 use simulation::{ Simulation, Strategy, Bet, Calculate, Simulator };
-use types::{BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point};
+use types::{BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
 
 
 const MAX_BET_AMOUNT: f64 = 1000000.0;
@@ -213,7 +213,7 @@ impl<A> NumericCalculator<A, f64>
             }
 
         } else {
-            let rand = gen_rand_index(14u32);
+            let rand = gen_rand_index(13u32);
 
             if rand == 0 {
                 NumericCalculator::Base(Gene::new())
@@ -251,10 +251,10 @@ impl<A> NumericCalculator<A, f64>
             } else if rand == 11 {
                 NumericCalculator::Divide(Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
-            } else if rand == 12 {
+            } else {
                 NumericCalculator::IfThenElse(Gene::new(), Box::new(Self::_new(depth + 1)), Box::new(Self::_new(depth + 1)))
 
-            } else {
+            }/* else {
                 NumericCalculator::Tier {
                     new: Box::new(Self::_new(depth + 1)),
                     x: Box::new(Self::_new(depth + 1)),
@@ -263,7 +263,7 @@ impl<A> NumericCalculator<A, f64>
                     b: Box::new(Self::_new(depth + 1)),
                     p: Box::new(Self::_new(depth + 1)),
                 }
-            }
+            }*/
         }
     }
 
@@ -342,7 +342,7 @@ impl<A> NumericCalculator<A, f64>
                         NumericCalculator::IfThenElse(father1.choose(&mother1), Box::new(father2._choose(&mother2, depth + 1)), Box::new(father3._choose(&mother3, depth + 1))),
                     _ => choose2(self, other),
                 },
-                NumericCalculator::Tier { new: ref father_new, x: ref father_x, s: ref father_s, a: ref father_a, b: ref father_b, p: ref father_p } => match *other {
+                /*NumericCalculator::Tier { new: ref father_new, x: ref father_x, s: ref father_s, a: ref father_a, b: ref father_b, p: ref father_p } => match *other {
                     NumericCalculator::Tier { new: ref mother_new, x: ref mother_x, s: ref mother_s, a: ref mother_a, b: ref mother_b, p: ref mother_p } =>
                         NumericCalculator::Tier {
                             new: Box::new(father_new._choose(&mother_new, depth + 1)),
@@ -353,7 +353,7 @@ impl<A> NumericCalculator<A, f64>
                             p: Box::new(father_p._choose(&mother_p, depth + 1)),
                         },
                     _ => choose2(self, other),
-                },
+                },*/
             }
         }
     }
@@ -442,7 +442,7 @@ impl<A> NumericCalculator<A, f64>
                         },
                     },
 
-                    NumericCalculator::Tier { new, x, s, a, b, p } => match *tier {
+                    /*NumericCalculator::Tier { new, x, s, a, b, p } => match *tier {
                         Some(Tier::New) => new._optimize(tier),
                         Some(Tier::X) => x._optimize(tier),
                         Some(Tier::S) => s._optimize(tier),
@@ -472,7 +472,7 @@ impl<A> NumericCalculator<A, f64>
                                 }
                             }
                         }
-                    },
+                    },*/
                 },
             }
         }
@@ -523,7 +523,7 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                 }))
             },
 
-            NumericCalculator::Tier { ref new, ref x, ref s, ref a, ref b, ref p } =>
+            /*NumericCalculator::Tier { ref new, ref x, ref s, ref a, ref b, ref p } =>
                 new.precalculate().and_then(|new|
                 x.precalculate().and_then(|x|
                 s.precalculate().and_then(|s|
@@ -535,7 +535,7 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
 
                     } else {
                         None
-                    })))))),
+                    })))))),*/
         }
     }
 
@@ -564,14 +564,14 @@ impl<A> Calculate<f64> for NumericCalculator<A, f64>
                 c.calculate(simulation, tier, left, right)
             },
 
-            NumericCalculator::Tier { ref new, ref x, ref s, ref a, ref b, ref p } => match *tier {
+            /*NumericCalculator::Tier { ref new, ref x, ref s, ref a, ref b, ref p } => match *tier {
                 Tier::New => new.calculate(simulation, tier, left, right),
                 Tier::X => x.calculate(simulation, tier, left, right),
                 Tier::S => s.calculate(simulation, tier, left, right),
                 Tier::A => a.calculate(simulation, tier, left, right),
                 Tier::B => b.calculate(simulation, tier, left, right),
                 Tier::P => p.calculate(simulation, tier, left, right),
-            },
+            },*/
         }
     }
 }
@@ -905,7 +905,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             max_character_len: 0,
             bet_strategy: Gene::new(),
             prediction_strategy: Gene::new(),
-            money_strategy: Gene::new(),
+            money_strategy: NumericCalculator::Multiply(Box::new(NumericCalculator::Base(Lookup::Sum)), Box::new(NumericCalculator::Percentage(Percentage(0.01)))), //Gene::new(),
         }.calculate_self(settings)
     }
 
@@ -919,7 +919,7 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
             max_character_len: 0,
             bet_strategy: self.bet_strategy.choose(&other.bet_strategy),
             prediction_strategy: self.prediction_strategy.choose(&other.prediction_strategy),
-            money_strategy: self.money_strategy.choose(&other.money_strategy),
+            money_strategy: NumericCalculator::Multiply(Box::new(NumericCalculator::Base(Lookup::Sum)), Box::new(NumericCalculator::Percentage(Percentage(0.01)))), //self.money_strategy.choose(&other.money_strategy),
         }.calculate_self(settings)
     }
 }

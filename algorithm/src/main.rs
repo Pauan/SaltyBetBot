@@ -22,7 +22,7 @@ use std::fs::File;
 
 
 const POPULATION_SIZE: usize = 100;
-const GENERATIONS: u64 = 100;
+const GENERATIONS: u64 = 200;
 
 
 /*fn read_file(path: &str) -> std::io::Result<String> {
@@ -276,7 +276,7 @@ fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), s
     println!("Matchmaking Old   -> {}   -> {}",
         test_strategy(Mode::Matchmaking, left, matchmaking_strategy.clone()),
         test_strategy(Mode::Matchmaking, right, matchmaking_strategy));
-    println!("Tournament Old   -> {}   -> {}",
+    println!("Tournament Old   -> {}   -> {}\n",
         test_strategy(Mode::Tournament, left, tournament_strategy.clone()),
         test_strategy(Mode::Tournament, right, tournament_strategy));
     Ok(())
@@ -287,7 +287,7 @@ fn run_strategy<A: Strategy + Copy>(name: &str, left: &mut [Record], right: &mut
     println!("Matchmaking {}   -> {}   -> {}", name,
         test_strategy(Mode::Matchmaking, left, strategy),
         test_strategy(Mode::Matchmaking, right, strategy));
-    println!("Tournament {}   -> {}   -> {}", name,
+    println!("Tournament {}   -> {}   -> {}\n", name,
         test_strategy(Mode::Tournament, left, strategy),
         test_strategy(Mode::Tournament, right, strategy));
 }
@@ -296,27 +296,18 @@ fn run_strategy<A: Strategy + Copy>(name: &str, left: &mut [Record], right: &mut
 fn run_bet_strategy(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
     let date = current_time();
 
-    let progress_bar = indicatif::ProgressBar::new((GENERATIONS + 1) * 4);
+    let progress_bar = indicatif::ProgressBar::new((GENERATIONS + 1) * 2);
 
-    let matchmaking1 = simulate(&progress_bar, Mode::Matchmaking, left);
-    let matchmaking2 = simulate(&progress_bar, Mode::Matchmaking, right);
-
-    let tournament1 = simulate(&progress_bar, Mode::Tournament, left);
-    let tournament2 = simulate(&progress_bar, Mode::Tournament, right);
+    let matchmaking = simulate(&progress_bar, Mode::Matchmaking, left);
+    let tournament = simulate(&progress_bar, Mode::Tournament, left);
 
     progress_bar.finish_and_clear();
 
-    let matchmaking_test1 = test_strategy(Mode::Matchmaking, right, matchmaking1.clone());
-    let matchmaking_test2 = test_strategy(Mode::Matchmaking, left, matchmaking2.clone());
+    let matchmaking_test = test_strategy(Mode::Matchmaking, right, matchmaking.clone());
+    let tournament_test = test_strategy(Mode::Tournament, right, tournament.clone());
 
-    let tournament_test1 = test_strategy(Mode::Tournament, right, tournament1.clone());
-    let tournament_test2 = test_strategy(Mode::Tournament, left, tournament2.clone());
-
-    println!("Matchmaking Genetic  {} -> {}  {} -> {}", matchmaking1.fitness, matchmaking_test1, matchmaking2.fitness, matchmaking_test2);
-    println!("Tournament Genetic  {} -> {}  {} -> {}", tournament1.fitness, tournament_test1, tournament2.fitness, tournament_test2);
-
-    let matchmaking = if matchmaking_test1 > matchmaking_test2 { matchmaking1 } else { matchmaking2 };
-    let tournament = if tournament_test1 > tournament_test2 { tournament1 } else { tournament2 };
+    println!("Matchmaking Genetic  {} -> {}", matchmaking.fitness, matchmaking_test);
+    println!("Tournament Genetic  {} -> {}", tournament.fitness, tournament_test);
 
     write(&format!("../strategies/{} (matchmaking)", date), &matchmaking)?;
     write(&format!("../strategies/{} (tournament)", date), &tournament)?;
@@ -326,15 +317,31 @@ fn run_bet_strategy(left: &mut [Record], right: &mut [Record]) -> Result<(), std
 
 
 fn run_simulation() -> Result<(), std::io::Error> {
-    let records: Vec<Record> = read("../records/SaltyBet Records (2018-04-23T08_40_54.348Z).json")?;
-    println!("Read in {} records", records.len());
+    let records: Vec<Record> = read("../records/SaltyBet Records (2018-08-20T10_33_48.574Z).json")?;
+    println!("Read in {} records\n", records.len());
 
     let (mut left, mut right) = split_records(records);
 
-    run_strategy("Earnings", &mut left, &mut right, EarningsStrategy);
+    run_strategy("Earnings", &mut left, &mut right, EarningsStrategy {
+        use_percentages: true,
+        expected_profit: true,
+        winrate: false,
+        bet_difference: false,
+        winrate_difference: false,
+    });
+
+    run_strategy("Winrate", &mut left, &mut right, EarningsStrategy {
+        use_percentages: true,
+        expected_profit: false,
+        winrate: true,
+        bet_difference: false,
+        winrate_difference: false,
+    });
+
     run_strategy("AllIn", &mut left, &mut right, AllInStrategy);
-    run_old_simulation(&mut left, &mut right)?;
-    //run_bet_strategy(&mut left, &mut right)?;
+
+    //run_old_simulation(&mut left, &mut right)?;
+    run_bet_strategy(&mut left, &mut right)?;
 
     Ok(())
 }

@@ -24,12 +24,12 @@ fn copy_map<F>(from: &str, to: &str, f: F) -> Result<()>
 
 
 fn replace_fetch<'a>(re: &Regex, input: &'a str) -> String {
-    re.replace_all(input, "fetch(chrome.runtime.getURL($1))").into_owned()
+    re.replace_all(input, "fetch(chrome.runtime.getURL($1),").into_owned()
 }
 
 
 fn bin(name: &str) -> Result<()> {
-    let re = Regex::new("fetch\\( *(\"[^\"]+\") *\\)").unwrap();
+    let re = Regex::new("fetch\\( *(\"[^\"]+\") *,").unwrap();
     copy_map(&format!("./target/wasm32-unknown-unknown/release/{}.js", name), &format!("./static/{}.js", name), |x| replace_fetch(&re, &x))?;
     fs::copy(format!("./target/wasm32-unknown-unknown/release/{}.wasm", name), format!("./static/{}.wasm", name))?;
     Ok(())
@@ -39,18 +39,24 @@ fn bin(name: &str) -> Result<()> {
 fn run() -> Result<()> {
     env::set_current_dir("..")?;
 
-    // TODO handle exit status
-    Command::new("cargo")
+    let x = Command::new("cargo")
         .arg("web")
         .arg("build")
         .arg("--release")
         .arg("--target")
         .arg("wasm32-unknown-unknown")
+        //.arg("--runtime")
+        //.arg("library-es6")
         .status()?;
+
+    if !x.success() {
+        panic!("Command failed");
+    }
 
     bin("saltybet")?;
     bin("twitch_chat")?;
     bin("chart")?;
+    bin("records")?;
 
     Ok(())
 }

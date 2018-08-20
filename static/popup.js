@@ -24,3 +24,10 @@ document.getElementById("open-chart").addEventListener("click", function () {
         url: chrome.runtime.getURL("chart.html")
     });
 }, true);
+
+document.getElementById("open-records").addEventListener("click", function () {
+    // TODO error handling
+    chrome.tabs.create({
+        url: chrome.runtime.getURL("records.html")
+    });
+}, true);

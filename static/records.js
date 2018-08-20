@@ -10,7 +10,7 @@ if( typeof Rust === "undefined" ) {
     } else if( typeof module === "object" && module.exports ) {
         module.exports = factory();
     } else {
-        Rust.chart = factory();
+        Rust.records = factory();
     }
 }( this, function() {
     return (function( module_factory ) {
@@ -19,23 +19,23 @@ if( typeof Rust === "undefined" ) {
         if( typeof window === "undefined" && typeof process === "object" ) {
             var fs = require( "fs" );
             var path = require( "path" );
-            var wasm_path = path.join( __dirname, "chart.wasm" );
+            var wasm_path = path.join( __dirname, "records.wasm" );
             var buffer = fs.readFileSync( wasm_path );
             var mod = new WebAssembly.Module( buffer );
             var wasm_instance = new WebAssembly.Instance( mod, instance.imports );
             return instance.initialize( wasm_instance );
         } else {
-            return fetch(chrome.runtime.getURL("chart.wasm"), {credentials: "same-origin"} )
+            return fetch(chrome.runtime.getURL("records.wasm"), {credentials: "same-origin"} )
                 .then( function( response ) { return response.arrayBuffer(); } )
                 .then( function( bytes ) { return WebAssembly.compile( bytes ); } )
                 .then( function( mod ) { return WebAssembly.instantiate( mod, instance.imports ) } )
                 .then( function( wasm_instance ) {
                     var exports = instance.initialize( wasm_instance );
-                    console.log( "Finished loading Rust wasm module 'chart'" );
+                    console.log( "Finished loading Rust wasm module 'records'" );
                     return exports;
                 })
                 .catch( function( error ) {
-                    console.log( "Error loading Rust wasm module 'chart':", error );
+                    console.log( "Error loading Rust wasm module 'records':", error );
                     throw error;
                 });
         }
@@ -484,68 +484,29 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
-                Module.STDWEB_PRIVATE.increment_refcount( $0 );
-            },
-            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
-                Module.STDWEB_PRIVATE.decrement_refcount( $0 );
-            },
-            "__extjs_1bec6cd85a41c300a38db6f77d11403ddcfae787": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Element) | 0;
-            },
-            "__extjs_a1f13a3f06dde9ed986a617da63f79595f14f507": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var node = ($0); node.style.position = "absolute" ; node.style.right = ($1); node.style.top = ($2); node.style.color = "white" ;
-            },
-            "__extjs_2e8b1c7ff8d769ad9838dc67718785a46109b91f": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.type = "checkbox" ; node.checked = ($1);
-            },
-            "__extjs_a9677ceb873568f1ae80377395830d53f95a105e": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS ("http://www.w3.org/2000/svg" , ($1));})());
-            },
-            "__extjs_f6ba57ef2b529d1de2f76c3d8295d1e6935dbaeb": function($0, $1, $2, $3) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);var node = ($0); node.style.position = "absolute" ; node.style.left = ($1); node.style.top = ($2); node.style.color = "white" ; node.style.fontSize = "16px" ; node.style.textAlign = ($3); node.style.whiteSpace = "pre" ;
-            },
-            "__extjs_a0e27add5f05a331cb7f1bb04971f853c1cfe355": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.style.position = "absolute" ; node.style.top = "5px" ; node.style.left = "5px" ; node.style.width = "calc(100% - 10px)" ; node.style.height = "calc(100% - 10px)" ; node.setAttribute ("xmlns" , "http://www.w3.org/2000/svg"); node.setAttribute ("viewBox" , "0 0 100 100"); node.setAttribute ("preserveAspectRatio" , "none"); node.innerHTML = "" ;
-            },
-            "__extjs_ecb41cb66cfcd8472a5497d436c79755d87fa6a7": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). textContent = ($1);
-            },
-            "__extjs_c95074991c0d23b88edbe5670eb93adfef3caed1": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var node = ($0); node.setAttribute ("stroke" , ($1)); node.setAttribute ("stroke-width" , "1px"); node.setAttribute ("stroke-opacity" , "1"); node.setAttribute ("fill-opacity" , "0"); node.setAttribute ("vector-effect" , "non-scaling-stroke"); node.setAttribute ("d" , ($2));
-            },
-            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
-            },
-            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
+                "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
             },
             "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
             },
-            "__extjs_5ac38c9ecbb9a6f75e30e71400dabbd8d3562771": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Event) | 0;
+            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
+                Module.STDWEB_PRIVATE.decrement_refcount( $0 );
             },
-            "__extjs_7b13f8ff6c8b01fdae4349b71d717d57b12fa724": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof EventTarget) | 0;
+            "__extjs_412b3bd01e407f1a833248d9eb9e255da2cb0f33": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (($1)). toISOString ();})());
             },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
             },
-            "__extjs_49338674d01c4f5280cdde19baf85b3068471164": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). target ;})());
-            },
-            "__extjs_dbbc1d7e712682edbf5208680fd4b7890164f467": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). checked ;})());
-            },
-            "__extjs_7c5535365a3df6a4cc1f59c4a957bfce1dbfb8ee": function($0, $1, $2, $3) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){var listener = ($1); ($2). addEventListener (($3), listener); return listener ;})());
+            "__extjs_ecb41cb66cfcd8472a5497d436c79755d87fa6a7": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). textContent = ($1);
             },
             "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
             },
-            "__extjs_93728e420a4a7d91e59284848c6760579abda416": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var date = new Date (); date.setUTCDate (date.getUTCDate ()- ($1)); return date.getTime ();})());
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
             },
             "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
                 Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());

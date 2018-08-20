@@ -1,0 +1,67 @@
+@charset "UTF-8";
+
+* {
+    box-sizing: border-box;
+    margin: 0px;
+    padding: 0px;
+    font-size: 12px;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    overflow: auto;
+    background-color: #201d2b;
+    color: white;
+}
+
+.root {
+    width: 100%;
+    height: 100%;
+    border-spacing: 0px;
+    border-collapse: collapse;
+}
+
+td, th {
+    border: 1px solid #6441a5;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+th {
+    border-top: none;
+    position: sticky;
+    top: 0px;
+
+    text-align: center;
+    background-color: #19191f;
+
+    font-size: 14px;
+    padding: 2px 5px;
+}
+
+.character {
+}
+
+.mode, .tier, .odds, .winner, .date {
+    text-align: center;
+}
+
+.bet, .profit, .profit-percentage, .profit-sum, .duration {
+    text-align: right;
+}
+
+.left, .loss {
+    color: #D14836;
+}
+
+.gain {
+    color: #4db044;
+}
+
+.right {
+    color: rgb(52, 158, 255);
+}

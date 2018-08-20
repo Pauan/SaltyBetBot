@@ -64,14 +64,14 @@ pub enum NumericCalculator<A, B> {
     // TODO change to use BooleanCalculator<NumericCalculator<A, B>>
     IfThenElse(BooleanCalculator<A>, Box<NumericCalculator<A, B>>, Box<NumericCalculator<A, B>>),
 
-    Tier {
+    /*Tier {
         new: Box<NumericCalculator<A, B>>,
         x: Box<NumericCalculator<A, B>>,
         s: Box<NumericCalculator<A, B>>,
         a: Box<NumericCalculator<A, B>>,
         b: Box<NumericCalculator<A, B>>,
         p: Box<NumericCalculator<A, B>>,
-    },
+    },*/
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
