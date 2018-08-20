@@ -8,7 +8,7 @@ extern crate salty_bet_bot;
 extern crate algorithm;
 
 use salty_bet_bot::{get_storage, subtract_days};
-use algorithm::simulation::{SALT_MINE_AMOUNT, Bet};
+use algorithm::simulation::{Simulation, SALT_MINE_AMOUNT, Bet};
 use algorithm::record::{Record, Character, Winner, Tier, Mode, Profit};
 use stdweb::unstable::TryInto;
 use stdweb::traits::*;
@@ -114,6 +114,14 @@ fn display_records(node: &Element, records: Vec<Record>) {
         node
     }
 
+    fn display_profit(profit: &Profit) -> Element {
+        match profit {
+            Profit::Gain(a) => span("gain", &money(*a)),
+            Profit::Loss(a) => span("loss", &money(-a)),
+            Profit::None => text(""),
+        }
+    }
+
     // TODO calculate the illuminati and normal bettors correctly (adding 1 depending on whether it bet or not)
     fn display_character(character: &Character, class: &str, bet_amount: f64) -> Element {
         td("character", &[
@@ -132,9 +140,10 @@ fn display_records(node: &Element, records: Vec<Record>) {
         row.append_child(&th("Tier"));
         row.append_child(&th("Left character"));
         row.append_child(&th("Right character"));
-        row.append_child(&th("Odds"));
         row.append_child(&th("Winner"));
         row.append_child(&th("Bet"));
+        row.append_child(&th("Odds"));
+        row.append_child(&th("Winner Profit"));
         row.append_child(&th("Profit"));
         row.append_child(&th("Profit %"));
         row.append_child(&th("Sum"));
@@ -144,30 +153,26 @@ fn display_records(node: &Element, records: Vec<Record>) {
         row
     });
 
+    let mut simulation: Simulation<(), ()> = Simulation::new();
+
+    simulation.sum = SALT_MINE_AMOUNT;
+
     //let cutoff = subtract_days(SHOW_DAYS);
 
     let iterator: Vec<(f64, Record)> = records.into_iter()
-        .filter(|record| record.mode == Mode::Matchmaking)
-        .scan(SALT_MINE_AMOUNT, |old, record| {
-            match record.profit(&record.bet) {
-                Profit::Gain(a) => {
-                    *old += a;
-                },
-                Profit::Loss(a) => {
-                    *old -= a;
-                },
-                Profit::None => {},
-            }
+        .map(|record| {
+            simulation.calculate(&record, &record.bet);
 
-            if *old <= 0.0 {
-                *old = SALT_MINE_AMOUNT;
-            }
+            if let Mode::Tournament = record.mode {
+                (simulation.tournament_sum, record)
 
-            Some((*old, record))
+            } else {
+                (simulation.sum, record)
+            }
         })
         .collect();
 
-    for (sum, record) in iterator.iter().rev().take(SHOW_MATCHES) {
+    for (sum, record) in iterator.into_iter().rev().take(SHOW_MATCHES) {
         let profit = record.profit(&record.bet);
         let bet_amount = record.bet.amount();
 
@@ -195,14 +200,6 @@ fn display_records(node: &Element, records: Vec<Record>) {
             row.append_child(&display_character(&record.left, "left", if let Bet::Left(amount) = record.bet { amount } else { 0.0 }));
             row.append_child(&display_character(&record.right, "right", if let Bet::Right(amount) = record.bet { amount } else { 0.0 }));
 
-            let (left, right) = record.display_odds();
-
-            row.append_child(&td("odds", &[
-                span("left", &decimal(left)),
-                span("odds-separator", " : "),
-                span("right", &decimal(right)),
-            ]));
-
             row.append_child(&td("winner", &[
                 match record.winner {
                     Winner::Left => span("left", "Left"),
@@ -224,12 +221,30 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 }
             ]));
 
+            let (left, right) = record.display_odds();
+
+            row.append_child(&td("odds", &[
+                span("left", &decimal(left)),
+                span("odds-separator", " : "),
+                span("right", &decimal(right)),
+            ]));
+
+            let winner_bet = match bet_amount {
+                Some(amount) => match record.winner {
+                    Winner::Left => Bet::Left(amount),
+                    Winner::Right => Bet::Right(amount),
+                },
+                None => Bet::None,
+            };
+
+            let winner_profit = record.profit(&winner_bet);
+
+            row.append_child(&td("winner-profit", &[
+                display_profit(&winner_profit)
+            ]));
+
             row.append_child(&td("profit", &[
-                match profit {
-                    Profit::Gain(a) => span("gain", &money(a)),
-                    Profit::Loss(a) => span("loss", &money(-a)),
-                    Profit::None => text(""),
-                }
+                display_profit(&profit)
             ]));
 
             row.append_child(&td("profit-percentage", &[
@@ -244,11 +259,11 @@ fn display_records(node: &Element, records: Vec<Record>) {
             ]));
 
             row.append_child(&td("profit-sum", &[
-                if *sum < 0.0 {
-                    span("loss", &money(*sum))
+                if sum < 0.0 {
+                    span("loss", &money(sum))
 
                 } else {
-                    span("gain", &money(*sum))
+                    span("gain", &money(sum))
                 }
             ]));
 

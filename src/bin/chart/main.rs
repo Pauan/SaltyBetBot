@@ -288,7 +288,7 @@ impl Information {
 
                 let mut first = true;
 
-                let input: Vec<&Record> = input.into_iter().filter(|record| record.mode == Mode::Matchmaking).collect();
+                //let input: Vec<&Record> = input.into_iter().filter(|record| record.mode == Mode::Matchmaking).collect();
 
                 let input_len = input.len();
 

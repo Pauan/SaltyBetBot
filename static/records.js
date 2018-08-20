@@ -499,11 +499,11 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
             },
-            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
-            },
             "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            },
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
             },
             "__extjs_ecb41cb66cfcd8472a5497d436c79755d87fa6a7": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). textContent = ($1);
@@ -511,8 +511,8 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
             },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            "__extjs_9eb5194fb874dde1d146fa4bf008a6eb734512d7": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);chrome.storage.local.get (($0), function (items){($1)(items [($2)]);});
             },
             "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
                 Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());

@@ -51,7 +51,7 @@ th {
     text-align: center;
 }
 
-.bet, .profit, .profit-percentage, .profit-sum, .duration {
+.bet, .winner-profit, .profit, .profit-percentage, .profit-sum, .duration {
     text-align: right;
 }
 
