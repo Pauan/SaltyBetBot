@@ -50,15 +50,18 @@ enum RecordInformation {
         date: f64,
         profit: Profit,
         bet: Bet,
+        sum: f64,
     },
     TournamentFinal {
         date: f64,
         profit: f64,
+        sum: f64,
     },
     Matchmaking {
         date: f64,
         profit: Profit,
         bet: Bet,
+        sum: f64,
     },
 }
 
@@ -179,6 +182,7 @@ impl Information {
                                 date,
                                 bet,
                                 profit,
+                                sum: new_sum,
                             });
                         }
                     }
@@ -193,6 +197,7 @@ impl Information {
                         records.push(RecordInformation::TournamentFinal {
                             date,
                             profit: tournament_profit,
+                            sum: sum,
                         });
 
                         max_money = max_money.max(sum);
@@ -267,6 +272,7 @@ impl Information {
                                 date,
                                 bet,
                                 profit,
+                                sum: new_sum,
                             });
                         }
                     }
@@ -295,6 +301,19 @@ impl Information {
                 for (index, record) in input.iter().enumerate() {
                     let date = record.date;
 
+                    if record.sum != -1.0 {
+                        match record.mode {
+                            Mode::Tournament => {
+                                simulation.tournament_sum = record.sum;
+                            },
+                            Mode::Matchmaking => {
+                                simulation.sum = record.sum;
+                                max_money = max_money.max(simulation.sum);
+                                min_money = min_money.min(simulation.sum);
+                            },
+                        }
+                    }
+
                     if days.map(|days| date >= days).unwrap_or(true) &&
                        matches.map(|matches| index >= (input_len - matches)).unwrap_or(true) {
                         if first {
@@ -317,6 +336,7 @@ impl Information {
                             records.push(RecordInformation::TournamentFinal {
                                 date,
                                 profit: tournament_profit,
+                                sum: new_sum,
                             });
 
                             max_money = max_money.max(new_sum);
@@ -366,6 +386,7 @@ impl Information {
                                     date,
                                     bet,
                                     profit,
+                                    sum: new_sum,
                                 });
                             }
                         }
@@ -590,11 +611,13 @@ fn display_records(node: &Element, records: Vec<Record>) {
                         Profit::None => {},
                     }*/
                 },
-                RecordInformation::TournamentFinal { profit, .. } => {
+                RecordInformation::TournamentFinal { profit, sum, .. } => {
                     d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, statistics.max_gain), y, 0.0), x, y));
-                    money += profit;
+                    money = *sum;
                 },
-                RecordInformation::Matchmaking { profit, bet, .. } => {
+                RecordInformation::Matchmaking { profit, bet, sum, .. } => {
+                    money = *sum;
+
                     match *profit {
                         Profit::Gain(amount) => {
                             d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(amount, 0.0, statistics.max_gain), y, 0.0), x, y));
@@ -604,12 +627,9 @@ fn display_records(node: &Element, records: Vec<Record>) {
                                 d_bets.push(format!("M{},{}L{},{}", x, y, x, y + 0.3));
                                 //format!("M{},100L{},{}", x, x, normalize(amount, information.max_bet, information.min_bet) * 100.0)
                             }
-
-                            money += amount;
                         },
                         Profit::Loss(amount) => {
                             d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(amount, 0.0, statistics.max_loss), y, 100.0)));
-                            money -= amount;
                         },
                         Profit::None => {},
                     }

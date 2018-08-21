@@ -139,9 +139,16 @@ pub struct Record {
     pub bet: Bet,
     pub duration: f64,
     pub date: f64,
+    #[serde(default = "Record::default_sum")]
+    pub sum: f64,
 }
 
 impl Record {
+    #[inline]
+    fn default_sum() -> f64 {
+        -1.0
+    }
+
     pub fn shuffle(self) -> Self {
         if genetic::Gene::new() {
             self
@@ -156,6 +163,7 @@ impl Record {
                 bet: self.bet.swap(),
                 duration: self.duration,
                 date: self.date,
+                sum: self.sum,
             }
         }
     }

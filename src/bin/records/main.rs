@@ -153,7 +153,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         row
     });
 
-    let mut simulation: Simulation<(), ()> = Simulation::new();
+    /*let mut simulation: Simulation<(), ()> = Simulation::new();
 
     simulation.sum = SALT_MINE_AMOUNT;
 
@@ -170,11 +170,22 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 (simulation.sum, record)
             }
         })
-        .collect();
+        .collect();*/
 
-    for (sum, record) in iterator.into_iter().rev().take(SHOW_MATCHES) {
+    for record in records.into_iter().rev().take(SHOW_MATCHES) {
         let profit = record.profit(&record.bet);
         let bet_amount = record.bet.amount();
+
+        let sum = if record.sum == -1.0 {
+            None
+
+        } else {
+            Some(match profit {
+                Profit::Gain(a) => record.sum + a,
+                Profit::Loss(a) => record.sum - a,
+                Profit::None => record.sum,
+            })
+        };
 
         node.append_child(&{
             let row = document().create_element("tr").unwrap();
@@ -259,11 +270,16 @@ fn display_records(node: &Element, records: Vec<Record>) {
             ]));
 
             row.append_child(&td("profit-sum", &[
-                if sum < 0.0 {
-                    span("loss", &money(sum))
+                if let Some(sum) = sum {
+                    if sum < 0.0 {
+                        span("loss", &money(sum))
+
+                    } else {
+                        span("gain", &money(sum))
+                    }
 
                 } else {
-                    span("gain", &money(sum))
+                    text("")
                 }
             ]));
 

@@ -36,6 +36,7 @@ pub struct Information {
     left_bettors_normal: f64,
     right_bettors_normal: f64,
     bet: Bet,
+    sum: f64,
 }
 
 
@@ -150,38 +151,46 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
        query("#sbettors1 > span.redtext > span.counttext").is_some() &&
        query("#sbettors2 > span.bluetext > span.counttext").is_some() {
 
-        let left_bettors_illuminati = query_all("#bettors1 > p.bettor-line > strong.goldtext").len() as f64;
-        let right_bettors_illuminati = query_all("#bettors2 > p.bettor-line > strong.goldtext").len() as f64;
-
-        let left_bettors_normal = query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)").len() as f64;
-        let right_bettors_normal = query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)").len() as f64;
-
-        let left_bet = query("#lastbet > span:first-of-type.redtext")
+        // TODO a bit of code duplication with lookup_bet
+        let current_balance = query("#balance")
             .and_then(get_text_content)
-            .and_then(|x| parse_money(&x));
+            .and_then(|x| parse_f64(&x));
 
-        let right_bet = query("#lastbet > span:first-of-type.bluetext")
-            .and_then(get_text_content)
-            .and_then(|x| parse_money(&x));
+        if let Some(current_balance) = current_balance {
+            let left_bettors_illuminati = query_all("#bettors1 > p.bettor-line > strong.goldtext").len() as f64;
+            let right_bettors_illuminati = query_all("#bettors2 > p.bettor-line > strong.goldtext").len() as f64;
 
-        state.borrow_mut().information = Some(Information {
-            // TODO handle the situation where the player is Illuminati
-            player_is_illuminati: false,
-            left_bettors_illuminati,
-            right_bettors_illuminati,
-            left_bettors_normal,
-            right_bettors_normal,
-            bet: match left_bet {
-                Some(left) => match right_bet {
-                    None => Bet::Left(left),
-                    Some(_) => unreachable!(),
+            let left_bettors_normal = query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)").len() as f64;
+            let right_bettors_normal = query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)").len() as f64;
+
+            let left_bet = query("#lastbet > span:first-of-type.redtext")
+                .and_then(get_text_content)
+                .and_then(|x| parse_money(&x));
+
+            let right_bet = query("#lastbet > span:first-of-type.bluetext")
+                .and_then(get_text_content)
+                .and_then(|x| parse_money(&x));
+
+            state.borrow_mut().information = Some(Information {
+                // TODO handle the situation where the player is Illuminati
+                player_is_illuminati: false,
+                left_bettors_illuminati,
+                right_bettors_illuminati,
+                left_bettors_normal,
+                right_bettors_normal,
+                bet: match left_bet {
+                    Some(left) => match right_bet {
+                        None => Bet::Left(left),
+                        Some(_) => unreachable!(),
+                    },
+                    None => match right_bet {
+                        Some(right) => Bet::Right(right),
+                        None => Bet::None,
+                    },
                 },
-                None => match right_bet {
-                    Some(right) => Bet::Right(right),
-                    None => Bet::None,
-                },
-            }
-        });
+                sum: current_balance,
+            });
+        }
     }
 }
 
@@ -347,6 +356,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                                                     bet: information.bet.clone(),
                                                     duration,
                                                     date,
+                                                    sum: information.sum,
                                                 })
 
                                             } else {
