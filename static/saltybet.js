@@ -577,14 +577,14 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_7ce40a5b88eeaa71b9a2366dd36bb22193484408": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var obj = {}; obj [($0)]= ($1); chrome.storage.local.set (obj);
             },
+            "__extjs_74d5764ddc102a8d3b6252116087a68f2db0c9d4": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return window ;})());
+            },
             "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
                 Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
             },
             "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
-            },
-            "__extjs_74d5764ddc102a8d3b6252116087a68f2db0c9d4": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return window ;})());
             },
             "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));

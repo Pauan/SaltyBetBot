@@ -176,15 +176,15 @@ impl Record {
         self.left.bet_amount / (self.right.bet_amount + bet_amount)
     }
 
-    pub fn odds(&self, bet: &Bet) -> Option<f64> {
+    pub fn odds(&self, bet: &Bet) -> Option<Result<f64, f64>> {
         match bet {
             Bet::Left(amount) => match self.winner {
-                Winner::Left => Some(self.odds_left(*amount)),
-                Winner::Right => Some(-1.0),
+                Winner::Left => Some(Ok(self.odds_left(*amount))),
+                Winner::Right => Some(Err(self.odds_right(*amount))),
             },
             Bet::Right(amount) => match self.winner {
-                Winner::Right => Some(self.odds_right(*amount)),
-                Winner::Left => Some(-1.0),
+                Winner::Right => Some(Ok(self.odds_right(*amount))),
+                Winner::Left => Some(Err(self.odds_left(*amount))),
             },
             Bet::None => None,
         }
@@ -237,6 +237,20 @@ impl Record {
             Bet::None => {
                 Profit::None
             },
+        }
+    }
+
+    pub fn won(&self, bet: &Bet) -> bool {
+        match bet {
+            Bet::Left(_) => match self.winner {
+                Winner::Left => true,
+                Winner::Right => false,
+            },
+            Bet::Right(_) => match self.winner {
+                Winner::Right => true,
+                Winner::Left => false,
+            },
+            Bet::None => false,
         }
     }
 
