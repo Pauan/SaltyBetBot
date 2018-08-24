@@ -153,6 +153,26 @@ fn display_records(node: &Element, records: Vec<Record>) {
         row
     });
 
+    {
+        let len = records.len() as f64;
+
+        let mut bet_left: f64 = 0.0;
+        let mut bet_right: f64 = 0.0;
+
+        let mut odds_left: f64 = 0.0;
+        let mut odds_right: f64 = 0.0;
+
+        for record in records.iter() {
+            bet_left += record.left.bet_amount;
+            bet_right += record.right.bet_amount;
+
+            odds_left += record.odds_left(0.0);
+            odds_right += record.odds_right(0.0);
+        }
+
+        log!("Left bets: {}\nRight bets: {}\nLeft odds: {}\nRight odds: {}", bet_left / len, bet_right / len, odds_left / len, odds_right / len);
+    }
+
     /*let mut simulation: Simulation<(), ()> = Simulation::new();
 
     simulation.sum = SALT_MINE_AMOUNT;

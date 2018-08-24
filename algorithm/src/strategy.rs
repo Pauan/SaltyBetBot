@@ -64,6 +64,37 @@ pub fn winrates<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &
 
 
 #[derive(Debug, Clone, Copy)]
+pub enum RandomStrategy {
+    Left,
+    Right,
+}
+
+impl RandomStrategy {
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, _left: &str, _right: &str, _minimum_matches: bool) -> f64 {
+        let bet_amount = simulation.current_money();
+
+        if simulation.is_in_mines() {
+            bet_amount
+
+        } else {
+            bet_amount * MAXIMUM_BET_PERCENTAGE
+        }
+    }
+}
+
+impl Strategy for RandomStrategy {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let bet_amount = self.bet_amount(simulation, tier, left, right, false);
+
+        match self {
+            RandomStrategy::Left => Bet::Left(bet_amount),
+            RandomStrategy::Right => Bet::Right(bet_amount),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy)]
 pub struct EarningsStrategy {
     pub use_percentages: bool,
     pub expected_profit: bool,

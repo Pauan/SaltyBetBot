@@ -12,7 +12,7 @@ use std::cell::Cell;
 use salty_bet_bot::{get_storage, subtract_days, matchmaking_strategy};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
-use algorithm::strategy::{EarningsStrategy, AllInStrategy, PERCENTAGE_THRESHOLD};
+use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, PERCENTAGE_THRESHOLD};
 use stdweb::traits::*;
 use stdweb::web::{document, Element};
 use stdweb::web::html_element::SelectElement;
@@ -690,7 +690,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         let average_gains = total_gains / len;
 
         js! { @(no_return)
-            @{text_root}.textContent = @{format!("Starting money: {}\nFinal money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {}\nAverage gains: {}\nAverage odds: {}\nAverage odds (win): {}\nAverage odds (loss): {}\nWinrate: {}%", starting_money, final_money, total_gains, statistics.max_money, statistics.min_money, len, average_gains, statistics.average_odds, statistics.odds_gain, statistics.odds_loss, (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)};
+            @{text_root}.textContent = @{format!("Starting money: {}\nFinal money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {}\nAverage gains: {}\nAverage odds: {}\nWinrate: {}%", starting_money, final_money, total_gains, statistics.max_money, statistics.min_money, len, average_gains, statistics.average_odds, (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)};
         }
     }
 
@@ -723,7 +723,8 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 },
                 "earnings" => RecordInformation::calculate(records, make_earnings(true, false), false),
                 "winrate" => RecordInformation::calculate(records, make_earnings(false, true), false),
-                "random" => RecordInformation::calculate(records, make_earnings(false, false), false),
+                "random-left" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(RandomStrategy::Left), false),
+                "random-right" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(RandomStrategy::Right), false),
                 _ => panic!("Invalid value {}", value),
             }
 
@@ -756,7 +757,8 @@ fn display_records(node: &Element, records: Vec<Record>) {
         node.append_child(&make_option("Real data", "real-data", true));
         node.append_child(&make_option("Earnings", "earnings", false));
         node.append_child(&make_option("Winrate", "winrate", false));
-        node.append_child(&make_option("Random", "random", false));
+        node.append_child(&make_option("Random (left)", "random-left", false));
+        node.append_child(&make_option("Random (right)", "random-right", false));
 
         node.add_event_listener({
             let node = node.clone();

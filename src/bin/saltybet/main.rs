@@ -13,8 +13,21 @@ use std::cell::RefCell;
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator};
-use algorithm::strategy::{EarningsStrategy, AllInStrategy, expected_profits, winrates};
+use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, expected_profits, winrates};
 use stdweb::web::{document, set_timeout, Element, INode};
+
+
+const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
+
+/*const MATCHMAKING_STRATEGY: EarningStrategy = EarningsStrategy {
+    expected_profit: true,
+    winrate: false,
+    bet_difference: false,
+    winrate_difference: false,
+    use_percentages: true,
+};*/
+
+const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
 
 
 const SHOULD_BET: bool = true;
@@ -414,7 +427,7 @@ pub struct State {
     did_bet: bool,
     open: Option<WaifuBetsOpen>,
     information: Option<Information>,
-    simulation: Simulation<EarningsStrategy, AllInStrategy>,
+    simulation: Simulation<RandomStrategy, AllInStrategy>,
     matches: Vec<Record>,
     info_container: Rc<InfoContainer>,
 }
@@ -704,15 +717,8 @@ fn main() {
         simulation.matchmaking_strategy = Some(matchmaking_strategy);
         simulation.tournament_strategy = Some(tournament_strategy);*/
 
-        simulation.matchmaking_strategy = Some(EarningsStrategy {
-            expected_profit: true,
-            winrate: false,
-            bet_difference: false,
-            winrate_difference: false,
-            use_percentages: true,
-        });
-
-        simulation.tournament_strategy = Some(AllInStrategy);
+        simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
+        simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
 
         simulation.insert_records(&matches);
 
