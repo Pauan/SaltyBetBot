@@ -35,31 +35,158 @@ fn normalize(value: f64, min: f64, max: f64) -> f64 {
 }
 
 
-fn weighted<A: Simulator, F: FnMut(Vec<&Record>, &str) -> f64>(simulation: &A, left: &str, right: &str, mut f: F) -> (f64, f64) {
-    let left_earnings = f(simulation.lookup_character(left), left);
-    let right_earnings = f(simulation.lookup_character(right), right);
+fn weighted<A, F, G>(simulation: &A, left: &str, right: &str, mut general: F, mut specific: G) -> (f64, f64)
+    where A: Simulator,
+          F: FnMut(Vec<&Record>, &str) -> f64,
+          G: FnMut(Vec<&Record>, &str) -> f64 {
+
+    let left_general = general(simulation.lookup_character(left), left);
+    let right_general = general(simulation.lookup_character(right), right);
 
     let specific_matches = simulation.lookup_specific_character(left, right);
     // TODO this f64 conversions is a bit gross
     let specific_matches_len = specific_matches.len() as f64;
 
     // TODO gross, figure out how to avoid the clone
-    let left_specific_earnings = f(specific_matches.clone(), left);
-    let right_specific_earnings = f(specific_matches, right);
+    let left_specific = specific(specific_matches.clone(), left);
+    let right_specific = specific(specific_matches, right);
 
     // Scales it so that as it collects more matchup-specific data it favors the matchup-specific data more
     (
-        weight(specific_matches_len, left_earnings, left_specific_earnings),
-        weight(specific_matches_len, right_earnings, right_specific_earnings)
+        weight(specific_matches_len, left_general, left_specific),
+        weight(specific_matches_len, right_general, right_specific)
     )
 }
 
 pub fn expected_profits<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &str, bet_amount: f64) -> (f64, f64) {
-    weighted(simulation, left, right, |records, name| lookup::earnings(records, name, bet_amount))
+    weighted(simulation, left, right,
+        |records, name| lookup::earnings(records, name, bet_amount),
+        |records, name| lookup::earnings(records, name, bet_amount))
 }
 
 pub fn winrates<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &str) -> (f64, f64) {
-    weighted(simulation, left, right, |records, name| lookup::winrate(records, name))
+    weighted(simulation, left, right,
+        |records, name| lookup::winrate(records, name),
+        |records, name| lookup::winrate(records, name))
+}
+
+pub fn upsets<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &str, bet_amount: f64) -> (f64, f64) {
+    weighted(simulation, left, right,
+        |records, name| lookup::upsets(records, name, bet_amount),
+        |records, name| lookup::upsets(records, name, bet_amount))
+}
+
+pub fn odds<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &str, bet_amount: f64) -> (f64, f64) {
+    weighted(simulation, left, right,
+        |records, name| lookup::odds(records, name, bet_amount),
+        |records, name| lookup::odds(records, name, bet_amount))
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub struct HybridStrategy;
+
+impl HybridStrategy {
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
+        EarningsStrategy::_bet_amount(simulation, tier, left, right, true, minimum_matches)
+    }
+}
+
+impl Strategy for HybridStrategy {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let bet_amount = self.bet_amount(simulation, tier, left, right, true);
+
+        let (left, right) = weighted(simulation, left, right,
+            |records, name| lookup::upsets(records, name, bet_amount),
+            |records, name| lookup::winrate(records, name));
+
+        if left > right {
+            Bet::Left(bet_amount)
+
+        } else if right > left {
+            Bet::Right(bet_amount)
+
+        } else {
+            Bet::Left(1.0)
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum UpsetStrategy {
+    Percentage,
+    Odds,
+}
+
+impl UpsetStrategy {
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
+        EarningsStrategy::_bet_amount(simulation, tier, left, right, true, minimum_matches)
+    }
+}
+
+impl Strategy for UpsetStrategy {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let bet_amount = self.bet_amount(simulation, tier, left, right, true);
+
+        let (left, right) = match self {
+            UpsetStrategy::Percentage => upsets(simulation, tier, left, right, bet_amount),
+            UpsetStrategy::Odds => odds(simulation, tier, left, right, bet_amount),
+        };
+
+        if left > right {
+            Bet::Left(bet_amount)
+
+        } else if right > left {
+            Bet::Right(bet_amount)
+
+        } else {
+            Bet::Left(1.0)
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum WinrateStrategy {
+    High,
+    Low,
+}
+
+impl WinrateStrategy {
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
+        EarningsStrategy::_bet_amount(simulation, tier, left, right, true, minimum_matches)
+    }
+}
+
+impl Strategy for WinrateStrategy {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let bet_amount = self.bet_amount(simulation, tier, left, right, true);
+
+        let (left_winrate, right_winrate) = winrates(simulation, tier, left, right);
+
+        match self {
+            WinrateStrategy::High => if left_winrate > right_winrate {
+                Bet::Left(bet_amount)
+
+            } else if right_winrate > left_winrate {
+                Bet::Right(bet_amount)
+
+            } else {
+                Bet::Left(1.0)
+            },
+
+            WinrateStrategy::Low => if left_winrate < right_winrate {
+                Bet::Left(bet_amount)
+
+            } else if right_winrate < left_winrate {
+                Bet::Right(bet_amount)
+
+            } else {
+                Bet::Left(1.0)
+            },
+        }
+    }
 }
 
 
@@ -70,21 +197,14 @@ pub enum RandomStrategy {
 }
 
 impl RandomStrategy {
-    pub fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, _left: &str, _right: &str, _minimum_matches: bool) -> f64 {
-        let bet_amount = simulation.current_money();
-
-        if simulation.is_in_mines() {
-            bet_amount
-
-        } else {
-            bet_amount * MAXIMUM_BET_PERCENTAGE
-        }
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
+        EarningsStrategy::_bet_amount(simulation, tier, left, right, true, minimum_matches)
     }
 }
 
 impl Strategy for RandomStrategy {
     fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
-        let bet_amount = self.bet_amount(simulation, tier, left, right, false);
+        let bet_amount = self.bet_amount(simulation, tier, left, right, true);
 
         match self {
             RandomStrategy::Left => Bet::Left(bet_amount),
@@ -105,7 +225,7 @@ pub struct EarningsStrategy {
 
 impl EarningsStrategy {
     // TODO better behavior for this ?
-    pub fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
+    fn _bet_amount<A: Simulator>(simulation: &A, _tier: &Tier, left: &str, right: &str, use_percentages: bool, minimum_matches: bool) -> f64 {
         let current_money = simulation.current_money();
 
         if simulation.is_in_mines() {
@@ -116,27 +236,26 @@ impl EarningsStrategy {
             let bet_amount = (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE);
 
             // Bet high when at low money, to try and get out of mines faster
-            if !minimum_matches || current_money < PERCENTAGE_THRESHOLD {
-                if self.use_percentages {
-                    current_money * bet_amount
-
-                } else {
-                    round_to_order_of_magnitude(current_money * bet_amount)
-                }
+            let len = if !minimum_matches || current_money < PERCENTAGE_THRESHOLD {
+                1.0
 
             } else {
                 // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
-                let len = normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING);
+                normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING)
+            };
 
-                // TODO verify that this is correct
-                if self.use_percentages {
-                    current_money * bet_amount * len
+            // TODO verify that this is correct
+            if use_percentages {
+                current_money * bet_amount * len
 
-                } else {
-                    round_to_order_of_magnitude(current_money * bet_amount) * len
-                }
+            } else {
+                round_to_order_of_magnitude(current_money * bet_amount) * len
             }
         }
+    }
+
+    pub fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, minimum_matches: bool) -> f64 {
+        Self::_bet_amount(simulation, tier, left, right, self.use_percentages, minimum_matches)
     }
 }
 

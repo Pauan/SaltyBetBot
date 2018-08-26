@@ -7,7 +7,7 @@ extern crate serde_json;
 extern crate salty_bet_bot;
 extern crate algorithm;
 
-use salty_bet_bot::{get_storage, subtract_days};
+use salty_bet_bot::{get_storage, subtract_days, percentage, decimal, money};
 use algorithm::simulation::{Simulation, SALT_MINE_AMOUNT, Bet};
 use algorithm::record::{Record, Character, Winner, Tier, Mode, Profit};
 use stdweb::unstable::TryInto;
@@ -20,40 +20,6 @@ const SHOW_MATCHES: usize = 1000;
 
 
 fn display_records(node: &Element, records: Vec<Record>) {
-    fn percentage(p: f64) -> String {
-        // Rounds to 2 digits
-        // https://stackoverflow.com/a/28656825/449477
-        format!("{:.2}%", p * 100.0)
-    }
-
-    fn format_float(f: f64) -> String {
-        js!(
-            return @{f}.toLocaleString("en-US", {
-                style: "currency",
-                currency: "USD",
-                minimumFractionDigits: 0
-            });
-        ).try_into().unwrap()
-    }
-
-    fn decimal(f: f64) -> String {
-        js!(
-            return @{f}.toLocaleString("en-US", {
-                style: "decimal",
-                maximumFractionDigits: 2
-            });
-        ).try_into().unwrap()
-    }
-
-    fn money(m: f64) -> String {
-        if m < 0.0 {
-            format!("-{}", format_float(-m))
-
-        } else {
-            format_float(m)
-        }
-    }
-
     fn date(d: f64) -> String {
         js!( return new Date(@{d}).toISOString(); ).try_into().unwrap()
     }

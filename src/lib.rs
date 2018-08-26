@@ -270,3 +270,38 @@ pub fn subtract_days(previous_days: u32) -> f64 {
         return date.getTime();
     ).try_into().unwrap()
 }
+
+
+pub fn percentage(p: f64) -> String {
+    // Rounds to 2 digits
+    // https://stackoverflow.com/a/28656825/449477
+    format!("{:.2}%", p * 100.0)
+}
+
+fn format_float(f: f64) -> String {
+    js!(
+        return @{f}.toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 0
+        });
+    ).try_into().unwrap()
+}
+
+pub fn decimal(f: f64) -> String {
+    js!(
+        return @{f}.toLocaleString("en-US", {
+            style: "decimal",
+            maximumFractionDigits: 2
+        });
+    ).try_into().unwrap()
+}
+
+pub fn money(m: f64) -> String {
+    if m < 0.0 {
+        format!("-{}", format_float(-m))
+
+    } else {
+        format_float(m)
+    }
+}

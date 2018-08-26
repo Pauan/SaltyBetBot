@@ -13,13 +13,15 @@ use std::cell::RefCell;
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator};
-use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, expected_profits, winrates};
+use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, HybridStrategy, expected_profits, winrates};
 use stdweb::web::{document, set_timeout, Element, INode};
 
 
-const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
+//const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
 
-/*const MATCHMAKING_STRATEGY: EarningStrategy = EarningsStrategy {
+const MATCHMAKING_STRATEGY: HybridStrategy = HybridStrategy;
+
+/*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
     expected_profit: true,
     winrate: false,
     bet_difference: false,
@@ -427,7 +429,7 @@ pub struct State {
     did_bet: bool,
     open: Option<WaifuBetsOpen>,
     information: Option<Information>,
-    simulation: Simulation<RandomStrategy, AllInStrategy>,
+    simulation: Simulation<HybridStrategy, AllInStrategy>,
     matches: Vec<Record>,
     info_container: Rc<InfoContainer>,
 }
