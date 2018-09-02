@@ -10,7 +10,7 @@ extern crate algorithm;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, set_storage, query, query_all};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, delete_storage, query, query_all, IndexedDB};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator};
 use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, HybridStrategy, expected_profits, winrates};
@@ -404,9 +404,9 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(&record);
 
-                        state.matches.push(record);
-
-                        set_storage("matches", &serde_json::to_string(&state.matches).unwrap());
+                        time!("Record serialization", {
+                            state.records.insert(record);
+                        });
                     }
 
                     state.clear_info_container();
@@ -430,7 +430,7 @@ pub struct State {
     open: Option<WaifuBetsOpen>,
     information: Option<Information>,
     simulation: Simulation<HybridStrategy, AllInStrategy>,
-    matches: Vec<Record>,
+    records: Records,
     info_container: Rc<InfoContainer>,
 }
 
@@ -644,7 +644,7 @@ impl InfoContainer {
 }
 
 
-fn migrate_records(mut records: Vec<Record>) -> Vec<Record> {
+/*fn migrate_records(mut records: Vec<Record>) -> Vec<Record> {
     records = records.into_iter().filter(|record| {
         record.left.bet_amount > 0.0 &&
         record.right.bet_amount > 0.0 &&
@@ -655,6 +655,76 @@ fn migrate_records(mut records: Vec<Record>) -> Vec<Record> {
     set_storage("matches", &serde_json::to_string(&records).unwrap());
 
     records
+}*/
+
+
+struct Records {
+    records: Vec<Record>,
+    db: IndexedDB,
+}
+
+impl Records {
+    fn migrate<F>(db: IndexedDB, f: F) where F: FnOnce(IndexedDB) + 'static {
+        get_storage("matches", move |matches: Option<String>| {
+            match matches {
+                Some(a) => {
+                    time!("Migrating old records", {
+                        let records: Vec<Record> = serde_json::from_str(&a).unwrap();
+
+                        let transaction = db.transaction_write(&["records"]);
+
+                        for record in records {
+                            transaction.insert("records", &record.serialize());
+                        }
+
+                        transaction.on_complete(move || {
+                            log!("Finished migrating old records");
+
+                            delete_storage("matches", move || {
+                                f(db);
+                            });
+                        });
+                    });
+                },
+                None => {
+                    f(db);
+                },
+            }
+        });
+    }
+
+    fn new<F>(f: F) where F: FnOnce(Self) + 'static {
+        IndexedDB::open("", 1, |_old_version, schema| {
+            log!("Schema");
+            schema.create_object_store("records");
+        }, move |db| {
+            log!("Success");
+
+            Self::migrate(db, move |db| {
+                db.transaction_write(&["records"]).get_all("records", move |records| {
+                    f(Self {
+                        records: records.into_iter().map(|x| Record::deserialize(&x)).collect(),
+                        db,
+                    });
+                });
+            });
+        });
+    }
+
+    fn insert(&mut self, record: Record) {
+        let serialized = record.serialize();
+        let transaction = self.db.transaction_write(&["records"]);
+        self.records.push(record);
+        transaction.insert("records", &serialized);
+    }
+}
+
+impl std::ops::Deref for Records {
+    type Target = [Record];
+
+    fn deref(&self) -> &Self::Target {
+        &self.records
+    }
 }
 
 
@@ -701,15 +771,10 @@ fn main() {
         log!("Bettors hidden");
     });*/
 
-    get_storage("matches", move |matches| {
-        let matches: Vec<Record> = match matches {
-            Some(a) => serde_json::from_str(&a).unwrap(),
-            None => vec![],
-        };
-
+    Records::new(move |records| {
         //let matches = migrate_records(matches);
 
-        log!("Initialized {} records", matches.len());
+        log!("Initialized {} records", records.len());
 
         let mut simulation = Simulation::new();
 
@@ -722,14 +787,14 @@ fn main() {
         simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
         simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
 
-        simulation.insert_records(&matches);
+        simulation.insert_records(records.iter());
 
         let state = Rc::new(RefCell::new(State {
             did_bet: false,
             open: None,
             information: None,
             simulation: simulation,
-            matches: matches,
+            records: records,
             info_container: container,
         }));
 

@@ -1,6 +1,7 @@
 //use std;
 //use regex;
 //use csv;
+use serde_json;
 use std::cmp::{PartialOrd, Ordering};
 use genetic;
 use simulation::Bet;
@@ -260,6 +261,14 @@ impl Record {
             Winner::Left => self.left.name == input,
             Winner::Right => self.right.name == input,
         }
+    }
+
+    pub fn serialize(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+
+    pub fn deserialize(str: &str) -> Self {
+        serde_json::from_str(str).unwrap()
     }
 }
 

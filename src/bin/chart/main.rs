@@ -485,6 +485,11 @@ impl Statistics {
 }*/
 
 
+const TEXT_SHADOW: &'static str = "-2px -2px 1px black, -2px 2px 1px black, 2px -2px 1px black, 2px 2px 1px black, -1px -1px 1px black, -1px 1px 1px black, 1px -1px 1px black, 1px 1px 1px black";
+
+const BACKGROUND_COLOR: &'static str = "hsla(0, 0%, 0%, 0.65)";
+
+
 fn make_checkbox<F>(name: &str, x: &str, y: &str, value: bool, mut callback: F) -> Element where F: FnMut(bool) + 'static {
     let node = document().create_element("label").unwrap();
 
@@ -494,6 +499,9 @@ fn make_checkbox<F>(name: &str, x: &str, y: &str, value: bool, mut callback: F) 
         node.style.right = @{x};
         node.style.top = @{y};
         node.style.color = "white";
+        node.style.textShadow = @{TEXT_SHADOW};
+        node.style.backgroundColor = @{BACKGROUND_COLOR};
+        node.style.paddingRight = "5px";
     }
 
     node.append_child(&{
@@ -503,6 +511,7 @@ fn make_checkbox<F>(name: &str, x: &str, y: &str, value: bool, mut callback: F) 
             var node = @{&node};
             node.type = "checkbox";
             node.checked = @{value};
+            node.style.verticalAlign = "top";
         }
 
         node.add_event_listener(move |e: ChangeEvent| {
@@ -530,11 +539,14 @@ fn display_records(node: &Element, records: Vec<Record>) {
         js! { @(no_return)
             var node = @{&node};
             node.style.position = "absolute";
-            node.style.left = @{x};
-            node.style.top = @{y};
+            node.style.left = "0px";
+            node.style.top = "0px";
             //node.style.width = "100%";
             //node.style.height = "100%";
             node.style.color = "white";
+            node.style.textShadow = @{TEXT_SHADOW};
+            node.style.backgroundColor = @{BACKGROUND_COLOR};
+            node.style.padding = "5px";
             node.style.fontSize = "16px";
             node.style.textAlign = @{align};
             node.style.whiteSpace = "pre";
@@ -544,7 +556,16 @@ fn display_records(node: &Element, records: Vec<Record>) {
     }
 
     fn update_svg(svg_root: &Element, text_root: &Element, information: Vec<RecordInformation>, matches_len: Option<usize>) {
-        let starting_index = matches_len.map(|len| information.len() - len).unwrap_or(0);
+        let total_len = information.len();
+
+        let starting_index = matches_len.map(|len| {
+            if len > total_len {
+                0
+            } else {
+                total_len - len
+            }
+        }).unwrap_or(0);
+
         let information = &information[starting_index..];
         let statistics = Statistics::new(&information);
 
@@ -708,15 +729,17 @@ fn display_records(node: &Element, records: Vec<Record>) {
 
         let total_gains = final_money - starting_money;
         let average_gains = total_gains / len;
+        let average_money = final_money / (total_len as f64);
 
         js! { @(no_return)
-            @{text_root}.textContent = @{format!("Starting money: {}\nFinal money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {}\nAverage gains: {}\nAverage odds: {}\nWinrate: {}%",
+            @{text_root}.textContent = @{format!("Starting money: {}\nFinal money: {}\nAverage money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {}\nAverage gains: {}\nAverage odds: {}\nWinrate: {}%",
                 salty_bet_bot::money(starting_money),
                 salty_bet_bot::money(final_money),
+                salty_bet_bot::money(average_money),
                 salty_bet_bot::money(total_gains),
                 salty_bet_bot::money(statistics.max_money),
                 salty_bet_bot::money(statistics.min_money),
-                decimal(len),
+                decimal(total_len as f64),
                 salty_bet_bot::money(average_gains),
                 statistics.average_odds,
                 (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)};
@@ -813,8 +836,8 @@ fn display_records(node: &Element, records: Vec<Record>) {
             let simulation_type = simulation_type.borrow();
 
             node.append_child(&make_option("Real data", "real-data", &simulation_type));
-            node.append_child(&make_option("Earnings", "earnings", &simulation_type));
             node.append_child(&make_option("Hybrid", "hybrid", &simulation_type));
+            node.append_child(&make_option("Earnings", "earnings", &simulation_type));
             node.append_child(&make_option("Upset (percentage)", "upset-percentage", &simulation_type));
             node.append_child(&make_option("Upset (odds)", "upset-odds", &simulation_type));
             node.append_child(&make_option("Winrate (high)", "winrate-high", &simulation_type));
@@ -847,7 +870,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         }
     }));
 
-    node.append_child(&make_checkbox("Extra data", "5px", "55px", extra_data.get(), {
+    node.append_child(&make_checkbox("Simulate extra data", "5px", "55px", extra_data.get(), {
         let extra_data = extra_data.clone();
         let update_svg = update_svg.clone();
         move |value| {

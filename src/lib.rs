@@ -1,3 +1,5 @@
+#![recursion_limit="128"]
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -208,6 +210,98 @@ pub fn set_storage(key: &str, value: &str) {
         obj[@{key}] = @{value};
         // TODO error handling
         chrome.storage.local.set(obj);
+    }
+}
+
+
+pub fn delete_storage<A>(key: &str, f: A)
+    where A: FnOnce() + 'static {
+    js! { @(no_return)
+        // TODO error handling
+        chrome.storage.local.remove(@{key}, function () {
+            @{Once(f)}();
+        });
+    }
+}
+
+
+#[inline]
+pub fn performance_now() -> f64 {
+    js!( return performance.now(); ).try_into().unwrap()
+}
+
+
+pub struct IndexedDBSchema(Value);
+
+impl IndexedDBSchema {
+    pub fn create_object_store(&self, name: &str) {
+        js! { @(no_return)
+            @{&self.0}.createObjectStore(@{name}, { autoIncrement: true });
+        }
+    }
+}
+
+
+pub struct IndexedDBWrite(Value);
+
+impl IndexedDBWrite {
+    // TODO handle errors
+    pub fn insert(&self, store: &str, value: &str) {
+        js! { @(no_return)
+            @{&self.0}.objectStore(@{store}).add(@{value});
+        }
+    }
+
+    // TODO handle errors
+    pub fn get_all<F>(&self, store: &str, f: F) where F: FnOnce(Vec<String>) + 'static {
+        js! { @(no_return)
+            @{&self.0}.objectStore(@{store}).getAll().onsuccess = function (event) {
+                @{Once(f)}(event.target.result);
+            };
+        }
+    }
+
+    // TODO return a listener handle
+    pub fn on_complete<F>(&self, f: F) where F: FnOnce() + 'static {
+        js! { @(no_return)
+            @{&self.0}.addEventListener("complete", function () {
+                @{Once(f)}();
+            }, true);
+        }
+    }
+}
+
+
+pub struct IndexedDB(Value);
+
+impl IndexedDB {
+    // TODO use promises or futures or whatever
+    // TODO handle errors
+    pub fn open<M, D>(name: &str, version: u32, make_schema: M, done: D)
+        where M: FnOnce(u32, IndexedDBSchema) + 'static,
+              D: FnOnce(Self) + 'static {
+
+        let make_schema = move |old: u32, value: Value| make_schema(old, IndexedDBSchema(value));
+
+        let done = move |value: Value| done(IndexedDB(value));
+
+        js! { @(no_return)
+            var make_schema = @{Once(make_schema)};
+            var request = indexedDB.open(@{name}, @{version});
+
+            request.onupgradeneeded = function (event) {
+                make_schema(event.oldVersion, event.target.result);
+            };
+
+            request.onsuccess = function (event) {
+                make_schema.drop();
+                @{Once(done)}(event.target.result);
+            };
+        }
+    }
+
+    pub fn transaction_write(&self, stores: &[&str]) -> IndexedDBWrite {
+        IndexedDBWrite(js!( return @{&self.0}.transaction(@{stores}, "readwrite"); ))
     }
 }
 

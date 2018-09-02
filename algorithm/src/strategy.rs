@@ -98,12 +98,12 @@ impl Strategy for HybridStrategy {
 
         let (left, right) = weighted(simulation, left, right,
             |records, name| lookup::upsets(records, name, bet_amount),
-            |records, name| lookup::winrate(records, name));
+            |records, name| lookup::upsets(records, name, bet_amount));
 
-        if left > right {
+        if left > right && left > 0.5 {
             Bet::Left(bet_amount)
 
-        } else if right > left {
+        } else if right > left && right > 0.5 {
             Bet::Right(bet_amount)
 
         } else {

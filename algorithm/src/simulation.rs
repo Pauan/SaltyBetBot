@@ -87,10 +87,9 @@ pub mod lookup {
     use record::{Record, Winner};
 
 
-    fn iterate_percentage<'a, A, B, C>(iter: A, default: B, mut matches: C) -> f64
+    fn iterate_percentage<'a, A, B>(iter: A, mut matches: B) -> f64
         where A: IntoIterator<Item = &'a Record>,
-              B: FnOnce() -> f64,
-              C: FnMut(&'a Record) -> bool {
+              B: FnMut(&'a Record) -> bool {
         let mut output: f64 = 0.0;
         let mut len: f64 = 0.0;
 
@@ -103,7 +102,8 @@ pub mod lookup {
         }
 
         if len == 0.0 {
-            default()
+            // TODO is 0.0 or 0.5 better ?
+            0.5
 
         } else {
             output / len
@@ -152,31 +152,43 @@ pub mod lookup {
     }
 
 
-    pub fn upsets<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
+    pub fn winner_upsets<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
         where A: IntoIterator<Item = &'a Record> {
-        // TODO is 0.0 or 0.5 better ?
-        iterate_percentage(iter, || 0.0, |record| {
+        iterate_percentage(iter, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
-            (record.left.name == name &&
-             (record.right.bet_amount / (record.left.bet_amount + bet_amount)) > 1.0) ||
-
-            (record.right.name == name &&
-             (record.left.bet_amount / (record.right.bet_amount + bet_amount)) > 1.0)
+            match record.winner {
+                Winner::Left => record.left.name == name && record.right.bet_amount > (record.left.bet_amount + bet_amount),
+                Winner::Right => record.right.name == name && record.left.bet_amount > (record.right.bet_amount + bet_amount),
+            }
         })
     }
 
-    pub fn favored<'a, A>(iter: A, name: &str) -> f64
+    pub fn upsets<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
         where A: IntoIterator<Item = &'a Record> {
-        // TODO is 0.0 or 0.5 better ?
-        iterate_percentage(iter, || 0.0, |record| {
+        iterate_percentage(iter, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
-            (record.left.name == name &&
-             (record.left.bet_amount / record.right.bet_amount) > 1.0) ||
+            if record.left.name == name {
+                record.right.bet_amount > (record.left.bet_amount + bet_amount)
 
-            (record.right.name == name &&
-             (record.right.bet_amount / record.left.bet_amount) > 1.0)
+            } else {
+                record.left.bet_amount > (record.right.bet_amount + bet_amount)
+            }
+        })
+    }
+
+    pub fn favored<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_percentage(iter, |record| {
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            if record.left.name == name {
+                record.right.bet_amount < (record.left.bet_amount + bet_amount)
+
+            } else {
+                record.left.bet_amount < (record.right.bet_amount + bet_amount)
+            }
         })
     }
 
@@ -202,7 +214,7 @@ pub mod lookup {
     pub fn winrate<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         // TODO what about mirror matches ?
-        iterate_percentage(iter, || 0.5, |record| record.is_winner(name))
+        iterate_percentage(iter, |record| record.is_winner(name))
     }
 
     // TODO use the arithmetic mean ?
@@ -276,13 +288,14 @@ impl LookupStatistic {
         where A: Iterator<Item = &'a Record> {
         match *self {
             // TODO this is wrong
-            LookupStatistic::Upsets => lookup::upsets(iter, name, 1.0),
-            LookupStatistic::Favored => lookup::favored(iter, name),
+            LookupStatistic::Upsets => lookup::upsets(iter, name, 0.0),
+            // TODO this is wrong
+            LookupStatistic::Favored => lookup::favored(iter, name, 0.0),
             LookupStatistic::Winrate => lookup::winrate(iter, name),
             // TODO this is wrong
-            LookupStatistic::Earnings => lookup::earnings(iter, name, 1.0),
+            LookupStatistic::Earnings => lookup::earnings(iter, name, 0.0),
             // TODO this is wrong
-            LookupStatistic::Odds => lookup::odds(iter, name, 1.0),
+            LookupStatistic::Odds => lookup::odds(iter, name, 0.0),
             LookupStatistic::BetAmount => lookup::bet_amount(iter, name),
             LookupStatistic::Duration => lookup::duration(iter),
             LookupStatistic::MatchesLen => lookup::matches_len(iter),

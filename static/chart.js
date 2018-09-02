@@ -499,11 +499,11 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_1bec6cd85a41c300a38db6f77d11403ddcfae787": function($0) {
                 return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Element) | 0;
             },
-            "__extjs_a1f13a3f06dde9ed986a617da63f79595f14f507": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var node = ($0); node.style.position = "absolute" ; node.style.right = ($1); node.style.top = ($2); node.style.color = "white" ;
+            "__extjs_275b890c6a504091817b0c4fc882342536a472b5": function($0, $1, $2, $3, $4) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);$4 = Module.STDWEB_PRIVATE.to_js($4);var node = ($0); node.style.position = "absolute" ; node.style.right = ($1); node.style.top = ($2); node.style.color = "white" ; node.style.textShadow = ($3); node.style.backgroundColor = ($4); node.style.paddingRight = "5px" ;
             },
-            "__extjs_2e8b1c7ff8d769ad9838dc67718785a46109b91f": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.type = "checkbox" ; node.checked = ($1);
+            "__extjs_44c8be5242428d838351ad2ad4219cd412813192": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);var node = ($0); node.type = "checkbox" ; node.checked = ($1); node.style.verticalAlign = "top" ;
             },
             "__extjs_a6071bde3ca8fa420736df8a7848fd99e18c6e0d": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.style.position = "absolute" ; node.style.right = "5px" ; node.style.top = "5px" ;
@@ -511,8 +511,8 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_a9677ceb873568f1ae80377395830d53f95a105e": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS ("http://www.w3.org/2000/svg" , ($1));})());
             },
-            "__extjs_f6ba57ef2b529d1de2f76c3d8295d1e6935dbaeb": function($0, $1, $2, $3) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);var node = ($0); node.style.position = "absolute" ; node.style.left = ($1); node.style.top = ($2); node.style.color = "white" ; node.style.fontSize = "16px" ; node.style.textAlign = ($3); node.style.whiteSpace = "pre" ;
+            "__extjs_a422bedf80e905d2cdc9753e3edd0050f5fbf114": function($0, $1, $2, $3) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);var node = ($0); node.style.position = "absolute" ; node.style.left = "0px" ; node.style.top = "0px" ; node.style.color = "white" ; node.style.textShadow = ($1); node.style.backgroundColor = ($2); node.style.padding = "5px" ; node.style.fontSize = "16px" ; node.style.textAlign = ($3); node.style.whiteSpace = "pre" ;
             },
             "__extjs_a0e27add5f05a331cb7f1bb04971f853c1cfe355": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.style.position = "absolute" ; node.style.top = "5px" ; node.style.left = "5px" ; node.style.width = "calc(100% - 10px)" ; node.style.height = "calc(100% - 10px)" ; node.setAttribute ("xmlns" , "http://www.w3.org/2000/svg"); node.setAttribute ("viewBox" , "0 0 100 100"); node.setAttribute ("preserveAspectRatio" , "none"); node.innerHTML = "" ;

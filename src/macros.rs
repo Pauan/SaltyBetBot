@@ -6,3 +6,15 @@ macro_rules! log {
         }
     };
 }
+
+
+#[macro_export]
+macro_rules! time {
+    ($name:expr, $value:expr) => {{
+        let old = $crate::performance_now();
+        let value = $value;
+        let new = $crate::performance_now();
+        log!("{} took {}ms", $name, new - old);
+        value
+    }}
+}
