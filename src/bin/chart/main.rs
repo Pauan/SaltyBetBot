@@ -9,10 +9,10 @@ extern crate algorithm;
 
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
-use salty_bet_bot::{get_storage, subtract_days, matchmaking_strategy, decimal};
+use salty_bet_bot::{records_get_all, subtract_days, decimal};
 use algorithm::record::{Record, Profit, Mode};
-use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
-use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, UpsetStrategy, WinrateStrategy, HybridStrategy, PERCENTAGE_THRESHOLD};
+use algorithm::simulation::{Bet, Simulation, Strategy, SALT_MINE_AMOUNT};
+use algorithm::strategy::{EarningsStrategy, RandomStrategy, UpsetStrategy, WinrateStrategy, HybridStrategy, PERCENTAGE_THRESHOLD};
 use stdweb::traits::*;
 use stdweb::web::{document, Element};
 use stdweb::web::html_element::SelectElement;
@@ -223,16 +223,16 @@ impl RecordInformation {
 
                         let tournament_profit = simulation.tournament_profit(&record);
 
-                        if let Some(tournament_profit) = tournament_profit {
+                        /*if let Some(tournament_profit) = tournament_profit {
                             let new_sum = old_sum + tournament_profit;
 
-                            /*output.push(RecordInformation::TournamentFinal {
+                            output.push(RecordInformation::TournamentFinal {
                                 date,
                                 profit: tournament_profit,
                                 old_sum: old_sum,
                                 new_sum: new_sum,
-                            });*/
-                        }
+                            });
+                        }*/
 
                         let old_sum = old_sum + tournament_profit.unwrap_or(0.0);
 
@@ -533,7 +533,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         js!( return document.createElementNS("http://www.w3.org/2000/svg", @{name}); ).try_into().unwrap()
     }
 
-    fn make_text(x: &str, y: &str, align: &str) -> Element {
+    fn make_text(align: &str) -> Element {
         let node = document().create_element("div").unwrap();
 
         js! { @(no_return)
@@ -624,7 +624,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
                     d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, statistics.max_gain), y, 0.0), x, y));
                     money = *new_sum;
                 },
-                RecordInformation::Match { profit, bet, odds, old_sum, new_sum, mode, .. } => {
+                RecordInformation::Match { odds, old_sum, new_sum, mode, .. } => {
                     if let Mode::Matchmaking = mode {
                         if first {
                             starting_money = *old_sum;
@@ -747,7 +747,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
     }
 
     let svg_root = svg("svg");
-    let text_root = make_text("3px", "2px", "left");
+    let text_root = make_text("left");
 
     let simulation_type = Rc::new(RefCell::new("real-data".to_string()));
     let show_only_recent_data = Rc::new(Cell::new(true));
@@ -968,17 +968,12 @@ fn main() {
 
     log!("Initializing...");
 
-    get_storage("matches", move |matches| {
-        let matches: Vec<Record> = match matches {
-            Some(a) => serde_json::from_str(&a).unwrap(),
-            None => vec![],
-        };
-
+    records_get_all(move |records| {
         let node = document().create_element("div").unwrap();
 
         node.class_list().add("root").unwrap();
 
-        display_records(&node, matches);
+        display_records(&node, records);
 
         document().body().unwrap().append_child(&node);
     });

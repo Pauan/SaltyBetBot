@@ -15,7 +15,7 @@ extern crate algorithm;
 pub mod regexp;
 mod macros;
 
-use algorithm::record::{Tier, Mode, Winner};
+use algorithm::record::{Tier, Mode, Winner, Record};
 use algorithm::types::BetStrategy;
 use stdweb::{Value, Once};
 use stdweb::web::{document, set_timeout, INode, Element, NodeList};
@@ -167,8 +167,31 @@ pub fn create_tab<A>(done: A)
 
     js! { @(no_return)
         // TODO error handling
-        chrome.runtime.sendMessage(null, {}, null, function () {
+        chrome.runtime.sendMessage(null, { type: "tabs:open-twitch-chat" }, null, function () {
             @{Once(done)}();
+        });
+    }
+}
+
+pub fn records_get_all<A>(done: A)
+    where A: FnOnce(Vec<Record>) + 'static {
+
+    let done = move |records: Vec<String>| done(records.into_iter().map(|x| Record::deserialize(&x)).collect());
+
+    js! { @(no_return)
+        // TODO error handling
+        chrome.runtime.sendMessage(null, { type: "records:get-all" }, null, function (value) {
+            @{Once(done)}(value);
+        });
+    }
+}
+
+pub fn records_insert(record: &Record) {
+    js! { @(no_return)
+        // TODO error handling
+        chrome.runtime.sendMessage(null, {
+            type: "records:insert",
+            value: @{record.serialize()}
         });
     }
 }
@@ -192,7 +215,7 @@ impl<'a> Drop for Listener<'a> {
 }
 
 
-pub fn get_storage<A>(key: &str, f: A)
+/*pub fn get_storage<A>(key: &str, f: A)
     where A: FnOnce(Option<String>) + 'static {
     js! { @(no_return)
         // TODO error handling
@@ -200,21 +223,21 @@ pub fn get_storage<A>(key: &str, f: A)
             @{Once(f)}(items[@{key}]);
         });
     }
-}
+}*/
 
 
 // TODO verify that this sets things in the correct order if called multiple times
-pub fn set_storage(key: &str, value: &str) {
+/*pub fn set_storage(key: &str, value: &str) {
     js! { @(no_return)
         var obj = {};
         obj[@{key}] = @{value};
         // TODO error handling
         chrome.storage.local.set(obj);
     }
-}
+}*/
 
 
-pub fn delete_storage<A>(key: &str, f: A)
+/*pub fn delete_storage<A>(key: &str, f: A)
     where A: FnOnce() + 'static {
     js! { @(no_return)
         // TODO error handling
@@ -222,7 +245,7 @@ pub fn delete_storage<A>(key: &str, f: A)
             @{Once(f)}();
         });
     }
-}
+}*/
 
 
 #[inline]
@@ -231,7 +254,7 @@ pub fn performance_now() -> f64 {
 }
 
 
-pub struct IndexedDBSchema(Value);
+/*pub struct IndexedDBSchema(Value);
 
 impl IndexedDBSchema {
     pub fn create_object_store(&self, name: &str) {
@@ -303,7 +326,7 @@ impl IndexedDB {
     pub fn transaction_write(&self, stores: &[&str]) -> IndexedDBWrite {
         IndexedDBWrite(js!( return @{&self.0}.transaction(@{stores}, "readwrite"); ))
     }
-}
+}*/
 
 
 pub struct Port(Value);

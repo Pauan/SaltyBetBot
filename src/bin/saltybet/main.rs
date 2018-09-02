@@ -10,10 +10,10 @@ extern crate algorithm;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, get_storage, delete_storage, query, query_all, IndexedDB};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator};
-use algorithm::strategy::{EarningsStrategy, AllInStrategy, RandomStrategy, HybridStrategy, expected_profits, winrates};
+use algorithm::strategy::{AllInStrategy, HybridStrategy, expected_profits, winrates};
 use stdweb::web::{document, set_timeout, Element, INode};
 
 
@@ -404,9 +404,9 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(&record);
 
-                        time!("Record serialization", {
-                            state.records.insert(record);
-                        });
+                        records_insert(&record);
+
+                        state.records.push(record);
                     }
 
                     state.clear_info_container();
@@ -430,7 +430,7 @@ pub struct State {
     open: Option<WaifuBetsOpen>,
     information: Option<Information>,
     simulation: Simulation<HybridStrategy, AllInStrategy>,
-    records: Records,
+    records: Vec<Record>,
     info_container: Rc<InfoContainer>,
 }
 
@@ -658,76 +658,6 @@ impl InfoContainer {
 }*/
 
 
-struct Records {
-    records: Vec<Record>,
-    db: IndexedDB,
-}
-
-impl Records {
-    fn migrate<F>(db: IndexedDB, f: F) where F: FnOnce(IndexedDB) + 'static {
-        get_storage("matches", move |matches: Option<String>| {
-            match matches {
-                Some(a) => {
-                    time!("Migrating old records", {
-                        let records: Vec<Record> = serde_json::from_str(&a).unwrap();
-
-                        let transaction = db.transaction_write(&["records"]);
-
-                        for record in records {
-                            transaction.insert("records", &record.serialize());
-                        }
-
-                        transaction.on_complete(move || {
-                            log!("Finished migrating old records");
-
-                            delete_storage("matches", move || {
-                                f(db);
-                            });
-                        });
-                    });
-                },
-                None => {
-                    f(db);
-                },
-            }
-        });
-    }
-
-    fn new<F>(f: F) where F: FnOnce(Self) + 'static {
-        IndexedDB::open("", 1, |_old_version, schema| {
-            log!("Schema");
-            schema.create_object_store("records");
-        }, move |db| {
-            log!("Success");
-
-            Self::migrate(db, move |db| {
-                db.transaction_write(&["records"]).get_all("records", move |records| {
-                    f(Self {
-                        records: records.into_iter().map(|x| Record::deserialize(&x)).collect(),
-                        db,
-                    });
-                });
-            });
-        });
-    }
-
-    fn insert(&mut self, record: Record) {
-        let serialized = record.serialize();
-        let transaction = self.db.transaction_write(&["records"]);
-        self.records.push(record);
-        transaction.insert("records", &serialized);
-    }
-}
-
-impl std::ops::Deref for Records {
-    type Target = [Record];
-
-    fn deref(&self) -> &Self::Target {
-        &self.records
-    }
-}
-
-
 fn main() {
     stdweb::initialize();
 
@@ -771,7 +701,7 @@ fn main() {
         log!("Bettors hidden");
     });*/
 
-    Records::new(move |records| {
+    records_get_all(move |records| {
         //let matches = migrate_records(matches);
 
         log!("Initialized {} records", records.len());

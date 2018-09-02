@@ -7,15 +7,15 @@ extern crate serde_json;
 extern crate salty_bet_bot;
 extern crate algorithm;
 
-use salty_bet_bot::{get_storage, subtract_days, percentage, decimal, money};
-use algorithm::simulation::{Simulation, SALT_MINE_AMOUNT, Bet};
+use salty_bet_bot::{records_get_all, percentage, decimal, money};
+use algorithm::simulation::Bet;
 use algorithm::record::{Record, Character, Winner, Tier, Mode, Profit};
 use stdweb::unstable::TryInto;
 use stdweb::traits::*;
 use stdweb::web::{document, Element};
 
 
-const SHOW_DAYS: u32 = 7;
+//const SHOW_DAYS: u32 = 7;
 const SHOW_MATCHES: usize = 1000;
 
 
@@ -288,17 +288,12 @@ fn main() {
 
     log!("Initializing...");
 
-    get_storage("matches", move |matches| {
-        let matches: Vec<Record> = match matches {
-            Some(a) => serde_json::from_str(&a).unwrap(),
-            None => vec![],
-        };
-
+    records_get_all(move |records| {
         let node = document().create_element("table").unwrap();
 
         node.class_list().add("root").unwrap();
 
-        display_records(&node, matches);
+        display_records(&node, records);
 
         document().body().unwrap().append_child(&node);
     });

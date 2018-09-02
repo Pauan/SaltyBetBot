@@ -12,19 +12,11 @@ function download(filename, contents) {
     });
 }
 
-// TODO replace this with Rust code
 document.getElementById("export-button").addEventListener("click", function () {
-    const request = indexedDB.open("", 1);
-
-    request.onsuccess = function (event) {
-        const db = event.target.result;
-
-        db.transaction("records", "readonly").objectStore("records").getAll().onsuccess = function (event) {
-            const json = "[" + event.target.result.join(",") + "]";
-            console.log(json);
-            download("SaltyBet Records (" + new Date().toISOString().replace(/\:/g, "_") + ").json", json);
-        };
-    };
+    chrome.runtime.sendMessage(null, { type: "records:get-all" }, function (records) {
+        const json = JSON.stringify(records.map(JSON.parse));
+        download("SaltyBet Records (" + new Date().toISOString().replace(/\:/g, "_") + ").json", json);
+    });
 }, true);
 
 document.getElementById("open-chart").addEventListener("click", function () {
