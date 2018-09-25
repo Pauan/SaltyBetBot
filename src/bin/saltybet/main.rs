@@ -13,13 +13,19 @@ use std::cell::RefCell;
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator};
-use algorithm::strategy::{AllInStrategy, HybridStrategy, expected_profits, winrates};
+use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy};
 use stdweb::web::{document, set_timeout, Element, INode};
 
 
 //const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
 
-const MATCHMAKING_STRATEGY: HybridStrategy = HybridStrategy;
+const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
+    average_sums: true,
+    round_to_magnitude: false,
+    scale_by_matches: true,
+    money: MoneyStrategy::Percentage,
+    bet: BetStrategy::Odds,
+};
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
     expected_profit: true,
@@ -401,6 +407,10 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                     let mut state = state.borrow_mut();
 
                     if let Some(record) = record {
+                        if let Mode::Matchmaking = record.mode {
+                            state.simulation.insert_sum(record.sum);
+                        }
+
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(&record);
 
@@ -429,7 +439,7 @@ pub struct State {
     did_bet: bool,
     open: Option<WaifuBetsOpen>,
     information: Option<Information>,
-    simulation: Simulation<HybridStrategy, AllInStrategy>,
+    simulation: Simulation<CustomStrategy, AllInStrategy>,
     records: Vec<Record>,
     info_container: Rc<InfoContainer>,
 }
@@ -441,9 +451,9 @@ impl State {
         self.info_container.left.set_name(left);
         self.info_container.right.set_name(right);
 
-        let (left_winrate, right_winrate) = winrates(&self.simulation, tier, left, right);
+        /*let (left_winrate, right_winrate) = winrates(&self.simulation, tier, left, right);
         self.info_container.left.set_winrate(left_winrate, left_winrate.partial_cmp(&right_winrate).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_winrate(right_winrate, right_winrate.partial_cmp(&left_winrate).unwrap_or(Ordering::Equal));
+        self.info_container.right.set_winrate(right_winrate, right_winrate.partial_cmp(&left_winrate).unwrap_or(Ordering::Equal));*/
 
         let left_matches = self.simulation.matches_len(left);
         let right_matches = self.simulation.matches_len(right);
@@ -456,10 +466,10 @@ impl State {
 
         match *mode {
             Mode::Matchmaking => {
-                let bet_amount = self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right, false);
+                /*let bet_amount = self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right, false);
                 let (left_profit, right_profit) = expected_profits(&self.simulation, tier, left, right, bet_amount);
                 self.info_container.left.set_expected_profit(left_profit, left_profit.partial_cmp(&right_profit).unwrap_or(Ordering::Equal));
-                self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));
+                self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));*/
             },
             Mode::Tournament => {},
         }
@@ -683,17 +693,17 @@ fn main() {
         log!("Video hidden");
     });
 
-    /*wait_until_defined(|| query("#chat-frame-stream"), move |chat| {
+    wait_until_defined(|| query("#chat-frame-stream"), move |chat| {
        // TODO hacky
         js! { @(no_return)
             var chat = @{chat};
-            chat.parentNode.removeChild(chat);
+            chat.style.display = "none";
         }
 
         log!("Chat hidden");
     });
 
-    wait_until_defined(|| query("#sbettorswrapper"), move |bettors| {
+    /*wait_until_defined(|| query("#sbettorswrapper"), move |bettors| {
         js! { @(no_return)
             @{bettors}.style.display = "none";
         }
@@ -717,7 +727,13 @@ fn main() {
         simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
         simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
 
-        simulation.insert_records(records.iter());
+        for record in records.iter() {
+            if let Mode::Matchmaking = record.mode {
+                simulation.insert_sum(record.sum);
+            }
+
+            simulation.insert_record(record);
+        }
 
         let state = Rc::new(RefCell::new(State {
             did_bet: false,

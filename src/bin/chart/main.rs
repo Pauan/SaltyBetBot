@@ -12,9 +12,9 @@ use std::cell::{Cell, RefCell};
 use salty_bet_bot::{records_get_all, subtract_days, decimal};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, SALT_MINE_AMOUNT};
-use algorithm::strategy::{EarningsStrategy, RandomStrategy, UpsetStrategy, WinrateStrategy, HybridStrategy, PERCENTAGE_THRESHOLD};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD};
 use stdweb::traits::*;
-use stdweb::web::{document, Element};
+use stdweb::web::{document, window, Element};
 use stdweb::web::html_element::SelectElement;
 use stdweb::web::event::ChangeEvent;
 use stdweb::unstable::TryInto;
@@ -167,6 +167,8 @@ impl RecordInformation {
 
                         let new_sum = simulation.sum;
 
+                        simulation.insert_sum(new_sum);
+
                         let profit = Profit::from_old_new(old_sum, new_sum);
 
                         if let Some(odds) = record.odds(&bet) {
@@ -223,7 +225,7 @@ impl RecordInformation {
 
                         let tournament_profit = simulation.tournament_profit(&record);
 
-                        /*if let Some(tournament_profit) = tournament_profit {
+                        if let Some(tournament_profit) = tournament_profit {
                             let new_sum = old_sum + tournament_profit;
 
                             output.push(RecordInformation::TournamentFinal {
@@ -232,7 +234,7 @@ impl RecordInformation {
                                 old_sum: old_sum,
                                 new_sum: new_sum,
                             });
-                        }*/
+                        }
 
                         let old_sum = old_sum + tournament_profit.unwrap_or(0.0);
 
@@ -241,6 +243,8 @@ impl RecordInformation {
                         simulation.calculate(&record, &bet);
 
                         let new_sum = simulation.sum;
+
+                        simulation.insert_sum(new_sum);
 
                         let profit = Profit::from_old_new(old_sum, new_sum);
 
@@ -349,8 +353,9 @@ impl Statistics {
             max_money = max_money.max(new_sum);
 
             match record {
-                RecordInformation::TournamentFinal { profit, .. } => {
+                RecordInformation::TournamentFinal { profit, old_sum, new_sum, .. } => {
                     assert!(*profit > 0.0);
+                    assert!(new_sum > old_sum);
                     max_gain = max_gain.max(*profit);
                 },
                 RecordInformation::Match { profit, won, odds, bet, .. } => {
@@ -490,44 +495,6 @@ const TEXT_SHADOW: &'static str = "-2px -2px 1px black, -2px 2px 1px black, 2px 
 const BACKGROUND_COLOR: &'static str = "hsla(0, 0%, 0%, 0.65)";
 
 
-fn make_checkbox<F>(name: &str, x: &str, y: &str, value: bool, mut callback: F) -> Element where F: FnMut(bool) + 'static {
-    let node = document().create_element("label").unwrap();
-
-    js! { @(no_return)
-        var node = @{&node};
-        node.style.position = "absolute";
-        node.style.right = @{x};
-        node.style.top = @{y};
-        node.style.color = "white";
-        node.style.textShadow = @{TEXT_SHADOW};
-        node.style.backgroundColor = @{BACKGROUND_COLOR};
-        node.style.paddingRight = "5px";
-    }
-
-    node.append_child(&{
-        let node = document().create_element("input").unwrap();
-
-        js! { @(no_return)
-            var node = @{&node};
-            node.type = "checkbox";
-            node.checked = @{value};
-            node.style.verticalAlign = "top";
-        }
-
-        node.add_event_listener(move |e: ChangeEvent| {
-            let node = e.target().unwrap();
-
-            callback(js!( return @{node}.checked; ).try_into().unwrap());
-        });
-
-        node
-    });
-
-    node.append_child(&document().create_text_node(name));
-
-    node
-}
-
 fn display_records(node: &Element, records: Vec<Record>) {
     fn svg(name: &str) -> Element {
         js!( return document.createElementNS("http://www.w3.org/2000/svg", @{name}); ).try_into().unwrap()
@@ -551,6 +518,90 @@ fn display_records(node: &Element, records: Vec<Record>) {
             node.style.textAlign = @{align};
             node.style.whiteSpace = "pre";
         }
+
+        node
+    }
+
+    fn make_option(text: &str, value: &str, default: &str) -> Element {
+        let node = document().create_element("option").unwrap();
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.text = @{text};
+            node.value = @{value};
+            node.selected = @{value == default};
+        }
+
+        node
+    }
+
+    fn make_dropdown<F>(top: &str, value: Rc<RefCell<String>>, update_svg: Rc<F>, options: &[(&str, &str)]) -> SelectElement where F: Fn() + 'static {
+        let node: SelectElement = document().create_element("select").unwrap().try_into().unwrap();
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.style.position = "absolute";
+            node.style.left = "5px";
+            node.style.top = @{top};
+        }
+
+        {
+            let lock = value.borrow();
+
+            for (name, value) in options {
+                node.append_child(&make_option(name, value, &lock));
+            }
+        }
+
+        node.add_event_listener({
+            let node = node.clone();
+            move |_: ChangeEvent| {
+                if let Some(new_value) = node.value() {
+                    *value.borrow_mut() = new_value;
+                    update_svg();
+                }
+            }
+        });
+
+        node
+    }
+
+    fn make_checkbox<F>(name: &str, x: &str, y: &str, value: Rc<Cell<bool>>, update_svg: Rc<F>) -> Element where F: Fn() + 'static {
+        let node = document().create_element("label").unwrap();
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.style.position = "absolute";
+            node.style.left = @{x};
+            node.style.top = @{y};
+            node.style.color = "white";
+            node.style.textShadow = @{TEXT_SHADOW};
+            node.style.backgroundColor = @{BACKGROUND_COLOR};
+            node.style.paddingRight = "5px";
+        }
+
+        node.append_child(&{
+            let node = document().create_element("input").unwrap();
+
+            js! { @(no_return)
+                var node = @{&node};
+                node.type = "checkbox";
+                node.checked = @{value.get()};
+                node.style.verticalAlign = "top";
+            }
+
+            node.add_event_listener(move |e: ChangeEvent| {
+                let node = e.target().unwrap();
+                let checked: bool = js!( return @{node}.checked; ).try_into().unwrap();
+
+                value.set(checked);
+                update_svg();
+            });
+
+            node
+        });
+
+        node.append_child(&document().create_text_node(name));
 
         node
     }
@@ -606,12 +657,22 @@ fn display_records(node: &Element, records: Vec<Record>) {
 
         let len = information.len() as f64;
 
-        //let y = (statistics.max_gain / (statistics.max_gain + statistics.max_loss)) * 100.0;
-        let y = (statistics.max_odds_gain / (statistics.max_odds_gain + statistics.max_odds_loss)) * 100.0;
+        let y = (statistics.max_gain / (statistics.max_gain + statistics.max_loss)) * 100.0;
+        //let y = (statistics.max_odds_gain / (statistics.max_odds_gain + statistics.max_odds_loss)) * 100.0;
 
         let mut first = true;
 
+        // TODO better calculation for the window width
+        let pixel_width = (window().inner_width() as f64) / len;
+        let mut pixels = 0.0;
+        let mut average = 0.0;
+        let mut average_len = 0.0;
+
         for (index, record) in information.iter().enumerate() {
+            pixels += pixel_width;
+            average += 5.0;
+            average_len += 1.0;
+
             let x = normalize(index as f64, 0.0, len) * 100.0;
             //let x = normalize(record.date(), statistics.lowest_date, statistics.highest_date) * 100.0;
 
@@ -621,10 +682,11 @@ fn display_records(node: &Element, records: Vec<Record>) {
                         starting_money = *old_sum;
                     }
 
+                    // TODO code duplication with the Statistics
                     d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, statistics.max_gain), y, 0.0), x, y));
                     money = *new_sum;
                 },
-                RecordInformation::Match { odds, old_sum, new_sum, mode, .. } => {
+                RecordInformation::Match { profit, bet, old_sum, new_sum, mode, .. } => {
                     if let Mode::Matchmaking = mode {
                         if first {
                             starting_money = *old_sum;
@@ -632,27 +694,23 @@ fn display_records(node: &Element, records: Vec<Record>) {
 
                         money = *new_sum;
 
-                        match odds {
+                        /*match odds {
                             Ok(amount) => {
-                                d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*amount, 0.0, statistics.max_odds_gain), y, 0.0), x, y));
+                                d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*amount, 0.0, statistics.odds_max_gain), y, 0.0), x, y));
 
-                                {
-                                    let y = range_inclusive(normalize(1.0, 0.0, statistics.max_odds_gain), y, 0.0);
-                                    d_bets.push(format!("M{},{}L{},{}", x, y, x, y + 0.3));
-                                }
+                                let y = range_inclusive(normalize(1.0, 0.0, statistics.odds_max_gain), y, 0.0);
+                                d_bets.push(format!("M{},{}L{},{}", x, y, x, y + 0.3));
                             },
 
                             Err(amount) => {
                                 d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(1.0, 0.0, statistics.max_odds_loss), y, 100.0)));
 
-                                {
-                                    let y = range_inclusive(normalize(*amount, 0.0, statistics.max_odds_loss), y, 100.0);
-                                    d_winner_profit.push(format!("M{},{}L{},{}", x, y - 0.3, x, y));
-                                }
+                                let y = range_inclusive(normalize(*amount, 0.0, statistics.max_odds_loss), y, 100.0);
+                                d_winner_profit.push(format!("M{},{}L{},{}", x, y - 0.3, x, y));
                             },
-                        }
+                        }*/
 
-                        /*match *profit {
+                        match *profit {
                             Profit::Gain(amount) => {
                                 d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(amount, 0.0, statistics.max_gain), y, 0.0), x, y));
 
@@ -666,7 +724,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
                                 d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(amount, 0.0, statistics.max_loss), y, 100.0)));
                             },
                             Profit::None => {},
-                        }*/
+                        }
                     }
                 },
             }
@@ -750,48 +808,60 @@ fn display_records(node: &Element, records: Vec<Record>) {
     let text_root = make_text("left");
 
     let simulation_type = Rc::new(RefCell::new("real-data".to_string()));
+    let money_type = Rc::new(RefCell::new("percentage".to_string()));
     let show_only_recent_data = Rc::new(Cell::new(true));
-    let extra_data = Rc::new(Cell::new(false));
     let use_percentages = Rc::new(Cell::new(true));
+    let extra_data = Rc::new(Cell::new(false));
     let records = Rc::new(records);
 
     let update_svg = Rc::new({
         let svg_root = svg_root.clone();
         let text_root = text_root.clone();
         let simulation_type = simulation_type.clone();
+        let money_type = money_type.clone();
         let show_only_recent_data = show_only_recent_data.clone();
+        let use_percentages = use_percentages.clone();
         let extra_data = extra_data.clone();
         let records = records.clone();
 
         move || {
-            fn make_earnings(expected_profit: bool, winrate: bool) -> ChartMode<EarningsStrategy> {
-                ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages: true })
-            }
-
-            fn make_information(records: &[Record], value: &str, extra_data: bool) -> Vec<RecordInformation> {
-                match value {
+            fn make_information(records: &[Record], simulation_type: &str, money_type: &str, use_percentages: bool, extra_data: bool) -> Vec<RecordInformation> {
+                match simulation_type {
                     "real-data" => {
                         let real: ChartMode<()> = ChartMode::RealData { days: None };
                         RecordInformation::calculate(records, real, extra_data)
                     },
-                    "earnings" => RecordInformation::calculate(records, make_earnings(true, false), extra_data),
-                    "hybrid" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(HybridStrategy), extra_data),
-                    "upset-percentage" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(UpsetStrategy::Percentage), extra_data),
-                    "upset-odds" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(UpsetStrategy::Odds), extra_data),
-                    "winrate-high" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(WinrateStrategy::High), extra_data),
-                    "winrate-low" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(WinrateStrategy::Low), extra_data),
-                    "random-left" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(RandomStrategy::Left), extra_data),
-                    "random-right" => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(RandomStrategy::Right), extra_data),
-                    _ => panic!("Invalid value {}", value),
-                }
-
+                    simulation_type => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(CustomStrategy {
+                        average_sums: true,
+                        scale_by_matches: true,
+                        round_to_magnitude: !use_percentages,
+                        money: match money_type {
+                            "winner-bet" => MoneyStrategy::WinnerBet,
+                            "percentage" => MoneyStrategy::Percentage,
+                            "all-in" => MoneyStrategy::AllIn,
+                            _ => panic!("Invalid value {}", money_type),
+                        },
+                        bet: match simulation_type {
+                            "earnings" => BetStrategy::ExpectedProfit,
+                            "winner-bet" => BetStrategy::WinnerBet,
+                            "upset-percentage" => BetStrategy::Upsets,
+                            "upset-odds" => BetStrategy::Odds,
+                            "winrate-high" => BetStrategy::Wins,
+                            "winrate-low" => BetStrategy::Losses,
+                            "random-left" => BetStrategy::Left,
+                            "random-right" => BetStrategy::Right,
+                            _ => panic!("Invalid value {}", simulation_type),
+                        },
+                    }), extra_data),
                 //ChartMode::RealData { days: Some(7), matches: None }
                 //ChartMode::RealData { days: None }
                 //ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages })
                 //ChartMode::SimulateMatchmaking(matchmaking_strategy())
+                }
             }
 
             let simulation_type = simulation_type.borrow();
+            let money_type = money_type.borrow();
 
             let recent_matches = if show_only_recent_data.get() {
                 Some(1000)
@@ -800,7 +870,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 None
             };
 
-            update_svg(&svg_root, &text_root, make_information(&records, &simulation_type, extra_data.get()), recent_matches);
+            update_svg(&svg_root, &text_root, make_information(&records, &simulation_type, &money_type, use_percentages.get(), extra_data.get()), recent_matches);
         }
     });
 
@@ -809,75 +879,27 @@ fn display_records(node: &Element, records: Vec<Record>) {
     node.append_child(&svg_root);
     node.append_child(&text_root);
 
-    node.append_child(&{
-        let node: SelectElement = document().create_element("select").unwrap().try_into().unwrap();
+    node.append_child(&make_dropdown("225px", simulation_type.clone(), update_svg.clone(), &[
+        ("Real data", "real-data"),
+        ("Winner bet", "winner-bet"),
+        ("Earnings", "earnings"),
+        ("Upset (percentage)", "upset-percentage"),
+        ("Upset (odds)", "upset-odds"),
+        ("Winrate (high)", "winrate-high"),
+        ("Winrate (low)", "winrate-low"),
+        ("Random (left)", "random-left"),
+        ("Random (right)", "random-right"),
+    ]));
 
-        fn make_option(text: &str, value: &str, default: &str) -> Element {
-            let node = document().create_element("option").unwrap();
+    node.append_child(&make_dropdown("250px", money_type.clone(), update_svg.clone(), &[
+        ("Percentage", "percentage"),
+        ("Winner bet", "winner-bet"),
+        ("All in", "all-in"),
+    ]));
 
-            js! { @(no_return)
-                var node = @{&node};
-                node.text = @{text};
-                node.value = @{value};
-                node.selected = @{value == default};
-            }
-
-            node
-        }
-
-        js! { @(no_return)
-            var node = @{&node};
-            node.style.position = "absolute";
-            node.style.right = "5px";
-            node.style.top = "5px";
-        }
-
-        {
-            let simulation_type = simulation_type.borrow();
-
-            node.append_child(&make_option("Real data", "real-data", &simulation_type));
-            node.append_child(&make_option("Hybrid", "hybrid", &simulation_type));
-            node.append_child(&make_option("Earnings", "earnings", &simulation_type));
-            node.append_child(&make_option("Upset (percentage)", "upset-percentage", &simulation_type));
-            node.append_child(&make_option("Upset (odds)", "upset-odds", &simulation_type));
-            node.append_child(&make_option("Winrate (high)", "winrate-high", &simulation_type));
-            node.append_child(&make_option("Winrate (low)", "winrate-low", &simulation_type));
-            node.append_child(&make_option("Random (left)", "random-left", &simulation_type));
-            node.append_child(&make_option("Random (right)", "random-right", &simulation_type));
-        }
-
-        node.add_event_listener({
-            let node = node.clone();
-            let simulation_type = simulation_type.clone();
-            let update_svg = update_svg.clone();
-            move |_: ChangeEvent| {
-                if let Some(value) = node.value() {
-                    *simulation_type.borrow_mut() = value;
-                    update_svg();
-                }
-            }
-        });
-
-        node
-    });
-
-    node.append_child(&make_checkbox("Show only recent data", "5px", "30px", show_only_recent_data.get(), {
-        let show_only_recent_data = show_only_recent_data.clone();
-        let update_svg = update_svg.clone();
-        move |value| {
-            show_only_recent_data.set(value);
-            update_svg();
-        }
-    }));
-
-    node.append_child(&make_checkbox("Simulate extra data", "5px", "55px", extra_data.get(), {
-        let extra_data = extra_data.clone();
-        let update_svg = update_svg.clone();
-        move |value| {
-            extra_data.set(value);
-            update_svg();
-        }
-    }));
+    node.append_child(&make_checkbox("Show only recent data", "5px", "275px", show_only_recent_data.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Use percentages", "5px", "300px", use_percentages.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Simulate extra data", "5px", "325px", extra_data.clone(), update_svg.clone()));
 
     /*node.append_child(&make_checkbox("Expected profit", "5px", "5px", expected_profit.get(), {
         let svg_root = svg_root.clone();

@@ -8,7 +8,7 @@ extern crate salty_bet_bot;
 extern crate algorithm;
 
 use salty_bet_bot::{records_get_all, percentage, decimal, money};
-use algorithm::simulation::Bet;
+use algorithm::simulation::{Simulation, Simulator, Bet};
 use algorithm::record::{Record, Character, Winner, Tier, Mode, Profit};
 use stdweb::unstable::TryInto;
 use stdweb::traits::*;
@@ -89,10 +89,11 @@ fn display_records(node: &Element, records: Vec<Record>) {
     }
 
     // TODO calculate the illuminati and normal bettors correctly (adding 1 depending on whether it bet or not)
-    fn display_character(character: &Character, class: &str, bet_amount: f64) -> Element {
+    fn display_character(character: &Character, class: &str, matches_len: usize, bet_amount: f64) -> Element {
         td("character", &[
             field("Name: ", &span(class, &character.name)),
             field("Bet amount: ", &span("money", &money(character.bet_amount + bet_amount))),
+            field("Number of matches: ", &text(&matches_len.to_string())),
             //field("Win streak: ", &character.win_streak.to_string()),
             //field("Illuminati bettors: ", &character.illuminati_bettors.to_string()),
             //field("Normal bettors: ", &character.normal_bettors.to_string()),
@@ -139,26 +140,30 @@ fn display_records(node: &Element, records: Vec<Record>) {
         log!("Left bets: {}\nRight bets: {}\nLeft odds: {}\nRight odds: {}", bet_left / len, bet_right / len, odds_left / len, odds_right / len);
     }
 
-    /*let mut simulation: Simulation<(), ()> = Simulation::new();
+    let mut simulation: Simulation<(), ()> = Simulation::new();
 
-    simulation.sum = SALT_MINE_AMOUNT;
+    //simulation.sum = SALT_MINE_AMOUNT;
 
     //let cutoff = subtract_days(SHOW_DAYS);
 
-    let iterator: Vec<(f64, Record)> = records.into_iter()
+    let iterator: Vec<(usize, usize, Record)> = records.into_iter()
         .map(|record| {
-            simulation.calculate(&record, &record.bet);
+            let left_len = simulation.matches_len(&record.left.name);
+            let right_len = simulation.matches_len(&record.right.name);
+            simulation.insert_record(&record);
+            (left_len, right_len, record)
+            /*simulation.calculate(&record, &record.bet);
 
             if let Mode::Tournament = record.mode {
                 (simulation.tournament_sum, record)
 
             } else {
                 (simulation.sum, record)
-            }
+            }*/
         })
-        .collect();*/
+        .collect();
 
-    for record in records.into_iter().rev().take(SHOW_MATCHES) {
+    for (left_matches_len, right_matches_len, record) in iterator.into_iter().rev().take(SHOW_MATCHES) {
         let profit = record.profit(&record.bet);
         let bet_amount = record.bet.amount();
 
@@ -194,8 +199,8 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 })
             ]));
 
-            row.append_child(&display_character(&record.left, "left", if let Bet::Left(amount) = record.bet { amount } else { 0.0 }));
-            row.append_child(&display_character(&record.right, "right", if let Bet::Right(amount) = record.bet { amount } else { 0.0 }));
+            row.append_child(&display_character(&record.left, "left", left_matches_len, if let Bet::Left(amount) = record.bet { amount } else { 0.0 }));
+            row.append_child(&display_character(&record.right, "right", right_matches_len, if let Bet::Right(amount) = record.bet { amount } else { 0.0 }));
 
             row.append_child(&td("winner", &[
                 match record.winner {

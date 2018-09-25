@@ -48,6 +48,8 @@ impl Bet {
 
 
 pub trait Simulator {
+    fn average_sum(&self) -> f64;
+    fn clamp(&self, bet_amount: f64) -> f64;
     fn matches_len(&self, &str) -> usize;
     fn min_matches_len(&self, left: &str, right: &str) -> f64;
     fn current_money(&self) -> f64;
@@ -63,7 +65,7 @@ pub trait Strategy: Sized + std::fmt::Debug {
 
 
 impl Strategy for () {
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+    fn bet<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> Bet {
         Bet::None
     }
 }
@@ -211,10 +213,54 @@ pub mod lookup {
         iterate_average(iter, |record| record.duration as f64)
     }
 
-    pub fn winrate<'a, A>(iter: A, name: &str) -> f64
+    pub fn wins<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         // TODO what about mirror matches ?
         iterate_percentage(iter, |record| record.is_winner(name))
+    }
+
+    pub fn losses<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        // TODO what about mirror matches ?
+        iterate_percentage(iter, |record| !record.is_winner(name))
+    }
+
+    pub fn bet<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            if record.left.name == name {
+                record.right.bet_amount - record.left.bet_amount
+
+            } else {
+                record.left.bet_amount - record.right.bet_amount
+            }
+        })
+    }
+
+    pub fn winner_bet<'a, A>(iter: A, name: &str, max_bet: f64) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            match record.winner {
+                // TODO what about mirror matches ?
+                // TODO better detection for whether the character matches or not
+                Winner::Left => if record.left.name == name {
+                    (record.right.bet_amount - record.left.bet_amount).max(0.0).min(max_bet)
+
+                } else {
+                    0.0
+                },
+
+                // TODO better detection for whether the character matches or not
+                Winner::Right => if record.right.name == name {
+                    (record.left.bet_amount - record.right.bet_amount).max(0.0).min(max_bet)
+
+                } else {
+                    0.0
+                },
+            }
+        })
     }
 
     // TODO use the arithmetic mean ?
@@ -228,6 +274,30 @@ pub mod lookup {
 
             } else {
                 record.left.bet_amount / (record.right.bet_amount + bet_amount)
+            }
+        })
+    }
+
+    pub fn winner_odds<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            match record.winner {
+                // TODO what about mirror matches ?
+                // TODO better detection for whether the character matches or not
+                Winner::Left => if record.left.name == name {
+                    record.right.bet_amount / (record.left.bet_amount + bet_amount)
+
+                } else {
+                    -1.0
+                },
+
+                // TODO better detection for whether the character matches or not
+                Winner::Right => if record.right.name == name {
+                    record.left.bet_amount / (record.right.bet_amount + bet_amount)
+
+                } else {
+                    -1.0
+                },
             }
         })
     }
@@ -291,7 +361,7 @@ impl LookupStatistic {
             LookupStatistic::Upsets => lookup::upsets(iter, name, 0.0),
             // TODO this is wrong
             LookupStatistic::Favored => lookup::favored(iter, name, 0.0),
-            LookupStatistic::Winrate => lookup::winrate(iter, name),
+            LookupStatistic::Winrate => lookup::wins(iter, name),
             // TODO this is wrong
             LookupStatistic::Earnings => lookup::earnings(iter, name, 0.0),
             // TODO this is wrong
@@ -465,6 +535,7 @@ pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub successes: f64,
     pub failures: f64,
     pub max_character_len: usize,
+    pub sums: Vec<f64>,
     pub characters: HashMap<String, Vec<Record>>,
 }
 
@@ -481,6 +552,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             successes: 0.0,
             failures: 0.0,
             max_character_len: 0,
+            sums: vec![],
             characters: HashMap::new()
         }
     }
@@ -518,39 +590,12 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn clamp(&self, bet_amount: f64) -> f64 {
-        let sum = self.sum();
-
-        if self.is_in_mines() {
-            sum
-
-        } else {
-            let rounded = bet_amount.round();
-
-            if rounded < 1.0 {
-                1.0
-
-            } else if rounded > sum {
-                sum
-
-            } else {
-                rounded
-            }
-        }
-    }
-
     // TODO in exhibitions it should always bet $1
     pub fn pick_winner<C>(&self, strategy: &C, tier: &Tier, left: &str, right: &str) -> Bet where C: Strategy {
         if left != right {
             match strategy.bet(self, tier, left, right) {
-                Bet::Left(bet_amount) => if bet_amount > 0.0 {
-                    return Bet::Left(self.clamp(bet_amount));
-                },
-
-                Bet::Right(bet_amount) => if bet_amount > 0.0 {
-                    return Bet::Right(self.clamp(bet_amount));
-                },
-
+                Bet::Left(bet_amount) => return Bet::Left(self.clamp(bet_amount)),
+                Bet::Right(bet_amount) => return Bet::Right(self.clamp(bet_amount)),
                 Bet::None => {},
             }
         }
@@ -688,6 +733,10 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
+    pub fn insert_sum(&mut self, sum: f64) {
+        self.sums.push(sum);
+    }
+
     pub fn insert_records<'a, C: IntoIterator<Item = &'a Record>>(&mut self, records: C) {
         for record in records {
             self.insert_record(record);
@@ -695,7 +744,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     }
 
     pub fn winrate(&self, name: &str) -> f64 {
-        lookup::winrate(self.lookup_character(name), name)
+        lookup::wins(self.lookup_character(name), name)
     }
 
     pub fn specific_matches_len(&self, left: &str, right: &str) -> usize {
@@ -703,7 +752,67 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     }
 }
 
+fn average<A: Iterator<Item = f64>>(iter: A, default: f64) -> f64 {
+    let mut sum = 0.0;
+    let mut len = 0.0;
+
+    for x in iter {
+        sum += x;
+        len += 1.0;
+    }
+
+    if len == 0.0 {
+        default
+
+    } else {
+        sum / len
+    }
+}
+
 impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
+    fn average_sum(&self) -> f64 {
+        average(self.sums.iter().map(|x| *x), self.current_money())
+
+        /*let len = self.sums.len();
+
+        let index = if len <= 20000 {
+            0
+        } else {
+            len - 20000
+        };
+
+        let sums = &self.sums[index..];
+
+        average(sums.into_iter().map(|x| *x), self.current_money())*/
+    }
+
+    fn clamp(&self, bet_amount: f64) -> f64 {
+        let sum = self.sum();
+
+        if self.is_in_mines() {
+            sum
+
+        } else {
+            let rounded = bet_amount.round();
+
+            if rounded < 1.0 {
+                // Bet $1 for maximum exp
+                if sum >= 1.0 {
+                    1.0
+
+                } else {
+                    sum
+                }
+
+            } else if rounded > sum {
+                sum
+
+            } else {
+                rounded
+            }
+        }
+    }
+
     fn matches_len(&self, name: &str) -> usize {
         self.lookup_character(name).len()
     }
