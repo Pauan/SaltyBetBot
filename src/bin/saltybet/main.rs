@@ -10,7 +10,7 @@ extern crate algorithm;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, decimal};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds};
@@ -628,7 +628,16 @@ impl InfoSide {
 
     pub fn set_odds(&self, odds: f64, cmp: Ordering) {
         self.odds.set_color(cmp);
-        self.odds.set(&format!("Average odds: {}", odds));
+
+        if odds == 1.0 {
+            self.odds.set("Average odds: 1 : 1");
+
+        } else if odds < 1.0 {
+            self.odds.set(&format!("Average odds: {} : 1", decimal(1.0 / odds)));
+
+        } else {
+            self.odds.set(&format!("Average odds: 1 : {}", decimal(odds)));
+        }
     }
 
     pub fn set_bet_amount(&self, bet_amount: f64, cmp: Ordering) {
