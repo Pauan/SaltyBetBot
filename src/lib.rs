@@ -64,7 +64,7 @@ pub enum WaifuMessage {
     BetsOpen(WaifuBetsOpen),
     BetsClosed(WaifuBetsClosed),
     Winner(WaifuWinner),
-    ModeSwitch { date: f64 },
+    ModeSwitch { date: f64, is_exhibition: bool },
 }
 
 

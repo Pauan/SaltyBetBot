@@ -606,7 +606,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         node
     }
 
-    fn update_svg(svg_root: &Element, text_root: &Element, information: Vec<RecordInformation>, matches_len: Option<usize>) {
+    fn update_svg(svg_root: &Element, text_root: &Element, information: Vec<RecordInformation>, records_len: usize, matches_len: Option<usize>) {
         let total_len = information.len();
 
         let starting_index = matches_len.map(|len| {
@@ -790,7 +790,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         let average_money = final_money / (total_len as f64);
 
         js! { @(no_return)
-            @{text_root}.textContent = @{format!("Starting money: {}\nFinal money: {}\nAverage money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {}\nAverage gains: {}\nAverage odds: {}\nWinrate: {}%",
+            @{text_root}.textContent = @{format!("Starting money: {}\nFinal money: {}\nAverage money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {} (out of {})\nAverage gains: {}\nAverage odds: {}\nWinrate: {}%",
                 salty_bet_bot::money(starting_money),
                 salty_bet_bot::money(final_money),
                 salty_bet_bot::money(average_money),
@@ -798,6 +798,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 salty_bet_bot::money(statistics.max_money),
                 salty_bet_bot::money(statistics.min_money),
                 decimal(total_len as f64),
+                decimal(records_len as f64),
                 salty_bet_bot::money(average_gains),
                 statistics.average_odds,
                 (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)};
@@ -808,9 +809,10 @@ fn display_records(node: &Element, records: Vec<Record>) {
     let text_root = make_text("left");
 
     let simulation_type = Rc::new(RefCell::new("real-data".to_string()));
-    let money_type = Rc::new(RefCell::new("percentage".to_string()));
+    let money_type = Rc::new(RefCell::new("expected-bet".to_string()));
+    let average_sums = Rc::new(Cell::new(false));
     let show_only_recent_data = Rc::new(Cell::new(true));
-    let use_percentages = Rc::new(Cell::new(true));
+    let round_to_magnitude = Rc::new(Cell::new(false));
     let extra_data = Rc::new(Cell::new(false));
     let records = Rc::new(records);
 
@@ -819,29 +821,34 @@ fn display_records(node: &Element, records: Vec<Record>) {
         let text_root = text_root.clone();
         let simulation_type = simulation_type.clone();
         let money_type = money_type.clone();
+        let average_sums = average_sums.clone();
         let show_only_recent_data = show_only_recent_data.clone();
-        let use_percentages = use_percentages.clone();
+        let round_to_magnitude = round_to_magnitude.clone();
         let extra_data = extra_data.clone();
         let records = records.clone();
 
         move || {
-            fn make_information(records: &[Record], simulation_type: &str, money_type: &str, use_percentages: bool, extra_data: bool) -> Vec<RecordInformation> {
+            fn make_information(records: &[Record], simulation_type: &str, money_type: &str, average_sums: bool, round_to_magnitude: bool, extra_data: bool) -> Vec<RecordInformation> {
                 match simulation_type {
                     "real-data" => {
                         let real: ChartMode<()> = ChartMode::RealData { days: None };
                         RecordInformation::calculate(records, real, extra_data)
                     },
                     simulation_type => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(CustomStrategy {
-                        average_sums: true,
+                        average_sums,
                         scale_by_matches: true,
-                        round_to_magnitude: !use_percentages,
+                        round_to_magnitude,
                         money: match money_type {
+                            "expected-bet-winner" => MoneyStrategy::ExpectedBetWinner,
+                            "expected-bet" => MoneyStrategy::ExpectedBet,
                             "winner-bet" => MoneyStrategy::WinnerBet,
                             "percentage" => MoneyStrategy::Percentage,
                             "all-in" => MoneyStrategy::AllIn,
                             _ => panic!("Invalid value {}", money_type),
                         },
                         bet: match simulation_type {
+                            "expected-bet-winner" => BetStrategy::ExpectedBetWinner,
+                            "expected-bet" => BetStrategy::ExpectedBet,
                             "earnings" => BetStrategy::ExpectedProfit,
                             "winner-bet" => BetStrategy::WinnerBet,
                             "upset-percentage" => BetStrategy::Upsets,
@@ -870,7 +877,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 None
             };
 
-            update_svg(&svg_root, &text_root, make_information(&records, &simulation_type, &money_type, use_percentages.get(), extra_data.get()), recent_matches);
+            update_svg(&svg_root, &text_root, make_information(&records, &simulation_type, &money_type, average_sums.get(), round_to_magnitude.get(), extra_data.get()), records.len(), recent_matches);
         }
     });
 
@@ -881,6 +888,8 @@ fn display_records(node: &Element, records: Vec<Record>) {
 
     node.append_child(&make_dropdown("225px", simulation_type.clone(), update_svg.clone(), &[
         ("Real data", "real-data"),
+        ("Expected bet (winner)", "expected-bet-winner"),
+        ("Expected bet", "expected-bet"),
         ("Winner bet", "winner-bet"),
         ("Earnings", "earnings"),
         ("Upset (percentage)", "upset-percentage"),
@@ -892,14 +901,17 @@ fn display_records(node: &Element, records: Vec<Record>) {
     ]));
 
     node.append_child(&make_dropdown("250px", money_type.clone(), update_svg.clone(), &[
+        ("Expected bet (winner)", "expected-bet-winner"),
+        ("Expected bet", "expected-bet"),
         ("Percentage", "percentage"),
         ("Winner bet", "winner-bet"),
         ("All in", "all-in"),
     ]));
 
-    node.append_child(&make_checkbox("Show only recent data", "5px", "275px", show_only_recent_data.clone(), update_svg.clone()));
-    node.append_child(&make_checkbox("Use percentages", "5px", "300px", use_percentages.clone(), update_svg.clone()));
-    node.append_child(&make_checkbox("Simulate extra data", "5px", "325px", extra_data.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Use average for current money", "5px", "275px", average_sums.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Show only recent data", "5px", "300px", show_only_recent_data.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Round to nearest magnitude", "5px", "325px", round_to_magnitude.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Simulate extra data", "5px", "350px", extra_data.clone(), update_svg.clone()));
 
     /*node.append_child(&make_checkbox("Expected profit", "5px", "5px", expected_profit.get(), {
         let svg_root = svg_root.clone();

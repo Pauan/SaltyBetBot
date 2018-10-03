@@ -484,65 +484,65 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
-            },
-            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
-                Module.STDWEB_PRIVATE.decrement_refcount( $0 );
-            },
-            "__extjs_8c32019649bb581b1b742eeedfc410e2bedd56a6": function($0, $1) {
-                var array = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );Module.STDWEB_PRIVATE.serialize_array( $1, array );
-            },
-            "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
-            },
-            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
+                "__extjs_fe1e80bdcfe7f7cb820b64a40f6d286cbd345955": function($0) {
+                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Array) | 0;
             },
             "__extjs_412b3bd01e407f1a833248d9eb9e255da2cb0f33": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (($1)). toISOString ();})());
             },
-            "__extjs_fe1e80bdcfe7f7cb820b64a40f6d286cbd345955": function($0) {
-                return (Module.STDWEB_PRIVATE.acquire_js_reference( $0 ) instanceof Array) | 0;
-            },
-            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
-                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
-            },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
-            },
-            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
-            },
-            "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
-            },
-            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
-            },
-            "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
-            },
-            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
-                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
-            },
-            "__extjs_02719998c6ece772fc2c8c3dd585272cdb2a127e": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). add (($1));
+            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
+                Module.STDWEB_PRIVATE.decrement_refcount( $0 );
             },
             "__extjs_ecb41cb66cfcd8472a5497d436c79755d87fa6a7": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). textContent = ($1);
             },
-            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
-                console.error( 'Encountered a panic!' );
-            },
             "__extjs_74b1b0b6327c6d2bad2259c05a1887a099ec3014": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "decimal" , maximumFractionDigits : 2});})());
+            },
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            },
+            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
+            },
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            },
+            "__extjs_9230d6a62b16efd096288aa5d2a21e896e597baf": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);chrome.runtime.sendMessage (null , {type : "records:get-all"}, null , function (value){($0)(value);});
+            },
+            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
+            },
+            "__extjs_02719998c6ece772fc2c8c3dd585272cdb2a127e": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). add (($1));
             },
             "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
             },
-            "__extjs_9230d6a62b16efd096288aa5d2a21e896e597baf": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);chrome.runtime.sendMessage (null , {type : "records:get-all"}, null , function (value){($0)(value);});
+            "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
+            },
+            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
+                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
+            },
+            "__extjs_a8e1d9cfe0b41d7d61b849811ad1cfba32de989b": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). createElement (($2));})());
+            },
+            "__extjs_792ff14631f0ebffafcf6ed24405be73234b64ba": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). classList ;})());
+            },
+            "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
+            },
+            "__extjs_8c32019649bb581b1b742eeedfc410e2bedd56a6": function($0, $1) {
+                var array = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );Module.STDWEB_PRIVATE.serialize_array( $1, array );
+            },
+            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
+                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
+            },
+            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
+                console.error( 'Encountered a panic!' );
             },
                 "__web_on_grow": __web_on_grow
             }

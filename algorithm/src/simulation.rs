@@ -11,6 +11,9 @@ pub const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
 // TODO this should take into account the user's real limit
 pub const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 
+// The percentage of profit per match that `expected_bet` should try to get
+const DESIRED_PERCENTAGE_PROFIT: f64 = 1.00;
+
 // ~7.7 minutes
 const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
 
@@ -60,11 +63,16 @@ pub trait Simulator {
 
 
 pub trait Strategy: Sized + std::fmt::Debug {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> (f64, f64);
     fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet;
 }
 
 
 impl Strategy for () {
+    fn bet_amount<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
+        (0.0, 0.0)
+    }
+
     fn bet<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> Bet {
         Bet::None
     }
@@ -85,11 +93,12 @@ pub trait Calculate<A> {
 
 
 pub mod lookup {
+    use super::DESIRED_PERCENTAGE_PROFIT;
     use std::iter::IntoIterator;
     use record::{Record, Winner};
 
 
-    fn iterate_percentage<'a, A, B>(iter: A, mut matches: B) -> f64
+    fn iterate_percentage<'a, A, B>(iter: A, mut matches: B) -> Option<f64>
         where A: IntoIterator<Item = &'a Record>,
               B: FnMut(&'a Record) -> bool {
         let mut output: f64 = 0.0;
@@ -104,15 +113,14 @@ pub mod lookup {
         }
 
         if len == 0.0 {
-            // TODO is 0.0 or 0.5 better ?
-            0.5
+            None
 
         } else {
-            output / len
+            Some(output / len)
         }
     }
 
-    fn iterate_average<'a, A, B>(iter: A, mut f: B) -> f64
+    fn iterate_average<'a, A, B>(iter: A, mut f: B) -> Option<f64>
         where A: IntoIterator<Item = &'a Record>,
               B: FnMut(&'a Record) -> f64 {
         let mut output: f64 = 0.0;
@@ -124,14 +132,14 @@ pub mod lookup {
         }
 
         if len == 0.0 {
-            output
+            None
 
         } else {
-            output / len
+            Some(output / len)
         }
     }
 
-    fn iterate_geometric<'a, A, B>(iter: A, mut f: B) -> f64
+    fn iterate_geometric<'a, A, B>(iter: A, mut f: B) -> Option<f64>
         where A: IntoIterator<Item = &'a Record>,
               B: FnMut(&'a Record) -> f64 {
         // TODO is this correct ?
@@ -144,12 +152,82 @@ pub mod lookup {
         }
 
         if len == 0.0 {
-            // TODO should this return 0.0 instead ?
-            output
+            None
 
         } else {
             // Calculates the nth root
-            output.powf(1.0 / len)
+            Some(output.powf(1.0 / len))
+        }
+    }
+
+
+    fn needed_odds<'a>(iter: &[&Record], name: &str) -> f64 {
+        let mut wins = 0.0;
+        let mut losses = 0.0;
+
+        for record in iter.iter() {
+            if record.is_winner(name) {
+                wins += 1.0;
+
+            } else {
+                losses += 1.0;
+            }
+        }
+
+        1.0 / (wins / losses)
+    }
+
+    pub fn expected_bet_winner<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
+        let needed_odds = needed_odds(&iter, name) + DESIRED_PERCENTAGE_PROFIT;
+
+        let mut sum = 0.0;
+        let mut len = 0.0;
+
+        for record in iter.iter() {
+            match record.winner {
+                Winner::Left => if record.left.name == name {
+                    sum += ((record.right.bet_amount / needed_odds) - record.left.bet_amount).max(0.0).min(max_bet);
+                    len += 1.0;
+                },
+
+                Winner::Right => if record.right.name == name {
+                    sum += ((record.left.bet_amount / needed_odds) - record.right.bet_amount).max(0.0).min(max_bet);
+                    len += 1.0;
+                },
+            }
+        }
+
+        if len == 0.0 {
+            0.0
+
+        } else {
+            sum / len
+        }
+    }
+
+    pub fn expected_bet<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
+        let needed_odds = needed_odds(&iter, name) + DESIRED_PERCENTAGE_PROFIT;
+
+        let mut sum = 0.0;
+        let mut len = 0.0;
+
+        // TODO use iterate_average
+        for record in iter.iter() {
+            len += 1.0;
+
+            if record.left.name == name {
+                sum += ((record.right.bet_amount / needed_odds) - record.left.bet_amount).max(0.0).min(max_bet);
+
+            } else if record.right.name == name {
+                sum += ((record.left.bet_amount / needed_odds) - record.right.bet_amount).max(0.0).min(max_bet);
+            }
+        }
+
+        if len == 0.0 {
+            0.0
+
+        } else {
+            sum / len
         }
     }
 
@@ -163,7 +241,8 @@ pub mod lookup {
                 Winner::Left => record.left.name == name && record.right.bet_amount > (record.left.bet_amount + bet_amount),
                 Winner::Right => record.right.name == name && record.left.bet_amount > (record.right.bet_amount + bet_amount),
             }
-        })
+        // TODO is 0.0 or 0.5 better ?
+        }).unwrap_or(0.0)
     }
 
     pub fn upsets<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
@@ -177,7 +256,8 @@ pub mod lookup {
             } else {
                 record.left.bet_amount > (record.right.bet_amount + bet_amount)
             }
-        })
+        // TODO is 0.0 or 0.5 better ?
+        }).unwrap_or(0.0)
     }
 
     pub fn favored<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
@@ -191,7 +271,8 @@ pub mod lookup {
             } else {
                 record.left.bet_amount < (record.right.bet_amount + bet_amount)
             }
-        })
+        // TODO is 0.0 or 0.5 better ?
+        }).unwrap_or(0.0)
     }
 
     pub fn bet_amount<'a, A>(iter: A, name: &str) -> f64
@@ -205,24 +286,26 @@ pub mod lookup {
             } else {
                 record.right.bet_amount
             }
-        })
+        }).unwrap_or(0.0)
     }
 
     pub fn duration<'a, A>(iter: A) -> f64
         where A: IntoIterator<Item = &'a Record> {
-        iterate_average(iter, |record| record.duration as f64)
+        iterate_average(iter, |record| record.duration as f64).unwrap_or(0.0)
     }
 
     pub fn wins<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         // TODO what about mirror matches ?
-        iterate_percentage(iter, |record| record.is_winner(name))
+        // TODO is 0.0 or 0.5 better ?
+        iterate_percentage(iter, |record| record.is_winner(name)).unwrap_or(0.0)
     }
 
     pub fn losses<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         // TODO what about mirror matches ?
-        iterate_percentage(iter, |record| !record.is_winner(name))
+        // TODO is 0.0 or 0.5 better ?
+        iterate_percentage(iter, |record| !record.is_winner(name)).unwrap_or(0.0)
     }
 
     pub fn bet<'a, A>(iter: A, name: &str) -> f64
@@ -236,7 +319,7 @@ pub mod lookup {
             } else {
                 record.left.bet_amount - record.right.bet_amount
             }
-        })
+        }).unwrap_or(0.0)
     }
 
     pub fn winner_bet<'a, A>(iter: A, name: &str, max_bet: f64) -> f64
@@ -260,7 +343,7 @@ pub mod lookup {
                     0.0
                 },
             }
-        })
+        }).unwrap_or(0.0)
     }
 
     // TODO use the arithmetic mean ?
@@ -275,7 +358,8 @@ pub mod lookup {
             } else {
                 record.left.bet_amount / (record.right.bet_amount + bet_amount)
             }
-        })
+        // TODO should this return 1.0 instead ?
+        }).unwrap_or(0.0)
     }
 
     pub fn winner_odds<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
@@ -299,7 +383,7 @@ pub mod lookup {
                     -1.0
                 },
             }
-        })
+        }).unwrap_or(0.0)
     }
 
     pub fn earnings<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64

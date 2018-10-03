@@ -148,16 +148,15 @@ fn parse_winner(input: &str, date: f64) -> Option<WaifuMessage> {
 fn parse_mode_switch(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
         static ref MODE_SWITCH_REGEX: regexp::RegExp = regexp::RegExp::new(
-            r"^(?:Tournament|Exhibitions|Matchmaking) will start shortly\. Thanks for watching!$"
+            r"^(Tournament|Exhibitions|Matchmaking) will start shortly\. Thanks for watching!$"
         );
     }
 
-    if MODE_SWITCH_REGEX.is_match(input) {
-        Some(WaifuMessage::ModeSwitch { date })
-
-    } else {
-        None
-    }
+    MODE_SWITCH_REGEX.first_match(input).and_then(|mut captures|
+        captures[1].take().map(|mode| {
+            let is_exhibition = mode == "Exhibitions";
+            WaifuMessage::ModeSwitch { date, is_exhibition }
+        }))
 }
 
 

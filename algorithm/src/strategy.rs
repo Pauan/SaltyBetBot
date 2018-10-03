@@ -1,3 +1,4 @@
+use std::f64::NEG_INFINITY;
 use record::{Tier, Record};
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
@@ -7,6 +8,7 @@ const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it 
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 60.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 5.0;                // maximum percentage for the weight
 const MAXIMUM_BET_PERCENTAGE: f64 = 0.05;       // maximum percentage that it will bet (of current money)
+//const MAXIMUM_BET_AMOUNT: f64 = 350000.0;       // maximum amount it will bet
 const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet
 
 
@@ -104,19 +106,29 @@ fn weighted<A, F>(simulation: &A, left: &str, right: &str, left_bet: f64, right_
     )
 }
 
+pub fn winrates<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::wins(records, name))
+}
+
+pub fn average_odds<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds(records, name, bet))
+}
+
 
 #[derive(Debug, Clone, Copy)]
 pub enum MoneyStrategy {
+    ExpectedBetWinner,
+    ExpectedBet,
     WinnerBet,
     Percentage,
     AllIn,
 }
 
 impl MoneyStrategy {
-    fn bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, average_sums: bool) -> (f64, f64) {
+    fn current_money<A: Simulator>(simulation: &A, average_sums: bool) -> f64 {
         let current_money = simulation.current_money();
 
-        let current_money = if average_sums {
+        if average_sums {
             let average = simulation.average_sum();
 
             if average > current_money {
@@ -128,11 +140,20 @@ impl MoneyStrategy {
 
         } else {
             current_money
-        };
+        }
+    }
 
-        let percentage = current_money * MAXIMUM_BET_PERCENTAGE;
+    fn bet_percentage(current_money: f64) -> f64 {
+        current_money * MAXIMUM_BET_PERCENTAGE
+    }
+
+    fn bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, average_sums: bool) -> (f64, f64) {
+        let current_money = Self::current_money(simulation, average_sums);
+        let percentage = Self::bet_percentage(current_money);
 
         match self {
+            MoneyStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
+            MoneyStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
             MoneyStrategy::WinnerBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::winner_bet(records, name, bet)),
             MoneyStrategy::Percentage => (percentage, percentage),
             MoneyStrategy::AllIn => (current_money, current_money),
@@ -143,6 +164,8 @@ impl MoneyStrategy {
 
 #[derive(Debug, Clone, Copy)]
 pub enum BetStrategy {
+    ExpectedBetWinner,
+    ExpectedBet,
     ExpectedProfit,
     WinnerBet,
     Odds,
@@ -154,13 +177,18 @@ pub enum BetStrategy {
 }
 
 impl BetStrategy {
-    fn bet_value<A: Simulator>(&self, simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) {
+    fn bet_value<A: Simulator>(&self, simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64, average_sums: bool) -> (f64, f64) {
+        let current_money = MoneyStrategy::current_money(simulation, average_sums);
+        let percentage = MoneyStrategy::bet_percentage(current_money);
+
         match self {
+            BetStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
+            BetStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
             BetStrategy::ExpectedProfit => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet)),
             BetStrategy::WinnerBet => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
-            BetStrategy::Odds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds(records, name, bet)),
+            BetStrategy::Odds => average_odds(simulation, left, right, left_bet, right_bet),
             BetStrategy::Upsets => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
-            BetStrategy::Wins => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::wins(records, name)),
+            BetStrategy::Wins => winrates(simulation, left, right),
             BetStrategy::Losses => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
             BetStrategy::Left => (1.0, 0.0),
             BetStrategy::Right => (0.0, 1.0),
@@ -178,37 +206,52 @@ pub struct CustomStrategy {
     pub bet: BetStrategy,
 }
 
-impl CustomStrategy {
-    pub fn bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str) -> (f64, f64) {
+impl Strategy for CustomStrategy {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> (f64, f64) {
         let (left_bet, right_bet) = self.money.bet_amount(simulation, left, right, self.average_sums);
+
+        // TODO are these needed ?
+        let left_bet = left_bet.max(0.0);
+        let right_bet = right_bet.max(0.0);
+
+        //let left_bet = left_bet.min(MAXIMUM_BET_AMOUNT);
+        //let right_bet = right_bet.min(MAXIMUM_BET_AMOUNT);
 
         (
             simulation.clamp(bet_amount(simulation, left, right, left_bet, self.round_to_magnitude, self.scale_by_matches)),
             simulation.clamp(bet_amount(simulation, left, right, right_bet, self.round_to_magnitude, self.scale_by_matches)),
         )
     }
-}
 
-impl Strategy for CustomStrategy {
-    fn bet<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> Bet {
-        let (left_bet, right_bet) = self.bet_amount(simulation, left, right);
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let (left_bet, right_bet) = self.bet_amount(simulation, tier, left, right);
 
         assert_not_nan(left_bet);
         assert_not_nan(right_bet);
 
-        let (left_value, right_value) = self.bet.bet_value(simulation, left, right, left_bet, right_bet);
+        let (left_value, right_value) = self.bet.bet_value(simulation, left, right, left_bet, right_bet, self.average_sums);
 
         assert_not_nan(left_value);
         assert_not_nan(right_value);
 
-        if left_value > right_value {
-            Bet::Left(left_bet)
-
-        } else if right_value > left_value {
+        // TODO is this a good idea ?
+        if left_bet <= 1.0 && right_bet > 1.0 {
             Bet::Right(right_bet)
 
+        // TODO is this a good idea ?
+        } else if right_bet <= 1.0 && left_bet > 1.0 {
+            Bet::Left(left_bet)
+
         } else {
-            Bet::Left(1.0)
+            if left_value > right_value {
+                Bet::Left(left_bet)
+
+            } else if right_value > left_value {
+                Bet::Right(right_bet)
+
+            } else {
+                Bet::Left(1.0)
+            }
         }
     }
 }
@@ -218,16 +261,23 @@ impl Strategy for CustomStrategy {
 pub struct AllInStrategy;
 
 impl Strategy for AllInStrategy {
-    fn bet<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> Bet {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
         let bet_amount = simulation.current_money();
+        (bet_amount, bet_amount)
+    }
 
-        let (left_winrate, right_winrate) = weighted(simulation, left, right, bet_amount, bet_amount, |records, name, _bet| lookup::wins(records, name));
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        // TODO a tiny bit hacky
+        let bet_amount = self.bet_amount(simulation, tier, left, right).0;
+
+        let (left_winrate, right_winrate) = winrates(simulation, left, right);
 
         assert_not_nan(left_winrate);
         assert_not_nan(right_winrate);
 
         let diff = (left_winrate - right_winrate).abs();
 
+        // TODO should this be moved into the bet_amount method ?
         let bet_amount = if simulation.is_in_mines() {
             bet_amount
 

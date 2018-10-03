@@ -10,21 +10,21 @@ extern crate algorithm;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
-use algorithm::simulation::{Bet, Simulation, Simulator};
-use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy};
+use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
+use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds};
 use stdweb::web::{document, set_timeout, Element, INode};
 
 
 //const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
 
 const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
-    average_sums: true,
+    average_sums: false,
     round_to_magnitude: false,
     scale_by_matches: true,
-    money: MoneyStrategy::Percentage,
     bet: BetStrategy::Odds,
+    money: MoneyStrategy::ExpectedBet,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -216,6 +216,13 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
 }
 
 
+fn reload_page() {
+    js! { @(no_return)
+        location.reload();
+    }
+}
+
+
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
 // TODO refresh page when mode changes
 pub fn observe_changes(state: Rc<RefCell<State>>) {
@@ -272,7 +279,16 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                     old_closed = None;
                 },
 
-                WaifuMessage::ModeSwitch { date } => {
+                WaifuMessage::ModeSwitch { date, is_exhibition } => {
+                    // When exhibition mode starts, reload the page, just in case something screwed up on saltybet.com
+                    // TODO reload it when the first exhibition match begins, rather than after 15 minutes
+                    if is_exhibition {
+                        set_timeout(|| {
+                            reload_page();
+                        // 15 minutes
+                        }, 900000);
+                    }
+
                     let state = state.borrow();
 
                     match state.open {
@@ -451,9 +467,9 @@ impl State {
         self.info_container.left.set_name(left);
         self.info_container.right.set_name(right);
 
-        /*let (left_winrate, right_winrate) = winrates(&self.simulation, tier, left, right);
+        let (left_winrate, right_winrate) = winrates(&self.simulation, left, right);
         self.info_container.left.set_winrate(left_winrate, left_winrate.partial_cmp(&right_winrate).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_winrate(right_winrate, right_winrate.partial_cmp(&left_winrate).unwrap_or(Ordering::Equal));*/
+        self.info_container.right.set_winrate(right_winrate, right_winrate.partial_cmp(&left_winrate).unwrap_or(Ordering::Equal));
 
         let left_matches = self.simulation.matches_len(left);
         let right_matches = self.simulation.matches_len(right);
@@ -463,6 +479,18 @@ impl State {
         let specific_matches = self.simulation.specific_matches_len(left, right);
         self.info_container.left.set_specific_matches_len(specific_matches, specific_matches.cmp(&0));
         self.info_container.right.set_specific_matches_len(specific_matches, specific_matches.cmp(&0));
+
+        let (left_bet, right_bet) = match *mode {
+            Mode::Matchmaking => self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
+            Mode::Tournament => self.simulation.tournament_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
+        };
+
+        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, left_bet, right_bet);
+        self.info_container.left.set_odds(left_odds, left_odds.partial_cmp(&right_odds).unwrap_or(Ordering::Equal));
+        self.info_container.right.set_odds(right_odds, right_odds.partial_cmp(&left_odds).unwrap_or(Ordering::Equal));
+
+        self.info_container.left.set_bet_amount(left_bet, left_bet.partial_cmp(&right_bet).unwrap_or(Ordering::Equal));
+        self.info_container.right.set_bet_amount(right_bet, right_bet.partial_cmp(&left_bet).unwrap_or(Ordering::Equal));
 
         match *mode {
             Mode::Matchmaking => {
@@ -523,6 +551,8 @@ struct InfoSide {
     pub element: Element,
     name: Element,
     expected_profit: InfoBar,
+    bet_amount: InfoBar,
+    odds: InfoBar,
     matches_len: InfoBar,
     specific_matches_len: InfoBar,
     winrate: InfoBar,
@@ -563,6 +593,12 @@ impl InfoSide {
         let winrate = InfoBar::new();
         element.append_child(&winrate.element);
 
+        let bet_amount = InfoBar::new();
+        element.append_child(&bet_amount.element);
+
+        let odds = InfoBar::new();
+        element.append_child(&odds.element);
+
         let matches_len = InfoBar::new();
         element.append_child(&matches_len.element);
 
@@ -573,6 +609,8 @@ impl InfoSide {
             element,
             name,
             expected_profit,
+            bet_amount,
+            odds,
             matches_len,
             specific_matches_len,
             winrate
@@ -585,7 +623,17 @@ impl InfoSide {
 
     pub fn set_expected_profit(&self, profits: f64, cmp: Ordering) {
         self.expected_profit.set_color(cmp);
-        self.expected_profit.set(&format!("Expected profit: ${}", profits.round()));
+        self.expected_profit.set(&format!("Expected profit: {}", money(profits.round())));
+    }
+
+    pub fn set_odds(&self, odds: f64, cmp: Ordering) {
+        self.odds.set_color(cmp);
+        self.odds.set(&format!("Average odds: {}", odds));
+    }
+
+    pub fn set_bet_amount(&self, bet_amount: f64, cmp: Ordering) {
+        self.bet_amount.set_color(cmp);
+        self.bet_amount.set(&format!("Bet amount: {}", money(bet_amount)));
     }
 
     pub fn set_matches_len(&self, len: usize, cmp: Ordering) {
@@ -606,9 +654,11 @@ impl InfoSide {
     pub fn clear(&self) {
         self.name.set_text_content("");
         self.expected_profit.set("");
+        self.odds.set("");
+        self.winrate.set("");
+        self.bet_amount.set("");
         self.matches_len.set("");
         self.specific_matches_len.set("");
-        self.winrate.set("");
     }
 }
 
@@ -763,6 +813,14 @@ fn main() {
     create_tab(|| {
         log!("Tab created");
     });
+
+    // Reloads the page every 10 hours, just in case something screwed up on saltybet.com
+    // Normally this doesn't happen, because it reloads the page at the start of exhibitions
+    // TODO is 10 hours too long ? can it be made shorter ? should it be made shorter ?
+    set_timeout(|| {
+        reload_page();
+    // 10 hours
+    }, 36000000);
 
     stdweb::event_loop();
 }

@@ -925,6 +925,13 @@ impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
 }
 
 impl Strategy for BetStrategy {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> (f64, f64) {
+        (
+            self.money_strategy.calculate(simulation, tier, left, right),
+            self.money_strategy.calculate(simulation, tier, right, left),
+        )
+    }
+
     fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
         if self.bet_strategy.calculate(simulation, tier, left, right) {
             let p_left = self.prediction_strategy.calculate(simulation, tier, left, right);

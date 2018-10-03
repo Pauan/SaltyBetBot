@@ -262,12 +262,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
 
             row.append_child(&td("profit-sum", &[
                 if let Some(sum) = sum {
-                    if sum < 0.0 {
-                        span("loss", &money(sum))
-
-                    } else {
-                        span("gain", &money(sum))
-                    }
+                    span("money", &money(sum))
 
                 } else {
                     text("")
