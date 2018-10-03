@@ -823,13 +823,13 @@ fn main() {
         log!("Tab created");
     });
 
-    // Reloads the page every 10 hours, just in case something screwed up on saltybet.com
+    // Reloads the page every 24 hours, just in case something screwed up on saltybet.com
     // Normally this doesn't happen, because it reloads the page at the start of exhibitions
-    // TODO is 10 hours too long ? can it be made shorter ? should it be made shorter ?
+    // TODO is 24 hours too long ? can it be made shorter ? should it be made shorter ?
     set_timeout(|| {
         reload_page();
-    // 10 hours
-    }, 36000000);
+    // 24 hours
+    }, 86400000);
 
     stdweb::event_loop();
 }

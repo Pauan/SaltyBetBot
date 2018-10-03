@@ -235,14 +235,14 @@ impl Strategy for CustomStrategy {
         assert_not_nan(right_value);
 
         // TODO is this a good idea ?
-        if left_bet <= 1.0 && right_bet > 1.0 {
+        /*if left_bet <= 1.0 && right_bet > 1.0 {
             Bet::Right(right_bet)
 
         // TODO is this a good idea ?
         } else if right_bet <= 1.0 && left_bet > 1.0 {
             Bet::Left(left_bet)
 
-        } else {
+        } else {*/
             if left_value > right_value {
                 Bet::Left(left_bet)
 
@@ -252,7 +252,7 @@ impl Strategy for CustomStrategy {
             } else {
                 Bet::Left(1.0)
             }
-        }
+        //}
     }
 }
 

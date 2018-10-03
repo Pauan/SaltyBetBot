@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit="256"]
 
 #[macro_use]
 extern crate stdweb;
@@ -9,14 +9,14 @@ extern crate algorithm;
 
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
-use salty_bet_bot::{records_get_all, subtract_days, decimal};
+use salty_bet_bot::{records_get_all, subtract_days, decimal, Loading};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, SALT_MINE_AMOUNT};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD};
 use stdweb::traits::*;
-use stdweb::web::{document, window, Element};
+use stdweb::web::{document, window, Element, set_timeout};
 use stdweb::web::html_element::SelectElement;
-use stdweb::web::event::ChangeEvent;
+use stdweb::web::event::{ClickEvent, ChangeEvent};
 use stdweb::unstable::TryInto;
 
 
@@ -495,7 +495,7 @@ const TEXT_SHADOW: &'static str = "-2px -2px 1px black, -2px 2px 1px black, 2px 
 const BACKGROUND_COLOR: &'static str = "hsla(0, 0%, 0%, 0.65)";
 
 
-fn display_records(node: &Element, records: Vec<Record>) {
+fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
     fn svg(name: &str) -> Element {
         js!( return document.createElementNS("http://www.w3.org/2000/svg", @{name}); ).try_into().unwrap()
     }
@@ -535,7 +535,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         node
     }
 
-    fn make_dropdown<F>(top: &str, value: Rc<RefCell<String>>, update_svg: Rc<F>, options: &[(&str, &str)]) -> SelectElement where F: Fn() + 'static {
+    fn make_dropdown(top: &str, value: Rc<RefCell<String>>, options: &[(&str, &str)]) -> SelectElement {
         let node: SelectElement = document().create_element("select").unwrap().try_into().unwrap();
 
         js! { @(no_return)
@@ -558,7 +558,6 @@ fn display_records(node: &Element, records: Vec<Record>) {
             move |_: ChangeEvent| {
                 if let Some(new_value) = node.value() {
                     *value.borrow_mut() = new_value;
-                    update_svg();
                 }
             }
         });
@@ -566,7 +565,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         node
     }
 
-    fn make_checkbox<F>(name: &str, x: &str, y: &str, value: Rc<Cell<bool>>, update_svg: Rc<F>) -> Element where F: Fn() + 'static {
+    fn make_checkbox(name: &str, x: &str, y: &str, value: Rc<Cell<bool>>) -> Element {
         let node = document().create_element("label").unwrap();
 
         js! { @(no_return)
@@ -595,13 +594,30 @@ fn display_records(node: &Element, records: Vec<Record>) {
                 let checked: bool = js!( return @{node}.checked; ).try_into().unwrap();
 
                 value.set(checked);
-                update_svg();
             });
 
             node
         });
 
         node.append_child(&document().create_text_node(name));
+
+        node
+    }
+
+    fn make_button<F>(name: &str, x: &str, y: &str, update_svg: F) -> Element where F: Fn() + 'static {
+        let node = document().create_element("button").unwrap();
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.textContent = @{name};
+            node.style.position = "absolute";
+            node.style.left = @{x};
+            node.style.top = @{y};
+        }
+
+        node.add_event_listener(move |_: ClickEvent| {
+            update_svg();
+        });
 
         node
     }
@@ -882,11 +898,12 @@ fn display_records(node: &Element, records: Vec<Record>) {
     });
 
     update_svg();
+    loading.hide();
 
     node.append_child(&svg_root);
     node.append_child(&text_root);
 
-    node.append_child(&make_dropdown("225px", simulation_type.clone(), update_svg.clone(), &[
+    node.append_child(&make_dropdown("225px", simulation_type.clone(), &[
         ("Real data", "real-data"),
         ("Expected bet (winner)", "expected-bet-winner"),
         ("Expected bet", "expected-bet"),
@@ -900,7 +917,7 @@ fn display_records(node: &Element, records: Vec<Record>) {
         ("Random (right)", "random-right"),
     ]));
 
-    node.append_child(&make_dropdown("250px", money_type.clone(), update_svg.clone(), &[
+    node.append_child(&make_dropdown("250px", money_type.clone(), &[
         ("Expected bet (winner)", "expected-bet-winner"),
         ("Expected bet", "expected-bet"),
         ("Percentage", "percentage"),
@@ -908,10 +925,22 @@ fn display_records(node: &Element, records: Vec<Record>) {
         ("All in", "all-in"),
     ]));
 
-    node.append_child(&make_checkbox("Use average for current money", "5px", "275px", average_sums.clone(), update_svg.clone()));
-    node.append_child(&make_checkbox("Show only recent data", "5px", "300px", show_only_recent_data.clone(), update_svg.clone()));
-    node.append_child(&make_checkbox("Round to nearest magnitude", "5px", "325px", round_to_magnitude.clone(), update_svg.clone()));
-    node.append_child(&make_checkbox("Simulate extra data", "5px", "350px", extra_data.clone(), update_svg.clone()));
+    node.append_child(&make_checkbox("Use average for current money", "5px", "275px", average_sums.clone()));
+    node.append_child(&make_checkbox("Show only recent data", "5px", "300px", show_only_recent_data.clone()));
+    node.append_child(&make_checkbox("Round to nearest magnitude", "5px", "325px", round_to_magnitude.clone()));
+    node.append_child(&make_checkbox("Simulate extra data", "5px", "350px", extra_data.clone()));
+
+    node.append_child(&make_button("Run simulation", "5px", "375px", move || {
+        loading.show();
+
+        let update_svg = update_svg.clone();
+        let loading = loading.clone();
+
+        set_timeout(move || {
+            update_svg();
+            loading.hide();
+        }, 0);
+    }));
 
     /*node.append_child(&make_checkbox("Expected profit", "5px", "5px", expected_profit.get(), {
         let svg_root = svg_root.clone();
@@ -1002,12 +1031,16 @@ fn main() {
 
     log!("Initializing...");
 
+    let loading = Loading::new();
+
+    document().body().unwrap().append_child(loading.element());
+
     records_get_all(move |records| {
         let node = document().create_element("div").unwrap();
 
         node.class_list().add("root").unwrap();
 
-        display_records(&node, records);
+        display_records(&node, records, loading);
 
         document().body().unwrap().append_child(&node);
     });

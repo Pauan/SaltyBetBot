@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit="256"]
 
 #[macro_use]
 extern crate lazy_static;
@@ -420,5 +420,57 @@ pub fn money(m: f64) -> String {
 
     } else {
         format_float(m)
+    }
+}
+
+
+
+#[derive(Debug, Clone)]
+pub struct Loading {
+    element: Element,
+}
+
+impl Loading {
+    pub fn new() -> Self {
+        let element = document().create_element("div").unwrap();
+
+        js! { @(no_return)
+            var node = @{&element};
+            node.textContent = "LOADING";
+            node.style.position = "fixed";
+            node.style.left = "0px";
+            node.style.top = "0px";
+            node.style.width = "100%";
+            node.style.height = "100%";
+            node.style.zIndex = "2147483647"; // Highest Z-index
+            node.style.backgroundColor = "hsla(0, 0%, 0%, 0.50)";
+            node.style.color = "white";
+            node.style.fontWeight = "bold";
+            node.style.fontSize = "30px";
+            node.style.letterSpacing = "15px";
+            node.style.textShadow = "2px 2px 10px black, 0px 0px 5px black";
+            node.style.display = "flex";
+            node.style.flexDirection = "row";
+            node.style.alignItems = "center";
+            node.style.justifyContent = "center";
+        }
+
+        Self { element }
+    }
+
+    pub fn element(&self) -> &Element {
+        &self.element
+    }
+
+    pub fn show(&self) {
+        js! { @(no_return)
+            @{&self.element}.style.display = "flex";
+        }
+    }
+
+    pub fn hide(&self) {
+        js! { @(no_return)
+            @{&self.element}.style.display = "none";
+        }
     }
 }

@@ -7,7 +7,7 @@ extern crate serde_json;
 extern crate salty_bet_bot;
 extern crate algorithm;
 
-use salty_bet_bot::{records_get_all, percentage, decimal, money};
+use salty_bet_bot::{records_get_all, percentage, decimal, money, Loading};
 use algorithm::simulation::{Simulation, Simulator, Bet};
 use algorithm::record::{Record, Character, Winner, Tier, Mode, Profit};
 use stdweb::unstable::TryInto;
@@ -288,6 +288,10 @@ fn main() {
 
     log!("Initializing...");
 
+    let loading = Loading::new();
+
+    document().body().unwrap().append_child(loading.element());
+
     records_get_all(move |records| {
         let node = document().create_element("table").unwrap();
 
@@ -296,6 +300,8 @@ fn main() {
         display_records(&node, records);
 
         document().body().unwrap().append_child(&node);
+
+        loading.hide();
     });
 
     stdweb::event_loop();
