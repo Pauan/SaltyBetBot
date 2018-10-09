@@ -1,4 +1,3 @@
-use std::f64::NEG_INFINITY;
 use record::{Tier, Record};
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
@@ -38,7 +37,21 @@ fn weight_percentage(len: f64, max: f64) -> f64 {
 }
 
 fn weight(percentage: f64, general: f64, specific: f64) -> f64 {
-    (general * (1.0 - percentage)) + (specific * percentage)
+    // TODO is this correct ?
+    let general = if percentage == 1.0 {
+        0.0
+    } else {
+        general * (1.0 - percentage)
+    };
+
+    // TODO is this correct ?
+    let specific = if percentage == 0.0 {
+        0.0
+    } else {
+        specific * percentage
+    };
+
+    general + specific
 }
 
 fn normalize(value: f64, min: f64, max: f64) -> f64 {

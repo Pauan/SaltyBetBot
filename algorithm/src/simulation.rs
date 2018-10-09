@@ -94,6 +94,7 @@ pub trait Calculate<A> {
 
 pub mod lookup {
     use super::DESIRED_PERCENTAGE_PROFIT;
+    use std::f64::INFINITY;
     use std::iter::IntoIterator;
     use record::{Record, Winner};
 
@@ -175,8 +176,13 @@ pub mod lookup {
             }
         }
 
-        let needed_odds = 1.0 / (wins / losses);
-        (needed_odds * (1.0 + DESIRED_PERCENTAGE_PROFIT))
+        if wins == 0.0 && losses == 0.0 {
+            INFINITY
+
+        } else {
+            let needed_odds = 1.0 / (wins / losses);
+            (needed_odds * (1.0 + DESIRED_PERCENTAGE_PROFIT))
+        }
     }
 
     pub fn expected_bet_winner<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
