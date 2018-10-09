@@ -126,24 +126,14 @@ get_db(function (db) {
 
             } else if (message.type === "tabs:open-twitch-chat") {
                 if (twitch_ports.length === 0) {
-                    var pending = 2;
-
-                    function done() {
-                        --pending;
-
-                        if (pending === 0) {
+                    remove_twitch_tabs(function () {
+                        // TODO error checking
+                        chrome.tabs.create({
+                            url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout",
+                            active: false
+                        }, function (tab) {
                             reply(null);
-                        }
-                    }
-
-                    remove_twitch_tabs(done);
-
-                    // TODO error checking
-                    chrome.tabs.create({
-                        url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout",
-                        active: false
-                    }, function (tab) {
-                        done();
+                        });
                     });
 
                     return true;

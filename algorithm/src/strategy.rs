@@ -75,12 +75,15 @@ fn bet_amount<A: Simulator>(simulation: &A, left: &str, right: &str, bet_amount:
         };
 
         // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
-        if scale_by_matches {
+        let bet_amount = if scale_by_matches {
             bet_amount * normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING)
 
         } else {
             bet_amount
-        }
+        };
+
+        // TODO is this necessary ?
+        bet_amount.min(current_money * MAXIMUM_BET_PERCENTAGE)
     }
 }
 
@@ -112,6 +115,10 @@ pub fn winrates<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where 
 
 pub fn average_odds<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
     weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds(records, name, bet))
+}
+
+pub fn needed_odds<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::needed_odds(&records, name))
 }
 
 

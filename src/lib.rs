@@ -423,6 +423,18 @@ pub fn money(m: f64) -> String {
     }
 }
 
+pub fn display_odds(odds: f64) -> String {
+    if odds == 1.0 {
+        "1 : 1".to_string()
+
+    } else if odds < 1.0 {
+        format!("{} : 1", decimal(1.0 / odds))
+
+    } else {
+        format!("1 : {}", decimal(odds))
+    }
+}
+
 
 
 #[derive(Debug, Clone)]

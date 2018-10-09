@@ -12,7 +12,7 @@ pub const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
 pub const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 
 // The percentage of profit per match that `expected_bet` should try to get
-const DESIRED_PERCENTAGE_PROFIT: f64 = 1.00;
+const DESIRED_PERCENTAGE_PROFIT: f64 = 0.10;
 
 // ~7.7 minutes
 const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
@@ -161,11 +161,12 @@ pub mod lookup {
     }
 
 
-    fn needed_odds<'a>(iter: &[&Record], name: &str) -> f64 {
+    pub fn needed_odds<'a>(iter: &[&Record], name: &str) -> f64 {
         let mut wins = 0.0;
         let mut losses = 0.0;
 
         for record in iter.iter() {
+            // TODO what about mirror matches ?
             if record.is_winner(name) {
                 wins += 1.0;
 
@@ -174,24 +175,26 @@ pub mod lookup {
             }
         }
 
-        1.0 / (wins / losses)
+        let needed_odds = 1.0 / (wins / losses);
+        (needed_odds * (1.0 + DESIRED_PERCENTAGE_PROFIT))
     }
 
     pub fn expected_bet_winner<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
-        let needed_odds = needed_odds(&iter, name) + DESIRED_PERCENTAGE_PROFIT;
+        let needed_odds = needed_odds(&iter, name);
 
         let mut sum = 0.0;
         let mut len = 0.0;
 
         for record in iter.iter() {
+            // TODO handle mirror matches
             match record.winner {
                 Winner::Left => if record.left.name == name {
-                    sum += ((record.right.bet_amount / needed_odds) - record.left.bet_amount).max(0.0).min(max_bet);
+                    sum += ((record.right.bet_amount / needed_odds) - record.left.bet_amount).floor().max(0.0).min(max_bet);
                     len += 1.0;
                 },
 
                 Winner::Right => if record.right.name == name {
-                    sum += ((record.left.bet_amount / needed_odds) - record.right.bet_amount).max(0.0).min(max_bet);
+                    sum += ((record.left.bet_amount / needed_odds) - record.right.bet_amount).floor().max(0.0).min(max_bet);
                     len += 1.0;
                 },
             }
@@ -206,7 +209,7 @@ pub mod lookup {
     }
 
     pub fn expected_bet<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
-        let needed_odds = needed_odds(&iter, name) + DESIRED_PERCENTAGE_PROFIT;
+        let needed_odds = needed_odds(&iter, name);
 
         let mut sum = 0.0;
         let mut len = 0.0;
@@ -215,11 +218,12 @@ pub mod lookup {
         for record in iter.iter() {
             len += 1.0;
 
+            // TODO handle mirror matches
             if record.left.name == name {
-                sum += ((record.right.bet_amount / needed_odds) - record.left.bet_amount).max(0.0).min(max_bet);
+                sum += ((record.right.bet_amount / needed_odds) - record.left.bet_amount).floor().max(0.0).min(max_bet);
 
             } else if record.right.name == name {
-                sum += ((record.left.bet_amount / needed_odds) - record.right.bet_amount).max(0.0).min(max_bet);
+                sum += ((record.left.bet_amount / needed_odds) - record.right.bet_amount).floor().max(0.0).min(max_bet);
             }
         }
 
@@ -399,7 +403,7 @@ pub mod lookup {
                 match record.winner {
                     // TODO better detection for whether the character matches or not
                     Winner::Left => if record.left.name == name {
-                        earnings += bet_amount * (record.right.bet_amount / (record.left.bet_amount + bet_amount));
+                        earnings += (bet_amount * (record.right.bet_amount / (record.left.bet_amount + bet_amount))).ceil();
 
                     } else {
                         earnings -= bet_amount;
@@ -407,7 +411,7 @@ pub mod lookup {
 
                     // TODO better detection for whether the character matches or not
                     Winner::Right => if record.right.name == name {
-                        earnings += bet_amount * (record.left.bet_amount / (record.right.bet_amount + bet_amount));
+                        earnings += (bet_amount * (record.left.bet_amount / (record.right.bet_amount + bet_amount))).ceil();
 
                     } else {
                         earnings -= bet_amount;

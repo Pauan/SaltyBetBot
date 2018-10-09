@@ -11,7 +11,7 @@ use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use salty_bet_bot::{records_get_all, subtract_days, decimal, Loading};
 use algorithm::record::{Record, Profit, Mode};
-use algorithm::simulation::{Bet, Simulation, Strategy, SALT_MINE_AMOUNT};
+use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD};
 use stdweb::traits::*;
 use stdweb::web::{document, window, Element, set_timeout};
@@ -58,9 +58,10 @@ enum RecordInformation {
         profit: Profit,
         old_sum: f64,
         new_sum: f64,
+        match_len: f64,
         mode: Mode,
         won: bool,
-        odds: Result<f64, f64>,
+        odds: Option<Result<f64, f64>>,
         bet: Bet,
     },
 }
@@ -92,30 +93,31 @@ impl RecordInformation {
 
                     let old_sum = simulation.tournament_sum;
 
+                    let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+
                     simulation.calculate(&record, &bet);
 
                     let new_sum = simulation.tournament_sum;
 
                     if let Mode::Tournament = record.mode {
-                        if let Some(odds) = record.odds(&bet) {
-                            if let Some(amount) = bet.amount() {
-                                if amount > 1.0 {
-                                    let date = index;
-                                    index += 1.0;
+                        if let Some(amount) = bet.amount() {
+                            if amount > 1.0 {
+                                let date = index;
+                                index += 1.0;
 
-                                    let profit = Profit::from_old_new(old_sum, new_sum);
+                                let profit = Profit::from_old_new(old_sum, new_sum);
 
-                                    output.push(RecordInformation::Match {
-                                        date,
-                                        profit,
-                                        old_sum: old_sum,
-                                        new_sum: new_sum,
-                                        mode: record.mode,
-                                        won: record.won(&bet),
-                                        odds,
-                                        bet,
-                                    });
-                                }
+                                output.push(RecordInformation::Match {
+                                    date,
+                                    profit,
+                                    old_sum: old_sum,
+                                    new_sum: new_sum,
+                                    match_len,
+                                    mode: record.mode,
+                                    won: record.won(&bet),
+                                    odds: record.odds(&bet),
+                                    bet,
+                                });
                             }
                         }
                     }
@@ -157,6 +159,8 @@ impl RecordInformation {
 
                         let old_sum = simulation.sum;
 
+                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+
                         let tournament_profit = simulation.tournament_profit(&record);
 
                         let bet = simulation.bet(&record);
@@ -171,23 +175,23 @@ impl RecordInformation {
 
                         let profit = Profit::from_old_new(old_sum, new_sum);
 
-                        if let Some(odds) = record.odds(&bet) {
-                            if let Some(amount) = bet.amount() {
-                                if amount > 1.0 {
-                                    let date = index;
-                                    index += 1.0;
+                        if let Some(amount) = bet.amount() {
+                            if amount > 1.0 {
+                                let date = record.date;
+                                //let date = index;
+                                index += 1.0;
 
-                                    output.push(RecordInformation::Match {
-                                        date,
-                                        profit,
-                                        old_sum: old_sum,
-                                        new_sum: new_sum,
-                                        mode: record.mode,
-                                        won: record.won(&bet),
-                                        odds,
-                                        bet,
-                                    });
-                                }
+                                output.push(RecordInformation::Match {
+                                    date,
+                                    profit,
+                                    old_sum: old_sum,
+                                    new_sum: new_sum,
+                                    match_len,
+                                    mode: record.mode,
+                                    won: record.won(&bet),
+                                    odds: record.odds(&bet),
+                                    bet,
+                                });
                             }
                         }
                     }
@@ -238,6 +242,8 @@ impl RecordInformation {
 
                         let old_sum = old_sum + tournament_profit.unwrap_or(0.0);
 
+                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+
                         let bet = record.bet.clone();
 
                         simulation.calculate(&record, &bet);
@@ -249,27 +255,28 @@ impl RecordInformation {
                         let profit = Profit::from_old_new(old_sum, new_sum);
 
                         if let Mode::Matchmaking = record.mode {
-                            if let Some(odds) = record.odds(&bet) {
-                                if let Some(amount) = bet.amount() {
-                                    if amount > 1.0 {
-                                        output.push(RecordInformation::Match {
-                                            date,
-                                            profit,
-                                            old_sum: old_sum,
-                                            new_sum: new_sum,
-                                            mode: record.mode,
-                                            won: record.won(&bet),
-                                            odds,
-                                            bet,
-                                        });
-                                    }
-                                }
-                            }
+                            //if let Some(amount) = bet.amount() {
+                                //if amount > 1.0 {
+                                    output.push(RecordInformation::Match {
+                                        date,
+                                        profit,
+                                        old_sum: old_sum,
+                                        new_sum: new_sum,
+                                        match_len,
+                                        mode: record.mode,
+                                        won: record.won(&bet),
+                                        odds: record.odds(&bet),
+                                        bet,
+                                    });
+                                //}
+                            //}
                         }
 
                     } else {
                         simulation.calculate(&record, &record.bet);
                     }
+
+                    simulation.insert_record(&record);
                 }
             },
         }
@@ -315,12 +322,15 @@ struct Statistics {
     max_money: f64,
     min_money: f64,
 
+    min_match_len: f64,
+    max_match_len: f64,
+
     lowest_date: f64,
     highest_date: f64,
 }
 
 impl Statistics {
-    fn new(records: &[RecordInformation]) -> Self {
+    fn new(records: &[Record], information: &[RecordInformation], show_recent: bool) -> Self {
         let mut wins: f64 = 0.0;
         let mut losses: f64 = 0.0;
 
@@ -336,20 +346,25 @@ impl Statistics {
         let mut max_bet: f64 = 0.0;
         let mut min_bet: f64 = 0.0;
 
-        let mut min_money: f64 = 0.0;
+        let mut min_money: f64 = -1.0;
         let mut max_money: f64 = 0.0;
 
-        let mut lowest_date: f64 = 0.0;
-        let mut highest_date: f64 = 0.0;
+        let mut min_match_len: f64 = -1.0;
+        let mut max_match_len: f64 = 0.0;
 
-        for record in records {
+        let mut lowest_date: f64 = if show_recent { -1.0 } else { records.first().map(|x| x.date).unwrap_or(0.0) };
+        let mut highest_date: f64 = records.last().map(|x| x.date).unwrap_or(0.0);
+
+        for record in information {
             let date = record.date();
             let new_sum = record.new_sum();
 
-            lowest_date = if lowest_date == 0.0 { date } else { lowest_date.min(date) };
-            highest_date = highest_date.max(date);
+            if show_recent {
+                lowest_date = if lowest_date == -1.0 { date } else { lowest_date.min(date) };
+                //highest_date = highest_date.max(date);
+            }
 
-            min_money = if min_money == 0.0 { new_sum } else { min_money.min(new_sum) };
+            min_money = if min_money == -1.0 { new_sum } else { min_money.min(new_sum) };
             max_money = max_money.max(new_sum);
 
             match record {
@@ -358,7 +373,7 @@ impl Statistics {
                     assert!(new_sum > old_sum);
                     max_gain = max_gain.max(*profit);
                 },
-                RecordInformation::Match { profit, won, odds, bet, .. } => {
+                RecordInformation::Match { profit, won, odds, bet, match_len, .. } => {
                     match profit {
                         Profit::Gain(gain) => {
                             max_gain = max_gain.max(*gain);
@@ -369,6 +384,9 @@ impl Statistics {
                         Profit::None => {},
                     }
 
+                    min_match_len = if min_match_len == -1.0 { *match_len } else { min_match_len.min(*match_len) };
+                    max_match_len = max_match_len.max(*match_len);
+
                     if *won {
                         wins += 1.0;
 
@@ -377,17 +395,20 @@ impl Statistics {
                     }
 
                     match odds {
-                        Ok(amount) => {
+                        Some(Ok(amount)) => {
                             average_odds += amount;
                             odds_gain += amount;
                             max_odds_gain = max_odds_gain.max(*amount);
                         },
 
-                        Err(amount) => {
+                        Some(Err(amount)) => {
                             average_odds += -1.0;
                             odds_loss += -1.0;
                             max_odds_loss = max_odds_loss.max(*amount);
                         },
+
+                        // TODO is this correct ?
+                        None => {},
                     }
 
                     if let Some(amount) = bet.amount() {
@@ -398,13 +419,13 @@ impl Statistics {
             }
         }
 
-        let len = records.len() as f64;
+        let len = information.len() as f64;
 
         Self {
             average_odds: average_odds / len,
             odds_gain: odds_gain / len,
             odds_loss: odds_loss / len,
-            max_odds_loss, max_odds_gain, wins, losses, max_gain, max_loss, max_bet, min_bet, max_money, min_money, lowest_date, highest_date,
+            max_odds_loss, max_odds_gain, wins, losses, max_gain, max_loss, max_bet, min_bet, max_money, min_money, min_match_len, max_match_len, lowest_date, highest_date,
         }
     }
 
@@ -622,19 +643,25 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         node
     }
 
-    fn update_svg(svg_root: &Element, text_root: &Element, information: Vec<RecordInformation>, records_len: usize, matches_len: Option<usize>) {
+    fn update_svg(svg_root: &Element, text_root: &Element, records: &[Record], information: Vec<RecordInformation>, matches_len: Option<f64>) {
         let total_len = information.len();
 
-        let starting_index = matches_len.map(|len| {
+        /*let starting_index = matches_len.map(|len| {
             if len > total_len {
                 0
             } else {
                 total_len - len
             }
-        }).unwrap_or(0);
+        }).unwrap_or(0);*/
 
-        let information = &information[starting_index..];
-        let statistics = Statistics::new(&information);
+        let information = match matches_len {
+            Some(date) => information.into_iter().filter(|x| x.date() >= date).collect(),
+            None => information,
+        };
+
+        //let information = &information[starting_index..];
+        //let records = &records[starting_index..];
+        let statistics = Statistics::new(records, &information, matches_len.is_some());
 
         /*let information_f_f = Information::new(records, make_chart_mode(false, false, use_percentages), extra_data);
         let information_t_f = Information::new(records, make_chart_mode(true, false, use_percentages), extra_data);
@@ -664,6 +691,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         let mut d_losses = vec![];
         let mut d_money = vec!["M0,100".to_owned()];
         let mut d_bets = vec![];
+        let mut d_match_len = vec![];
         let mut d_winner_profit = vec![];
         let mut d_tournaments = vec![];
 
@@ -689,8 +717,8 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
             average += 5.0;
             average_len += 1.0;
 
-            let x = normalize(index as f64, 0.0, len) * 100.0;
-            //let x = normalize(record.date(), statistics.lowest_date, statistics.highest_date) * 100.0;
+            //let x = normalize(index as f64, 0.0, len) * 100.0;
+            let x = normalize(record.date(), statistics.lowest_date, statistics.highest_date) * 100.0;
 
             match record {
                 RecordInformation::TournamentFinal { profit, old_sum, new_sum, .. } => {
@@ -702,11 +730,17 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
                     d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, statistics.max_gain), y, 0.0), x, y));
                     money = *new_sum;
                 },
-                RecordInformation::Match { profit, bet, old_sum, new_sum, mode, .. } => {
+                RecordInformation::Match { profit, bet, old_sum, new_sum, mode, match_len, .. } => {
                     if let Mode::Matchmaking = mode {
                         if first {
                             starting_money = *old_sum;
                         }
+
+                        d_match_len.push(format!("M{},{}L{},{}",
+                            x,
+                            100.0,
+                            x,
+                            normalize(*match_len, statistics.max_match_len, 0.0) * 100.0));
 
                         money = *new_sum;
 
@@ -793,6 +827,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
             node.innerHTML = "";
         }
 
+        svg_root.append_child(&make_line(d_match_len, "black"));
         svg_root.append_child(&make_line(d_gains, "hsla(120, 75%, 50%, 1)"));
         // #6441a5
         svg_root.append_child(&make_line(d_bets, "hsla(0, 100%, 50%, 1)"));
@@ -814,7 +849,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
                 salty_bet_bot::money(statistics.max_money),
                 salty_bet_bot::money(statistics.min_money),
                 decimal(total_len as f64),
-                decimal(records_len as f64),
+                decimal(records.len() as f64),
                 salty_bet_bot::money(average_gains),
                 statistics.average_odds,
                 (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)};
@@ -887,13 +922,14 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
             let money_type = money_type.borrow();
 
             let recent_matches = if show_only_recent_data.get() {
-                Some(1000)
+                Some(subtract_days(21))
+                //Some(1000)
 
             } else {
                 None
             };
 
-            update_svg(&svg_root, &text_root, make_information(&records, &simulation_type, &money_type, average_sums.get(), round_to_magnitude.get(), extra_data.get()), records.len(), recent_matches);
+            update_svg(&svg_root, &text_root, &records, make_information(&records, &simulation_type, &money_type, average_sums.get(), round_to_magnitude.get(), extra_data.get()), recent_matches);
         }
     });
 
@@ -904,25 +940,25 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
     node.append_child(&text_root);
 
     node.append_child(&make_dropdown("225px", simulation_type.clone(), &[
-        ("Real data", "real-data"),
-        ("Expected bet (winner)", "expected-bet-winner"),
-        ("Expected bet", "expected-bet"),
-        ("Winner bet", "winner-bet"),
-        ("Earnings", "earnings"),
-        ("Upset (percentage)", "upset-percentage"),
-        ("Upset (odds)", "upset-odds"),
-        ("Winrate (high)", "winrate-high"),
-        ("Winrate (low)", "winrate-low"),
-        ("Random (left)", "random-left"),
-        ("Random (right)", "random-right"),
+        ("RealData", "real-data"),
+        ("ExpectedBetWinner", "expected-bet-winner"),
+        ("ExpectedBet", "expected-bet"),
+        ("WinnerBet", "winner-bet"),
+        ("ExpectedProfit", "earnings"),
+        ("Upsets", "upset-percentage"),
+        ("Odds", "upset-odds"),
+        ("Wins", "winrate-high"),
+        ("Losses", "winrate-low"),
+        ("Left", "random-left"),
+        ("Right", "random-right"),
     ]));
 
     node.append_child(&make_dropdown("250px", money_type.clone(), &[
-        ("Expected bet (winner)", "expected-bet-winner"),
-        ("Expected bet", "expected-bet"),
+        ("ExpectedBetWinner", "expected-bet-winner"),
+        ("ExpectedBet", "expected-bet"),
         ("Percentage", "percentage"),
-        ("Winner bet", "winner-bet"),
-        ("All in", "all-in"),
+        ("WinnerBet", "winner-bet"),
+        ("AllIn", "all-in"),
     ]));
 
     node.append_child(&make_checkbox("Use average for current money", "5px", "275px", average_sums.clone()));

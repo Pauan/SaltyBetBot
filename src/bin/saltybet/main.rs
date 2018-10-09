@@ -10,10 +10,10 @@ extern crate algorithm;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, decimal};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
-use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds};
+use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds, needed_odds};
 use stdweb::web::{document, set_timeout, Element, INode};
 
 
@@ -23,7 +23,7 @@ const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     average_sums: false,
     round_to_magnitude: false,
     scale_by_matches: true,
-    bet: BetStrategy::Odds,
+    bet: BetStrategy::Left,
     money: MoneyStrategy::ExpectedBet,
 };
 
@@ -485,9 +485,14 @@ impl State {
             Mode::Tournament => self.simulation.tournament_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
         };
 
-        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, left_bet, right_bet);
+        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, 0.0, 0.0);
+        let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right);
+
         self.info_container.left.set_odds(left_odds, left_odds.partial_cmp(&right_odds).unwrap_or(Ordering::Equal));
         self.info_container.right.set_odds(right_odds, right_odds.partial_cmp(&left_odds).unwrap_or(Ordering::Equal));
+
+        self.info_container.left.set_needed_odds(left_needed_odds, left_odds.partial_cmp(&left_needed_odds).unwrap_or(Ordering::Equal));
+        self.info_container.right.set_needed_odds(right_needed_odds, right_odds.partial_cmp(&right_needed_odds).unwrap_or(Ordering::Equal));
 
         self.info_container.left.set_bet_amount(left_bet, left_bet.partial_cmp(&right_bet).unwrap_or(Ordering::Equal));
         self.info_container.right.set_bet_amount(right_bet, right_bet.partial_cmp(&left_bet).unwrap_or(Ordering::Equal));
@@ -553,6 +558,7 @@ struct InfoSide {
     expected_profit: InfoBar,
     bet_amount: InfoBar,
     odds: InfoBar,
+    needed_odds: InfoBar,
     matches_len: InfoBar,
     specific_matches_len: InfoBar,
     winrate: InfoBar,
@@ -587,23 +593,26 @@ impl InfoSide {
 
         element.append_child(&name);
 
+        let matches_len = InfoBar::new();
+        element.append_child(&matches_len.element);
+
+        let specific_matches_len = InfoBar::new();
+        element.append_child(&specific_matches_len.element);
+
         let expected_profit = InfoBar::new();
         element.append_child(&expected_profit.element);
 
         let winrate = InfoBar::new();
         element.append_child(&winrate.element);
 
-        let bet_amount = InfoBar::new();
-        element.append_child(&bet_amount.element);
-
         let odds = InfoBar::new();
         element.append_child(&odds.element);
 
-        let matches_len = InfoBar::new();
-        element.append_child(&matches_len.element);
+        let needed_odds = InfoBar::new();
+        element.append_child(&needed_odds.element);
 
-        let specific_matches_len = InfoBar::new();
-        element.append_child(&specific_matches_len.element);
+        let bet_amount = InfoBar::new();
+        element.append_child(&bet_amount.element);
 
         Self {
             element,
@@ -611,6 +620,7 @@ impl InfoSide {
             expected_profit,
             bet_amount,
             odds,
+            needed_odds,
             matches_len,
             specific_matches_len,
             winrate
@@ -628,16 +638,12 @@ impl InfoSide {
 
     pub fn set_odds(&self, odds: f64, cmp: Ordering) {
         self.odds.set_color(cmp);
+        self.odds.set(&format!("Average odds: {}", display_odds(odds)));
+    }
 
-        if odds == 1.0 {
-            self.odds.set("Average odds: 1 : 1");
-
-        } else if odds < 1.0 {
-            self.odds.set(&format!("Average odds: {} : 1", decimal(1.0 / odds)));
-
-        } else {
-            self.odds.set(&format!("Average odds: 1 : {}", decimal(odds)));
-        }
+    pub fn set_needed_odds(&self, odds: f64, cmp: Ordering) {
+        self.needed_odds.set_color(cmp);
+        self.needed_odds.set(&format!("Needed odds: {}", display_odds(odds)));
     }
 
     pub fn set_bet_amount(&self, bet_amount: f64, cmp: Ordering) {
@@ -664,6 +670,7 @@ impl InfoSide {
         self.name.set_text_content("");
         self.expected_profit.set("");
         self.odds.set("");
+        self.needed_odds.set("");
         self.winrate.set("");
         self.bet_amount.set("");
         self.matches_len.set("");
