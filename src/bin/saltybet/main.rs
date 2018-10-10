@@ -485,7 +485,7 @@ impl State {
             Mode::Tournament => self.simulation.tournament_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
         };
 
-        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, 0.0, 0.0);
+        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, left_bet, right_bet);
         let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right);
 
         self.info_container.left.set_odds(left_odds, left_odds.partial_cmp(&right_odds).unwrap_or(Ordering::Equal));
@@ -605,11 +605,11 @@ impl InfoSide {
         let winrate = InfoBar::new();
         element.append_child(&winrate.element);
 
-        let odds = InfoBar::new();
-        element.append_child(&odds.element);
-
         let needed_odds = InfoBar::new();
         element.append_child(&needed_odds.element);
+
+        let odds = InfoBar::new();
+        element.append_child(&odds.element);
 
         let bet_amount = InfoBar::new();
         element.append_child(&bet_amount.element);
