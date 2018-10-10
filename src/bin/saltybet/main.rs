@@ -488,11 +488,11 @@ impl State {
         let (left_odds, right_odds) = average_odds(&self.simulation, left, right, left_bet, right_bet);
         let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right);
 
-        self.info_container.left.set_odds(left_odds, left_odds.partial_cmp(&right_odds).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_odds(right_odds, right_odds.partial_cmp(&left_odds).unwrap_or(Ordering::Equal));
+        self.info_container.left.set_odds(left_odds, left_odds.partial_cmp(&left_needed_odds).unwrap_or(Ordering::Equal));
+        self.info_container.right.set_odds(right_odds, right_odds.partial_cmp(&right_needed_odds).unwrap_or(Ordering::Equal));
 
-        self.info_container.left.set_needed_odds(left_needed_odds, left_odds.partial_cmp(&left_needed_odds).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_needed_odds(right_needed_odds, right_odds.partial_cmp(&right_needed_odds).unwrap_or(Ordering::Equal));
+        self.info_container.left.set_needed_odds(left_needed_odds, left_needed_odds.partial_cmp(&left_odds).unwrap_or(Ordering::Equal));
+        self.info_container.right.set_needed_odds(right_needed_odds, right_needed_odds.partial_cmp(&right_odds).unwrap_or(Ordering::Equal));
 
         self.info_container.left.set_bet_amount(left_bet, left_bet.partial_cmp(&right_bet).unwrap_or(Ordering::Equal));
         self.info_container.right.set_bet_amount(right_bet, right_bet.partial_cmp(&left_bet).unwrap_or(Ordering::Equal));
