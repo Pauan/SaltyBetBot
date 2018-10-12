@@ -1,3 +1,4 @@
+use random;
 use record::{Tier, Record};
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
@@ -194,6 +195,7 @@ pub enum BetStrategy {
     Losses,
     Left,
     Right,
+    Random,
 }
 
 impl BetStrategy {
@@ -212,6 +214,11 @@ impl BetStrategy {
             BetStrategy::Losses => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
             BetStrategy::Left => (1.0, 0.0),
             BetStrategy::Right => (0.0, 1.0),
+            BetStrategy::Random => if random::bool() {
+                (1.0, 0.0)
+            } else {
+                (0.0, 1.0)
+            },
         }
     }
 }

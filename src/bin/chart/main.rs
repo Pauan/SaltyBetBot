@@ -908,6 +908,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
                             "winrate-low" => BetStrategy::Losses,
                             "random-left" => BetStrategy::Left,
                             "random-right" => BetStrategy::Right,
+                            "random" => BetStrategy::Random,
                             _ => panic!("Invalid value {}", simulation_type),
                         },
                     }), extra_data),
@@ -951,6 +952,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         ("Losses", "winrate-low"),
         ("Left", "random-left"),
         ("Right", "random-right"),
+        ("Random", "random"),
     ]));
 
     node.append_child(&make_dropdown("250px", money_type.clone(), &[

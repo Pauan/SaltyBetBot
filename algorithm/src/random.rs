@@ -7,16 +7,16 @@ const PERCENTAGE_MAX: f64 = 1.0 + std::f64::EPSILON;
 
 
 fn rand() -> f64 {
-    rand::weak_rng().gen::<f64>()
+    rand::thread_rng().gen::<f64>()
 }
 
 // TODO verify that this is correct
 pub fn bool() -> bool {
-    rand::weak_rng().gen::<bool>()
+    rand::thread_rng().gen::<bool>()
 }
 
 pub fn shuffle<A>(slice: &mut [A]) {
-    rand::weak_rng().shuffle(slice)
+    rand::thread_rng().shuffle(slice)
 }
 
 // TODO verify that this is correct
