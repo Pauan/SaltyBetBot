@@ -5,7 +5,7 @@ How to use
 
    (If you prefer, you can instead use `git clone https://github.com/Pauan/SaltyBetBot.git SaltyBetBot-master`)
 
-2. In Chrome, go to the [chrome://extensions/](chrome://extensions/) URL.
+2. In Chrome, go to the [`chrome://extensions/`](chrome://extensions/) URL.
 
 3. Make sure that "Developer mode" is turned on (it's in the upper-right corner).
 
