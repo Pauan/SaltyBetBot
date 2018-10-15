@@ -6,7 +6,7 @@ use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 60.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
-const MAXIMUM_WEIGHT: f64 = 5.0;                // maximum percentage for the weight
+const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
 const MAXIMUM_BET_PERCENTAGE: f64 = 0.05;       // maximum percentage that it will bet (of current money)
 //const MAXIMUM_BET_AMOUNT: f64 = 350000.0;       // maximum amount it will bet
 const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet

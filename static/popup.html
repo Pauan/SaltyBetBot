@@ -2,11 +2,32 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
+        <link rel="stylesheet" href="popup.css" />
     </head>
     <body>
-    	<button id="export-button">Export match records</button>
-    	<button id="open-chart">Open chart</button>
-    	<button id="open-records">Open records</button>
-        <script src="popup.js"></script>
+        <div id="root">
+            <h1>
+                Match records
+            </h1>
+            <div class="row">
+                <input id="import-input" type="file"></input>
+                <button id="import-button">Import</button>
+                <button id="export-button">Export</button>
+                <button id="delete-button">DELETE</button>
+            </div>
+
+            <hr />
+
+            <h1>
+                Statistics
+            </h1>
+
+            <div class="row">
+                <button id="open-chart">Open chart page</button>
+                <button id="open-records">Open records page</button>
+            </div>
+
+            <script src="popup.js"></script>
+        </div>
     </body>
 </html>

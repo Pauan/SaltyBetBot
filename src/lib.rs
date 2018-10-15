@@ -24,6 +24,11 @@ use stdweb::unstable::{TryInto};
 use stdweb::traits::*;
 
 
+// 50 minutes
+// TODO is this high enough ?
+pub const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 50.0;
+
+
 pub fn matchmaking_strategy() -> BetStrategy {
     serde_json::from_str(&include_str!("../strategies/2018-08-20T12.29.43 (matchmaking)")).unwrap()
 }
@@ -186,14 +191,53 @@ pub fn records_get_all<A>(done: A)
     }
 }
 
-pub fn records_insert(record: &Record) {
+pub fn records_insert<A>(record: &Record, done: A) where A: FnOnce() + 'static {
     js! { @(no_return)
         // TODO error handling
         chrome.runtime.sendMessage(null, {
             type: "records:insert",
-            value: @{record.serialize()}
+            value: [@{record.serialize()}]
+        }, null, function () {
+            @{Once(done)}();
         });
     }
+}
+
+pub fn records_insert_many<A>(records: &[Record], done: A) where A: FnOnce() + 'static {
+    // TODO more idiomatic check
+    if records.len() > 0 {
+        let records: Vec<String> = records.into_iter().map(Record::serialize).collect();
+
+        js! { @(no_return)
+            // TODO error handling
+            chrome.runtime.sendMessage(null, {
+                type: "records:insert",
+                value: @{records}
+            }, null, function () {
+                @{Once(done)}();
+            });
+        }
+
+    } else {
+        done();
+    }
+}
+
+pub fn records_delete_all<A>(done: A) where A: FnOnce() + 'static {
+    js! { @(no_return)
+        // TODO error handling
+        chrome.runtime.sendMessage(null, { type: "records:delete-all" }, null, function () {
+            @{Once(done)}();
+        });
+    }
+}
+
+pub fn serialize_records(records: Vec<Record>) -> String {
+    serde_json::to_string_pretty(&records).unwrap()
+}
+
+pub fn deserialize_records(records: &str) -> Vec<Record> {
+    serde_json::from_str(records).unwrap()
 }
 
 
@@ -449,6 +493,7 @@ impl Loading {
         js! { @(no_return)
             var node = @{&element};
             node.textContent = "LOADING";
+            node.style.cursor = "default";
             node.style.position = "fixed";
             node.style.left = "0px";
             node.style.top = "0px";

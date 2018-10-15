@@ -57,6 +57,7 @@ fn run() -> Result<()> {
     bin("twitch_chat")?;
     bin("chart")?;
     bin("records")?;
+    bin("popup")?;
 
     Ok(())
 }

@@ -169,6 +169,10 @@ impl Record {
         }
     }
 
+    pub fn sort_date(left: &Self, right: &Self) -> Ordering {
+        left.date.partial_cmp(&right.date).unwrap()
+    }
+
     pub fn odds_left(&self, bet_amount: f64) -> f64 {
         self.right.bet_amount / (self.left.bet_amount + bet_amount)
     }

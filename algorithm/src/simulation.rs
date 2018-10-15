@@ -15,7 +15,7 @@ pub const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
 const DESIRED_PERCENTAGE_PROFIT: f64 = 0.10;
 
 // ~7.7 minutes
-const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
+pub const NORMAL_MATCH_TIME: f64 = 1000.0 * (60.0 + (80.0 * 5.0));
 
 // TODO
 const MAX_EXHIBITS_DURATION: f64 = NORMAL_MATCH_TIME * 1.0;

@@ -10,7 +10,7 @@ extern crate algorithm;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds, needed_odds};
@@ -43,10 +43,6 @@ const SHOULD_BET: bool = true;
 // 10 minutes
 // TODO is this high enough ?
 const MAX_BET_TIME_LIMIT: f64 = 1000.0 * 60.0 * 10.0;
-
-// 50 minutes
-// TODO is this high enough ?
-const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 50.0;
 
 
 #[derive(Debug, Clone)]
@@ -430,7 +426,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(&record);
 
-                        records_insert(&record);
+                        records_insert(&record, || {});
 
                         state.records.push(record);
                     }

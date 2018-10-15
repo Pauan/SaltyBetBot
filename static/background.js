@@ -1,27 +1,6 @@
 var salty_ports = [];
 var twitch_ports = [];
 
-function noop() {}
-
-function remove_twitch_tabs(f) {
-    // TODO handle error messages
-    chrome.tabs.query({
-        url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
-    }, function (tabs) {
-        if (tabs.length) {
-            var mapped = tabs.map(function (tab) { return tab.id; });
-
-            // TODO handle error messages
-            chrome.tabs.remove(mapped, function () {
-                f();
-            });
-
-        } else {
-            f();
-        }
-    });
-}
-
 function remove_saltybet(port) {
     var index = salty_ports.indexOf(port);
 
@@ -29,7 +8,7 @@ function remove_saltybet(port) {
         salty_ports.splice(index, 1);
 
         if (salty_ports.length === 0) {
-            remove_twitch_tabs(noop);
+            run_promise(remove_twitch_tabs());
         }
     }
 }
@@ -54,87 +33,193 @@ function send_twitch_chat(message) {
     });
 }
 
-function migrate_records(db, done) {
-    chrome.storage.local.get("matches", function (items) {
-        const value = items["matches"];
-
-        if (value == null) {
-            done();
-
-        } else {
-            console.log("Migrating old records");
-
-            const records = JSON.parse(value);
-
-            // TODO handle errors
-            const transaction = db.transaction("records", "readwrite");
-
-            const store = transaction.objectStore("records");
-
-            records.forEach(function (record) {
-                store.add(JSON.stringify(record));
-            });
-
-            transaction.oncomplete = function () {
-                chrome.storage.local.remove("matches", function () {
-                    console.log("Finished migrating old records");
-                    done();
-                });
-            };
-        }
+function run_promise(promise) {
+    promise.catch(function (e) {
+        console.error(e);
+        throw e;
     });
 }
 
-// TODO handle errors
-function get_db(done) {
-    const request = indexedDB.open("", 2);
+function get_twitch_tabs() {
+    return new Promise(function (resolve, reject) {
+        chrome.tabs.query({
+            url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
+        }, function (tabs) {
+            if (chrome.runtime.lastError != null) {
+                reject(chrome.runtime.lastError);
 
-    request.onupgradeneeded = function (event) {
-        const db = event.target.result;
-
-        db.createObjectStore("records", { autoIncrement: true });
-    };
-
-    request.onsuccess = function (event) {
-        done(event.target.result);
-    };
+            } else {
+                resolve(tabs);
+            }
+        });
+    });
 }
 
-get_db(function (db) {
-    migrate_records(db, function () {
+function remove_twitch_tabs() {
+    return get_twitch_tabs()
+        .then(function (tabs) {
+            if (tabs.length > 0) {
+                return remove_tabs(tabs.map(function (tab) { return tab.id; }));
+            }
+        });
+}
+
+function create_twitch_tab() {
+    return new Promise(function (resolve, reject) {
+        chrome.tabs.create({
+            url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout",
+            active: false
+        }, function (tab) {
+            if (chrome.runtime.lastError != null) {
+                reject(chrome.runtime.lastError);
+
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+function remove_tabs(ids) {
+    return new Promise(function (resolve, reject) {
+        chrome.tabs.remove(ids, function () {
+            if (chrome.runtime.lastError != null) {
+                reject(chrome.runtime.lastError);
+
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+function get_db(name, version, upgrade_needed) {
+    return new Promise(function (resolve, reject) {
+        var request = indexedDB.open(name, version);
+
+        request.onupgradeneeded = function (event) {
+            // TODO test this with oldVersion and newVersion
+            upgrade_needed(event.target.result, event.oldVersion, event.newVersion);
+        };
+
+        request.onsuccess = function (event) {
+            resolve(event.target.result);
+        };
+
+        request.onblocked = function () {
+            reject(new Error("Database is blocked"));
+        };
+
+        request.onerror = function (event) {
+            // TODO is this correct ?
+            reject(event);
+        };
+    });
+}
+
+function get_all_records(db) {
+    return new Promise(function (resolve, reject) {
+        var request = db.transaction("records", "readonly").objectStore("records").getAll();
+
+        request.onsuccess = function (event) {
+            resolve(event.target.result);
+        };
+
+        request.onerror = function (event) {
+            // TODO is this correct ?
+            reject(event);
+        };
+    });
+}
+
+function insert_records(db, values) {
+    return new Promise(function (resolve, reject) {
+        var transaction = db.transaction("records", "readwrite");
+
+        transaction.oncomplete = function () {
+            resolve();
+        };
+
+        transaction.onerror = function (event) {
+            // TODO is this correct ?
+            reject(event);
+        };
+
+        var store = transaction.objectStore("records");
+
+        values.forEach(function (value) {
+            store.add(value);
+        });
+    });
+}
+
+function delete_all_records(db) {
+    return new Promise(function (resolve, reject) {
+        var transaction = db.transaction("records", "readwrite");
+
+        transaction.oncomplete = function () {
+            resolve();
+        };
+
+        transaction.onerror = function (event) {
+            // TODO is this correct ?
+            reject(event);
+        };
+
+        var store = transaction.objectStore("records");
+
+        store.clear();
+    });
+}
+
+run_promise(
+    get_db("", 2, function (db) {
+        db.createObjectStore("records", { autoIncrement: true });
+    })
+    .then(function (db) {
         // This is necessary because Chrome doesn't allow content scripts to use the tabs API
         chrome.runtime.onMessage.addListener(function (message, _sender, reply) {
             if (message.type === "records:get-all") {
-                // TODO handle errors
-                db.transaction("records", "readonly").objectStore("records").getAll().onsuccess = function (event) {
-                    reply(event.target.result);
-                };
+                run_promise(
+                    get_all_records(db)
+                        .then(function (records) {
+                            reply(records);
+                        })
+                );
 
                 return true;
 
             } else if (message.type === "records:insert") {
-                // TODO handle errors
-                const transaction = db.transaction("records", "readwrite");
+                run_promise(
+                    insert_records(db, message.value)
+                        .then(function () {
+                            reply(null);
+                        })
+                );
 
-                transaction.objectStore("records").add(message.value);
+                return true;
 
-                transaction.oncomplete = function () {
-                    reply(null);
-                };
+            } else if (message.type === "records:delete-all") {
+                run_promise(
+                    delete_all_records(db)
+                        .then(function () {
+                            reply(null);
+                        })
+                );
 
                 return true;
 
             } else if (message.type === "tabs:open-twitch-chat") {
                 if (twitch_ports.length === 0) {
-                    remove_twitch_tabs(function () {
-                        // TODO error checking
-                        chrome.tabs.create({
-                            url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout",
-                            active: false
-                        }, function (tab) {
-                            reply(null);
-                        });
-                    });
+                    run_promise(
+                        remove_twitch_tabs()
+                            .then(function () {
+                                return create_twitch_tab();
+                            })
+                            .then(function () {
+                                reply(null);
+                            })
+                    );
 
                     return true;
 
@@ -152,8 +237,7 @@ get_db(function (db) {
         chrome.runtime.onConnect.addListener(function (port) {
             if (port.name === "saltybet") {
                 if (salty_ports.length > 0) {
-                    // TODO handle error messages
-                    chrome.tabs.remove(port.sender.tab.id);
+                    run_promise(remove_tabs([port.sender.tab.id]));
 
                 } else {
                     salty_ports.push(port);
@@ -167,8 +251,7 @@ get_db(function (db) {
 
             } else if (port.name === "twitch_chat") {
                 if (twitch_ports.length > 0) {
-                    // TODO handle error messages
-                    chrome.tabs.remove(port.sender.tab.id);
+                    run_promise(remove_tabs([port.sender.tab.id]));
 
                 } else {
                     twitch_ports.push(port);
@@ -186,5 +269,5 @@ get_db(function (db) {
         });
 
         console.log("Background page started");
-    });
-});
+    })
+);
