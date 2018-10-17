@@ -28,7 +28,15 @@ Disclaimer: I accept no responsibility if you lose salt from running this bot.
 How to build (for programmers only)
 ===================================
 
-Make sure that you [have Rust installed](https://www.rust-lang.org/en-US/install.html), and then run these commands:
+Make sure that you [have Rust installed](https://www.rust-lang.org/en-US/install.html), and then run these commands to setup things:
+
+```
+rustup install nightly
+rustup target add wasm32-unknown-unknown
+rustup run nightly cargo install cargo-web
+```
+
+You only need to run the above commands once. Now you can run these commands to build the project:
 
 ```
 cd compile
