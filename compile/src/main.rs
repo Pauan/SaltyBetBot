@@ -39,7 +39,20 @@ fn bin(name: &str) -> Result<()> {
 fn run() -> Result<()> {
     env::set_current_dir("..")?;
 
-    let x = Command::new("cargo")
+    let _ = Command::new("rustup")
+        .arg("run")
+        .arg("nightly")
+        .arg("cargo")
+        .arg("install")
+        // TODO figure out a better way to ignore the error if cargo-web is already installed
+        .arg("--quiet")
+        .arg("cargo-web")
+        .status()?;
+
+    let x = Command::new("rustup")
+        .arg("run")
+        .arg("nightly")
+        .arg("cargo")
         .arg("web")
         .arg("build")
         .arg("--release")

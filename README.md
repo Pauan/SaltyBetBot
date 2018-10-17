@@ -1,6 +1,8 @@
 How to use
 ==========
 
+Disclaimer: I accept no responsibility if you lose salt from running this bot.
+
 1. Download [this zip file](https://github.com/Pauan/SaltyBetBot/archive/master.zip) and then unzip it somewhere.
 
    (If you prefer, you can instead use `git clone https://github.com/Pauan/SaltyBetBot.git SaltyBetBot-master`)
@@ -23,9 +25,10 @@ How to use
 
    If you accidentally close the twitch.tv tab, just refresh the saltybet.com tab and it will re-open it.
 
-
 How to build (for programmers only)
 ===================================
+
+Make sure that you [have Rust installed](https://www.rust-lang.org/en-US/install.html), and then run these commands:
 
 ```
 cd compile
