@@ -36,7 +36,9 @@ rustup target add wasm32-unknown-unknown
 rustup run nightly cargo install cargo-web
 ```
 
-You only need to run the above commands once. Now you can run these commands to build the project:
+You only need to run the above commands one time.
+
+Now you can run these commands to build the project:
 
 ```
 cd compile
