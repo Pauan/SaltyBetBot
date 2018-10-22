@@ -3,9 +3,9 @@ How to use
 
 Disclaimer: I accept no responsibility if you lose salt from running this bot.
 
-1. Download [this zip file](https://github.com/Pauan/SaltyBetBot/archive/master.zip) and then unzip it somewhere.
+Before you install this extension, make sure that you have [Git](https://git-scm.com/downloads) installed.
 
-   (If you prefer, you can instead use `git clone https://github.com/Pauan/SaltyBetBot.git SaltyBetBot-master`)
+1. Use `git clone https://github.com/Pauan/SaltyBetBot.git SaltyBetBot-master`
 
 2. In Chrome, go to the [`chrome://extensions/`](chrome://extensions/) URL.
 
@@ -24,6 +24,23 @@ Disclaimer: I accept no responsibility if you lose salt from running this bot.
 9. It will automatically open up a second twitch.tv tab, keep it open! It is necessary for *both* tabs to be open in order for the extension to work.
 
    If you accidentally close the twitch.tv tab, just refresh the saltybet.com tab and it will re-open it.
+
+How to upgrade
+==============
+
+1. Go into the `SaltyBetBot-master` folder and then do `git pull`.
+
+2. Make sure that all of the SaltyBet and Twitch.tv tabs are closed.
+
+3. In Chrome, go to the [`chrome://extensions/`](chrome://extensions/) URL.
+
+4. Find "Salty Bet Bot" in the extensions list, and then click the reload button (it looks like a circular arrow).
+
+5. In the upper-right corner click the square "S" button.
+
+6. Export your match records (just in case something goes wrong with the import process), then import the `SaltyBet Records.json` file (this will merge the new data with your existing data).
+
+7. Re-open the [saltybet.com](http://www.saltybet.com/) website.
 
 How to build (for programmers only)
 ===================================

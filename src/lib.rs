@@ -424,10 +424,18 @@ impl Drop for Port {
 }
 
 
-pub fn subtract_days(previous_days: u32) -> f64 {
+pub fn subtract_days(date: f64, days: u32) -> f64 {
     js!(
-        var date = new Date();
-        date.setUTCDate(date.getUTCDate() - @{previous_days});
+        var date = new Date(@{date});
+        date.setUTCDate(date.getUTCDate() - @{days});
+        return date.getTime();
+    ).try_into().unwrap()
+}
+
+pub fn add_days(date: f64, days: u32) -> f64 {
+    js!(
+        var date = new Date(@{date});
+        date.setUTCDate(date.getUTCDate() + @{days});
         return date.getTime();
     ).try_into().unwrap()
 }

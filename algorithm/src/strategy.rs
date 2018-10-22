@@ -5,9 +5,9 @@ use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it starts betting
-const MAXIMUM_MATCHES_MATCHMAKING: f64 = 60.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
+const MAXIMUM_MATCHES_MATCHMAKING: f64 = 40.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
-const MAXIMUM_BET_PERCENTAGE: f64 = 0.05;       // maximum percentage that it will bet (of current money)
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.015;       // maximum percentage that it will bet (of current money)
 //const MAXIMUM_BET_AMOUNT: f64 = 350000.0;       // maximum amount it will bet
 const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet
 
@@ -142,6 +142,7 @@ pub enum MoneyStrategy {
     ExpectedBet,
     WinnerBet,
     Percentage,
+    Fixed,
     AllIn,
 }
 
@@ -173,10 +174,11 @@ impl MoneyStrategy {
         let percentage = Self::bet_percentage(current_money);
 
         match self {
-            MoneyStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
-            MoneyStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
-            MoneyStrategy::WinnerBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::winner_bet(records, name, bet)),
+            MoneyStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet_winner(&records, name, bet))),
+            MoneyStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet(&records, name, bet))),
+            MoneyStrategy::WinnerBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
             MoneyStrategy::Percentage => (percentage, percentage),
+            MoneyStrategy::Fixed => (PERCENTAGE_THRESHOLD, PERCENTAGE_THRESHOLD),
             MoneyStrategy::AllIn => (current_money, current_money),
         }
     }
@@ -190,6 +192,7 @@ pub enum BetStrategy {
     ExpectedProfit,
     WinnerBet,
     Odds,
+    WinnerOdds,
     Upsets,
     Wins,
     Losses,
@@ -209,6 +212,7 @@ impl BetStrategy {
             BetStrategy::ExpectedProfit => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet)),
             BetStrategy::WinnerBet => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
             BetStrategy::Odds => average_odds(simulation, left, right, left_bet, right_bet),
+            BetStrategy::WinnerOdds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
             BetStrategy::Upsets => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
             BetStrategy::Wins => winrates(simulation, left, right),
             BetStrategy::Losses => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
@@ -256,6 +260,7 @@ impl Strategy for CustomStrategy {
         assert_not_nan(left_bet);
         assert_not_nan(right_bet);
 
+        // TODO add in a bias so that it will prefer Left unless Right is much greater than Left
         let (left_value, right_value) = self.bet.bet_value(simulation, left, right, left_bet, right_bet, self.average_sums);
 
         assert_not_nan(left_value);

@@ -9,9 +9,12 @@ html, body {
 }
 
 .root {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    width: calc(100% - 10px);
+    height: calc(100% - 10px);
     display: flex;
-    width: 100%;
-    height: 100%;
 }
 
 .record-none, .record-loss, .record-gain {

@@ -210,7 +210,7 @@ pub mod lookup {
             0.0
 
         } else {
-            sum / len
+            (sum / len).floor().max(0.0).min(max_bet)
         }
     }
 
@@ -237,7 +237,7 @@ pub mod lookup {
             0.0
 
         } else {
-            sum / len
+            (sum / len).floor().max(0.0).min(max_bet)
         }
     }
 
@@ -393,7 +393,8 @@ pub mod lookup {
                     -1.0
                 },
             }
-        }).unwrap_or(0.0)
+        // The `max` is so that it won't bet if they're both negative
+        }).unwrap_or(0.0).max(0.0)
     }
 
     pub fn earnings<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
@@ -430,7 +431,8 @@ pub mod lookup {
             earnings
 
         } else {
-            earnings / len
+            // The `max` is so that it won't bet if they're both negative
+            (earnings / len).max(0.0)
         }
     }
 

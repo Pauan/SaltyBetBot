@@ -23,8 +23,8 @@ const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     average_sums: false,
     round_to_magnitude: false,
     scale_by_matches: true,
-    bet: BetStrategy::Left,
-    money: MoneyStrategy::ExpectedBet,
+    bet: BetStrategy::Odds,
+    money: MoneyStrategy::ExpectedBetWinner,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {

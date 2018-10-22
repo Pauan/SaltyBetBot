@@ -6,24 +6,36 @@ extern crate serde_json;
 #[macro_use]
 extern crate salty_bet_bot;
 extern crate algorithm;
+#[macro_use]
+extern crate lazy_static;
 
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
-use salty_bet_bot::{records_get_all, subtract_days, decimal, Loading};
+use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD};
 use stdweb::traits::*;
-use stdweb::web::{document, window, Element, set_timeout};
+use stdweb::web::{document, window, Element, set_timeout, Date};
 use stdweb::web::html_element::SelectElement;
-use stdweb::web::event::{ClickEvent, ChangeEvent};
+use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent};
 use stdweb::unstable::TryInto;
+
+
+// 21 days
+const DATE_CUTOFF: u32 = 21;
+
+const MATCHMAKING_STARTING_MONEY: f64 = 10_000_000.0;
+
+lazy_static! {
+    static ref STARTING_DATE: f64 = subtract_days(Date::now(), DATE_CUTOFF);
+}
 
 
 #[allow(dead_code)]
 enum ChartMode<A> {
     SimulateTournament(A),
-    SimulateMatchmaking(A),
+    SimulateMatchmaking { strategy: A, reset_money: bool },
     RealData { days: Option<u32> },
 }
 
@@ -142,10 +154,10 @@ impl RecordInformation {
                 }
             },
 
-            ChartMode::SimulateMatchmaking(strategy) => {
+            ChartMode::SimulateMatchmaking { strategy, reset_money } => {
                 simulation.matchmaking_strategy = Some(strategy);
 
-                let mut index: f64 = 0.0;
+                //let mut index: f64 = 0.0;
 
                 if extra_data {
                     for record in records.iter() {
@@ -153,7 +165,32 @@ impl RecordInformation {
                     }
                 }
 
+                let mut date_cutoff: Option<f64> = None;
+
+                if reset_money {
+                    simulation.sum = MATCHMAKING_STARTING_MONEY;
+                }
+
                 for record in records {
+                    if reset_money {
+                        if let Some(old_date) = date_cutoff {
+                            if record.date > old_date {
+                                simulation.sum = MATCHMAKING_STARTING_MONEY;
+                                date_cutoff = Some(add_days(old_date, DATE_CUTOFF));
+                            }
+
+                        // TODO implement this more efficiently
+                        } else {
+                            let mut ending_date = *STARTING_DATE;
+
+                            while ending_date > record.date {
+                                ending_date = subtract_days(ending_date, DATE_CUTOFF);
+                            }
+
+                            date_cutoff = Some(add_days(ending_date, DATE_CUTOFF));
+                        }
+                    }
+
                     if //simulation.min_matches_len(&record.left.name, &record.right.name) >= 10.0 &&
                        record.mode == Mode::Matchmaking {
 
@@ -179,7 +216,7 @@ impl RecordInformation {
                             if amount > 1.0 {
                                 let date = record.date;
                                 //let date = index;
-                                index += 1.0;
+                                //index += 1.0;
 
                                 output.push(RecordInformation::Match {
                                     date,
@@ -206,7 +243,7 @@ impl RecordInformation {
                 simulation.sum = SALT_MINE_AMOUNT;
 
                 // TODO
-                let days: Option<f64> = days.map(|days| subtract_days(days));
+                let days: Option<f64> = days.map(|days| subtract_days(Date::now(), days));
 
                 //let input: Vec<&Record> = input.into_iter().filter(|record| record.mode == Mode::Matchmaking).collect();
 
@@ -521,6 +558,58 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         js!( return document.createElementNS("http://www.w3.org/2000/svg", @{name}); ).try_into().unwrap()
     }
 
+    fn svg_root<F>(mut mouse_move: F) -> Element where F: FnMut(f64) + 'static {
+        let node = svg("svg");
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.style.position = "absolute";
+            node.style.top = "0px";
+            node.style.left = "0px";
+            node.style.width = "100%";
+            node.style.height = "100%";
+            node.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+            node.setAttribute("viewBox", "0 0 100 100");
+            node.setAttribute("preserveAspectRatio", "none");
+        }
+
+        window().add_event_listener({
+            let node = node.clone();
+
+            move |e: MouseMoveEvent| {
+                // TODO don't hardcode this
+                let x = (e.client_x() as f64) - 5.0;
+                // TODO use get_bounding_client_rect instead
+                let width: f64 = js!( return @{&node}.clientWidth; ).try_into().unwrap();
+
+                let percentage = (x / width).max(0.0).min(1.0);
+
+                mouse_move(percentage);
+            }
+        });
+
+        node
+    }
+
+    fn make_info_popup() -> Element {
+        let node = document().create_element("div").unwrap();
+
+        js! { @(no_return)
+            var node = @{&node};
+            node.style.position = "absolute";
+            node.style.left = "0px";
+            node.style.top = "0px";
+            node.style.width = "2px";
+            node.style.height = "100%";
+            node.style.zIndex = "2147483647";
+            node.style.backgroundColor = "white";
+            node.style.pointerEvents = "none";
+            node.style.display = "none";
+        }
+
+        node
+    }
+
     fn make_text(align: &str) -> Element {
         let node = document().create_element("div").unwrap();
 
@@ -562,7 +651,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         js! { @(no_return)
             var node = @{&node};
             node.style.position = "absolute";
-            node.style.left = "5px";
+            node.style.left = "0px";
             node.style.top = @{top};
         }
 
@@ -643,7 +732,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         node
     }
 
-    fn update_svg(svg_root: &Element, text_root: &Element, records: &[Record], information: Vec<RecordInformation>, matches_len: Option<f64>) {
+    fn update_svg(svg_root: &Element, text_root: &Element, info_popup: &Element, hover_percentage: Option<f64>, records: &[Record], information: Vec<RecordInformation>, matches_len: Option<f64>) {
         let total_len = information.len();
 
         /*let starting_index = matches_len.map(|len| {
@@ -706,17 +795,11 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
 
         let mut first = true;
 
-        // TODO better calculation for the window width
-        let pixel_width = (window().inner_width() as f64) / len;
-        let mut pixels = 0.0;
-        let mut average = 0.0;
-        let mut average_len = 0.0;
+        let hovered_record = hover_percentage.map(|percentage| {
+            log!("Percentage: {}, Length: {}, Index: {}", percentage, information.len() as f64, range_inclusive(percentage, 0.0, information.len() as f64).floor());
+        });
 
-        for (index, record) in information.iter().enumerate() {
-            pixels += pixel_width;
-            average += 5.0;
-            average_len += 1.0;
-
+        for (_index, record) in information.iter().enumerate() {
             //let x = normalize(index as f64, 0.0, len) * 100.0;
             let x = normalize(record.date(), statistics.lowest_date, statistics.highest_date) * 100.0;
 
@@ -816,14 +899,6 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
 
         js! { @(no_return)
             var node = @{&svg_root};
-            node.style.position = "absolute";
-            node.style.top = "5px";
-            node.style.left = "5px";
-            node.style.width = "calc(100% - 10px)";
-            node.style.height = "calc(100% - 10px)";
-            node.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-            node.setAttribute("viewBox", "0 0 100 100");
-            node.setAttribute("preserveAspectRatio", "none");
             node.innerHTML = "";
         }
 
@@ -856,62 +931,87 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         }
     }
 
-    let svg_root = svg("svg");
-    let text_root = make_text("left");
-
     let simulation_type = Rc::new(RefCell::new("real-data".to_string()));
-    let money_type = Rc::new(RefCell::new("expected-bet".to_string()));
+    let money_type = Rc::new(RefCell::new("expected-bet-winner".to_string()));
+    let hover_percentage = Rc::new(Cell::new(None));
     let average_sums = Rc::new(Cell::new(false));
     let show_only_recent_data = Rc::new(Cell::new(true));
     let round_to_magnitude = Rc::new(Cell::new(false));
     let extra_data = Rc::new(Cell::new(false));
+    let reset_money = Rc::new(Cell::new(true));
     let records = Rc::new(records);
+
+    let info_popup = make_info_popup();
+
+    let svg_root = svg_root({
+        let info_popup = info_popup.clone();
+        let hover_percentage = hover_percentage.clone();
+
+        move |percentage| {
+            js! { @(no_return)
+                var node = @{&info_popup};
+                node.style.left = @{format!("calc({}% - 1px)", percentage * 100.0)};
+            }
+
+            hover_percentage.set(Some(percentage));
+        }
+    });
+
+    let text_root = make_text("left");
 
     let update_svg = Rc::new({
         let svg_root = svg_root.clone();
         let text_root = text_root.clone();
+        let info_popup = info_popup.clone();
         let simulation_type = simulation_type.clone();
         let money_type = money_type.clone();
+        let hover_percentage = hover_percentage.clone();
         let average_sums = average_sums.clone();
         let show_only_recent_data = show_only_recent_data.clone();
         let round_to_magnitude = round_to_magnitude.clone();
         let extra_data = extra_data.clone();
+        let reset_money = reset_money.clone();
         let records = records.clone();
 
         move || {
-            fn make_information(records: &[Record], simulation_type: &str, money_type: &str, average_sums: bool, round_to_magnitude: bool, extra_data: bool) -> Vec<RecordInformation> {
+            fn make_information(records: &[Record], simulation_type: &str, money_type: &str, average_sums: bool, round_to_magnitude: bool, extra_data: bool, reset_money: bool) -> Vec<RecordInformation> {
                 match simulation_type {
                     "real-data" => {
                         let real: ChartMode<()> = ChartMode::RealData { days: None };
                         RecordInformation::calculate(records, real, extra_data)
                     },
-                    simulation_type => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking(CustomStrategy {
-                        average_sums,
-                        scale_by_matches: true,
-                        round_to_magnitude,
-                        money: match money_type {
-                            "expected-bet-winner" => MoneyStrategy::ExpectedBetWinner,
-                            "expected-bet" => MoneyStrategy::ExpectedBet,
-                            "winner-bet" => MoneyStrategy::WinnerBet,
-                            "percentage" => MoneyStrategy::Percentage,
-                            "all-in" => MoneyStrategy::AllIn,
-                            _ => panic!("Invalid value {}", money_type),
-                        },
-                        bet: match simulation_type {
-                            "expected-bet-winner" => BetStrategy::ExpectedBetWinner,
-                            "expected-bet" => BetStrategy::ExpectedBet,
-                            "earnings" => BetStrategy::ExpectedProfit,
-                            "winner-bet" => BetStrategy::WinnerBet,
-                            "upset-percentage" => BetStrategy::Upsets,
-                            "upset-odds" => BetStrategy::Odds,
-                            "winrate-high" => BetStrategy::Wins,
-                            "winrate-low" => BetStrategy::Losses,
-                            "random-left" => BetStrategy::Left,
-                            "random-right" => BetStrategy::Right,
-                            "random" => BetStrategy::Random,
-                            _ => panic!("Invalid value {}", simulation_type),
-                        },
-                    }), extra_data),
+                    simulation_type => RecordInformation::calculate(records, ChartMode::SimulateMatchmaking {
+                        reset_money,
+                        strategy: CustomStrategy {
+                            average_sums,
+                            scale_by_matches: true,
+                            round_to_magnitude,
+                            money: match money_type {
+                                "expected-bet-winner" => MoneyStrategy::ExpectedBetWinner,
+                                "expected-bet" => MoneyStrategy::ExpectedBet,
+                                "winner-bet" => MoneyStrategy::WinnerBet,
+                                "percentage" => MoneyStrategy::Percentage,
+                                "all-in" => MoneyStrategy::AllIn,
+                                "fixed" => MoneyStrategy::Fixed,
+                                _ => panic!("Invalid value {}", money_type),
+                            },
+                            bet: match simulation_type {
+                                "expected-bet-winner" => BetStrategy::ExpectedBetWinner,
+                                "expected-bet" => BetStrategy::ExpectedBet,
+                                "earnings" => BetStrategy::ExpectedProfit,
+                                "winner-bet" => BetStrategy::WinnerBet,
+                                "upset-percentage" => BetStrategy::Upsets,
+                                "upset-odds" => BetStrategy::Odds,
+                                "upset-odds-winner" => BetStrategy::WinnerOdds,
+                                "winrate-high" => BetStrategy::Wins,
+                                "winrate-low" => BetStrategy::Losses,
+                                "random-left" => BetStrategy::Left,
+                                "random-right" => BetStrategy::Right,
+                                "random" => BetStrategy::Random,
+                                _ => panic!("Invalid value {}", simulation_type),
+                            },
+                        }
+                    }, extra_data),
                 //ChartMode::RealData { days: Some(7), matches: None }
                 //ChartMode::RealData { days: None }
                 //ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages })
@@ -923,24 +1023,25 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
             let money_type = money_type.borrow();
 
             let recent_matches = if show_only_recent_data.get() {
-                Some(subtract_days(21))
+                Some(*STARTING_DATE)
                 //Some(1000)
 
             } else {
                 None
             };
 
-            update_svg(&svg_root, &text_root, &records, make_information(&records, &simulation_type, &money_type, average_sums.get(), round_to_magnitude.get(), extra_data.get()), recent_matches);
+            update_svg(&svg_root, &text_root, &info_popup, hover_percentage.get(), &records, make_information(&records, &simulation_type, &money_type, average_sums.get(), round_to_magnitude.get(), extra_data.get(), reset_money.get()), recent_matches);
         }
     });
 
     update_svg();
     loading.hide();
 
+    node.append_child(&info_popup);
     node.append_child(&svg_root);
     node.append_child(&text_root);
 
-    node.append_child(&make_dropdown("225px", simulation_type.clone(), &[
+    node.append_child(&make_dropdown("220px", simulation_type.clone(), &[
         ("RealData", "real-data"),
         ("ExpectedBetWinner", "expected-bet-winner"),
         ("ExpectedBet", "expected-bet"),
@@ -948,6 +1049,7 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         ("ExpectedProfit", "earnings"),
         ("Upsets", "upset-percentage"),
         ("Odds", "upset-odds"),
+        ("WinnerOdds", "upset-odds-winner"),
         ("Wins", "winrate-high"),
         ("Losses", "winrate-low"),
         ("Left", "random-left"),
@@ -955,20 +1057,22 @@ fn display_records(node: &Element, records: Vec<Record>, loading: Loading) {
         ("Random", "random"),
     ]));
 
-    node.append_child(&make_dropdown("250px", money_type.clone(), &[
+    node.append_child(&make_dropdown("245px", money_type.clone(), &[
         ("ExpectedBetWinner", "expected-bet-winner"),
         ("ExpectedBet", "expected-bet"),
         ("Percentage", "percentage"),
         ("WinnerBet", "winner-bet"),
+        ("Fixed", "fixed"),
         ("AllIn", "all-in"),
     ]));
 
-    node.append_child(&make_checkbox("Use average for current money", "5px", "275px", average_sums.clone()));
-    node.append_child(&make_checkbox("Show only recent data", "5px", "300px", show_only_recent_data.clone()));
-    node.append_child(&make_checkbox("Round to nearest magnitude", "5px", "325px", round_to_magnitude.clone()));
-    node.append_child(&make_checkbox("Simulate extra data", "5px", "350px", extra_data.clone()));
+    node.append_child(&make_checkbox("Use average for current money", "0px", "270px", average_sums.clone()));
+    node.append_child(&make_checkbox("Show only recent data", "0px", "295px", show_only_recent_data.clone()));
+    node.append_child(&make_checkbox("Round to nearest magnitude", "0px", "320px", round_to_magnitude.clone()));
+    node.append_child(&make_checkbox("Reset money at regular intervals", "0px", "345px", reset_money.clone()));
+    node.append_child(&make_checkbox("Simulate extra data", "0px", "370px", extra_data.clone()));
 
-    node.append_child(&make_button("Run simulation", "5px", "375px", move || {
+    node.append_child(&make_button("Run simulation", "0px", "395px", move || {
         loading.show();
 
         let update_svg = update_svg.clone();
