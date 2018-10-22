@@ -38,9 +38,11 @@ How to upgrade
 
 5. In the upper-right corner click the square "S" button.
 
-6. Export your match records (just in case something goes wrong with the import process), then import the `SaltyBet Records.json` file (this will merge the new data with your existing data).
+6. Export your match records (just in case something goes wrong with the import process).
 
-7. Re-open the [saltybet.com](http://www.saltybet.com/) website.
+7. Import the `SaltyBetBot-master/SaltyBet Records.json` file again, just like in step 7 of "How to use" (this will merge the new data with your existing data).
+
+8. Re-open the [saltybet.com](http://www.saltybet.com/) website.
 
 How to build (for programmers only)
 ===================================
