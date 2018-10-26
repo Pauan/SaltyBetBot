@@ -298,6 +298,13 @@ pub fn performance_now() -> f64 {
 }
 
 
+pub fn set_panic_hook() {
+    std::panic::set_hook(Box::new(move |info| {
+        stdweb::print_error_panic(info.to_string());
+    }));
+}
+
+
 /*pub struct IndexedDBSchema(Value);
 
 impl IndexedDBSchema {

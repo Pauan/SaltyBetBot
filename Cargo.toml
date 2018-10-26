@@ -6,8 +6,15 @@ authors = ["Pauan <pcxunlimited@gmail.com>"]
 [dependencies]
 algorithm = { path = "./algorithm" }
 lazy_static = "1.0.0"
-stdweb = { version = "0.4.0", features = ["experimental_features_which_may_break_on_minor_version_bumps"] }
-stdweb-derive = "0.4.0"
+stdweb = { version = "0.4.10", features = ["experimental_features_which_may_break_on_minor_version_bumps"] }
+stdweb-derive = "0.5.1"
 serde = "1.0.27"
 serde_json = "1.0.10"
 serde_derive = "1.0.27"
+dominator = "0.3.0"
+futures-signals = "0.2.0"
+
+#[patch.crates-io]
+#stdweb = { path = "../stdweb" }
+#dominator = { path = "../rust-dominator" }
+#futures-signals = { path = "../rust-signals" }
