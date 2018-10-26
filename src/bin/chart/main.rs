@@ -10,8 +10,10 @@ extern crate algorithm;
 extern crate lazy_static;
 #[macro_use]
 extern crate dominator;
+#[macro_use]
 extern crate futures_signals;
 
+use std::f64::INFINITY;
 use std::rc::Rc;
 use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading, set_panic_hook};
 use algorithm::record::{Record, Profit, Mode};
@@ -20,9 +22,9 @@ use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE
 use stdweb::traits::*;
 use stdweb::web::{document, set_timeout, Date};
 use stdweb::web::html_element::SelectElement;
-use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent};
+use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
 use stdweb::unstable::TryInto;
-use futures_signals::signal::{Mutable, SignalExt};
+use futures_signals::signal::{Mutable, SignalExt, and, not};
 use dominator::{Dom, HIGHEST_ZINDEX, text};
 
 
@@ -625,6 +627,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     struct State {
         simulation_type: Mutable<Rc<String>>,
         money_type: Mutable<Rc<String>>,
+        hover_info: Mutable<bool>,
         hover_percentage: Mutable<Option<f64>>,
         average_sums: Mutable<bool>,
         show_only_recent_data: Mutable<bool>,
@@ -643,6 +646,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             Self {
                 simulation_type: Mutable::new(Rc::new("real-data".to_string())),
                 money_type: Mutable::new(Rc::new("expected-bet-winner".to_string())),
+                hover_info: Mutable::new(false),
                 hover_percentage: Mutable::new(None),
                 average_sums: Mutable::new(false),
                 show_only_recent_data: Mutable::new(true),
@@ -847,32 +851,105 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
     fn make_info_popup(state: Rc<State>) -> Dom {
         lazy_static! {
-            static ref CLASS: String = class! {
+            static ref CLASS_LINE: String = class! {
                 .style("position", "absolute")
                 .style("left", "0px")
                 .style("top", "0px")
-                .style("width", "2px")
+                .style("width", "1px")
                 .style("height", "100%")
                 .style("z-index", HIGHEST_ZINDEX)
                 .style("background-color", "white")
                 .style("pointer-events", "none")
             };
+
+            static ref CLASS_TEXT: String = class! {
+                .style("position", "absolute")
+                .style("bottom", "0px")
+                .style("color", "white")
+                .style("text-shadow", TEXT_SHADOW)
+                .style("background-color", BACKGROUND_COLOR)
+                .style("font-size", "16px")
+                .style("white-space", "pre")
+                .style("padding", "10px")
+            };
         }
 
-        /*let hovered_record = self.hover_percentage.map(|percentage| {
-                    log!("Percentage: {}, Length: {}, Index: {}", percentage, information.len() as f64, range_inclusive(percentage, 0.0, information.len() as f64).floor());
-                });*/
-
         html!("div", {
-            .class(&*CLASS)
+            .class(&*CLASS_LINE)
 
             .style_signal("left", state.hover_percentage.signal().map(|percentage| {
                 percentage.map(|percentage| {
-                    format!("calc({}% - 1px)", percentage * 100.0)
+                    format!("{}%", percentage * 100.0)
                 })
             }))
 
-            .visible_signal(state.hover_percentage.signal().map(|percentage| percentage.is_some()))
+            .visible_signal(and(
+                state.hover_percentage.signal().map(|percentage| percentage.is_some()),
+                not(state.hover_info.signal())
+            ))
+
+            .children(&mut [
+                html!("div", {
+                    .class(&*CLASS_TEXT)
+
+                    .style_signal("left", state.hover_percentage.signal().map(|percentage| {
+                        percentage.and_then(|percentage| {
+                            if percentage <= 0.5 {
+                                Some("1px")
+
+                            } else {
+                                None
+                            }
+                        })
+                    }))
+
+                    .style_signal("right", state.hover_percentage.signal().map(|percentage| {
+                        percentage.and_then(|percentage| {
+                            if percentage > 0.5 {
+                                Some("1px")
+
+                            } else {
+                                None
+                            }
+                        })
+                    }))
+
+                    .text_signal(map_ref! {
+                        let percentage = state.hover_percentage.signal(),
+                        let information = state.information.signal_cloned() => {
+                            if let Some(percentage) = percentage {
+                                let first_date = information.record_information.first().map(|x| x.date()).unwrap_or(0.0);
+                                let last_date = information.record_information.last().map(|x| x.date()).unwrap_or(0.0);
+
+                                let date = range_inclusive(*percentage, first_date, last_date);
+
+                                let mut index = 0;
+                                let mut difference = INFINITY;
+
+                                // TODO rewrite this with combinators ?
+                                // TODO make this more efficient
+                                for (i, record) in information.record_information.iter().enumerate() {
+                                    let diff = (record.date() - date).abs();
+
+                                    if diff < difference {
+                                        difference = diff;
+                                        index = i;
+                                    }
+                                }
+
+                                //let index = information.record_information.binary_search_by(|a| a.date().partial_cmp(&date).unwrap());
+
+                                let record = &information.record_information[index];
+                                format!("{}\n{:#?}", index, record)
+                                //format!("{}\n{:#?}\n{:#?}\n{:#?}\n{:#?}\n{:#?}", information.record_information.len(), first_date, date, percentage, index, difference)
+
+                            } else {
+                                "".to_string()
+                            }
+                        }
+                    })
+                })
+            ])
         })
     }
 
@@ -1007,17 +1084,28 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             .style("display", "flex")
         };
 
-        static ref CLASS_INFO: String = class! {
+        static ref CLASS_ROW: String = class! {
+            .style("display", "flex")
+            .style("flex-direction", "row")
+            .style("align-items", "flex-start")
+            .style("justify-content", "flex-start")
+        };
+
+        static ref CLASS_COLUMN: String = class! {
             .style("display", "flex")
             .style("flex-direction", "column")
             .style("align-items", "flex-start")
             .style("justify-content", "flex-start")
+        };
+
+        static ref CLASS_INFO: String = class! {
             .style("position", "absolute")
             .style("left", "-5px")
             .style("top", "-5px")
+            .style("z-index", HIGHEST_ZINDEX)
             .style("background-color", BACKGROUND_COLOR)
             .style("white-space", "pre")
-            .style("padding", "5px")
+            .style("padding", "10px")
         };
     }
 
@@ -1030,50 +1118,69 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             svg_root(state.clone()),
 
             html!("div", {
+                .class(&*CLASS_ROW)
                 .class(&*CLASS_INFO)
+
+                .event(clone!(state => move |_: MouseEnterEvent| {
+                    state.hover_info.set_neq(true);
+                }))
+
+                .event(clone!(state => move |_: MouseLeaveEvent| {
+                    state.hover_info.set_neq(false);
+                }))
+
                 .children(&mut [
-                    make_text(state.clone()),
+                    html!("div", {
+                        .class(&*CLASS_COLUMN)
 
-                    make_dropdown(state.simulation_type.clone(), &[
-                        ("RealData", "real-data"),
-                        ("ExpectedBetWinner", "expected-bet-winner"),
-                        ("ExpectedBet", "expected-bet"),
-                        ("WinnerBet", "winner-bet"),
-                        ("ExpectedProfit", "earnings"),
-                        ("Upsets", "upset-percentage"),
-                        ("Odds", "upset-odds"),
-                        ("WinnerOdds", "upset-odds-winner"),
-                        ("Wins", "winrate-high"),
-                        ("Losses", "winrate-low"),
-                        ("Left", "random-left"),
-                        ("Right", "random-right"),
-                        ("Random", "random"),
-                    ]),
+                        .style("margin-bottom", "5px")
+                        .style("margin-right", "15px")
 
-                    make_dropdown(state.money_type.clone(), &[
-                        ("ExpectedBetWinner", "expected-bet-winner"),
-                        ("ExpectedBet", "expected-bet"),
-                        ("Percentage", "percentage"),
-                        ("WinnerBet", "winner-bet"),
-                        ("Fixed", "fixed"),
-                        ("AllIn", "all-in"),
-                    ]),
+                        .children(&mut [
+                            make_dropdown(state.simulation_type.clone(), &[
+                                ("RealData", "real-data"),
+                                ("ExpectedBetWinner", "expected-bet-winner"),
+                                ("ExpectedBet", "expected-bet"),
+                                ("WinnerBet", "winner-bet"),
+                                ("ExpectedProfit", "earnings"),
+                                ("Upsets", "upset-percentage"),
+                                ("Odds", "upset-odds"),
+                                ("WinnerOdds", "upset-odds-winner"),
+                                ("Wins", "winrate-high"),
+                                ("Losses", "winrate-low"),
+                                ("Left", "random-left"),
+                                ("Right", "random-right"),
+                                ("Random", "random"),
+                            ]),
 
-                    make_checkbox("Use average for current money", state.average_sums.clone()),
-                    make_checkbox("Show only recent data", state.show_only_recent_data.clone()),
-                    make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone()),
-                    make_checkbox("Reset money at regular intervals", state.reset_money.clone()),
-                    make_checkbox("Simulate extra data", state.extra_data.clone()),
+                            make_dropdown(state.money_type.clone(), &[
+                                ("ExpectedBetWinner", "expected-bet-winner"),
+                                ("ExpectedBet", "expected-bet"),
+                                ("Percentage", "percentage"),
+                                ("WinnerBet", "winner-bet"),
+                                ("Fixed", "fixed"),
+                                ("AllIn", "all-in"),
+                            ]),
 
-                    make_button("Run simulation", move || {
-                        loading.show();
+                            make_checkbox("Use average for current money", state.average_sums.clone()),
+                            make_checkbox("Show only recent data", state.show_only_recent_data.clone()),
+                            make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone()),
+                            make_checkbox("Reset money at regular intervals", state.reset_money.clone()),
+                            make_checkbox("Simulate extra data", state.extra_data.clone()),
 
-                        set_timeout(clone!(loading, state => move || {
-                            state.update();
-                            // TODO handle this better
-                            loading.hide();
-                        }), 0);
+                            make_button("Run simulation", clone!(state => move || {
+                                loading.show();
+
+                                set_timeout(clone!(loading, state => move || {
+                                    state.update();
+                                    // TODO handle this better
+                                    loading.hide();
+                                }), 0);
+                            })),
+                        ])
                     }),
+
+                    make_text(state.clone()),
                 ])
             }),
         ])
