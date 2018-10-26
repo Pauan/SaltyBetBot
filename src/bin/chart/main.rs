@@ -206,18 +206,18 @@ impl RecordInformation {
 
                         let bet = simulation.bet(&record);
 
-                        simulation.calculate(&record, &bet);
+                        //if let Some(amount) = bet.amount() {
+                            //if amount > 1.0 {
+                                simulation.calculate(&record, &bet);
 
-                        simulation.sum -= tournament_profit.unwrap_or(0.0);
+                                simulation.sum -= tournament_profit.unwrap_or(0.0);
 
-                        let new_sum = simulation.sum;
+                                let new_sum = simulation.sum;
 
-                        simulation.insert_sum(new_sum);
+                                simulation.insert_sum(new_sum);
 
-                        let profit = Profit::from_old_new(old_sum, new_sum);
+                                let profit = Profit::from_old_new(old_sum, new_sum);
 
-                        if let Some(amount) = bet.amount() {
-                            if amount > 1.0 {
                                 let date = record.date;
                                 //let date = index;
                                 //index += 1.0;
@@ -233,8 +233,8 @@ impl RecordInformation {
                                     odds: record.odds(&bet),
                                     bet,
                                 });
-                            }
-                        }
+                            //}
+                        //}
                     }
 
                     if !extra_data {
@@ -287,17 +287,17 @@ impl RecordInformation {
 
                         let bet = record.bet.clone();
 
-                        simulation.calculate(&record, &bet);
+                        //if let Some(amount) = bet.amount() {
+                            //if amount > 1.0 {
+                                simulation.calculate(&record, &bet);
 
-                        let new_sum = simulation.sum;
+                                if let Mode::Matchmaking = record.mode {
+                                    let new_sum = simulation.sum;
 
-                        simulation.insert_sum(new_sum);
+                                    simulation.insert_sum(new_sum);
 
-                        let profit = Profit::from_old_new(old_sum, new_sum);
+                                    let profit = Profit::from_old_new(old_sum, new_sum);
 
-                        if let Mode::Matchmaking = record.mode {
-                            //if let Some(amount) = bet.amount() {
-                                //if amount > 1.0 {
                                     output.push(RecordInformation::Match {
                                         date,
                                         profit,
@@ -309,9 +309,9 @@ impl RecordInformation {
                                         odds: record.odds(&bet),
                                         bet,
                                     });
-                                //}
+                                }
                             //}
-                        }
+                        //}
 
                     } else {
                         simulation.calculate(&record, &record.bet);
@@ -321,8 +321,6 @@ impl RecordInformation {
                 }
             },
         }
-
-        output.sort_by(|a, b| a.date().partial_cmp(&b.date()).unwrap());
 
         output
     }
@@ -731,6 +729,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             })
 
             .children_signal_vec(state.information.signal_cloned().map(|information| {
+                log!("{:?}", &information.record_information[0..10]);
+
                 let statistics = &information.recent_statistics;
 
                 let mut d_gains = vec![];
@@ -1067,7 +1067,9 @@ fn main() {
 
     document().body().unwrap().append_child(loading.element());
 
-    records_get_all(move |records| {
+    records_get_all(move |mut records| {
+        records.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
+
         dominator::append_dom(&dominator::body(), display_records(records, loading));
     });
 
