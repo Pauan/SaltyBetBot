@@ -613,6 +613,14 @@ const TEXT_SHADOW: &'static str = "-2px -2px 1px black, -2px 2px 1px black, 2px 
 const BACKGROUND_COLOR: &'static str = "hsla(0, 0%, 0%, 0.65)";
 
 
+lazy_static! {
+    static ref WIDGET: String = class! {
+        .style("height", "20px")
+        .style("margin-top", "5px")
+    };
+}
+
+
 fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     struct State {
         simulation_type: Mutable<Rc<String>>,
@@ -869,27 +877,19 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_text(state: Rc<State>, align: &str) -> Dom {
+    fn make_text(state: Rc<State>) -> Dom {
         lazy_static! {
             static ref CLASS: String = class! {
-                .style("position", "absolute")
-                .style("left", "0px")
-                .style("top", "0px")
                 //.style("width", "100%")
                 //.style("height", "100%")
                 .style("color", "white")
                 .style("text-shadow", TEXT_SHADOW)
-                .style("background-color", BACKGROUND_COLOR)
-                .style("padding", "5px")
                 .style("font-size", "16px")
-                .style("white-space", "pre")
             };
         }
 
         html!("div", {
             .class(&*CLASS)
-
-            .style("text-align", align)
 
             .text_signal(state.information.signal_cloned().map(|information| {
                 let statistics = &information.recent_statistics;
@@ -917,11 +917,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_dropdown(top: &str, mutable: Mutable<Rc<String>>, options: &[(&'static str, &'static str)]) -> Dom {
+    fn make_dropdown(mutable: Mutable<Rc<String>>, options: &[(&'static str, &'static str)]) -> Dom {
         html!("select" => SelectElement, {
-            .style("position", "absolute")
-            .style("left", "0px")
-            .style("top", top)
+            .class(&*WIDGET)
 
             .with_element(|dom, element| {
                 dom.event(clone!(mutable => move |_: ChangeEvent| {
@@ -943,29 +941,31 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_checkbox(name: &str, x: &str, y: &str, value: Mutable<bool>) -> Dom {
+    fn make_checkbox(name: &str, value: Mutable<bool>) -> Dom {
         lazy_static! {
-            static ref CLASS: String = class! {
-                .style("position", "absolute")
+            static ref CLASS_LABEL: String = class! {
                 .style("color", "white")
                 .style("text-shadow", TEXT_SHADOW)
-                .style("background-color", BACKGROUND_COLOR)
-                .style("padding-right", "5px")
+            };
+
+            static ref CLASS_INPUT: String = class! {
+                .style("vertical-align", "bottom")
+                .style("margin", "0px")
+                .style("margin-right", "3px")
             };
         }
 
         html!("label", {
-            .class(&*CLASS)
-            .style("left", x)
-            .style("top", y)
+            .class(&*WIDGET)
+            .class(&*CLASS_LABEL)
 
             .children(&mut [
                 html!("input", {
+                    .class(&*CLASS_INPUT)
+
                     .attribute("type", "checkbox")
 
                     .property_signal("checked", value.signal())
-
-                    .style("vertical-align", "top")
 
                     .event(move |e: ChangeEvent| {
                         let node = e.target().unwrap();
@@ -980,11 +980,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_button<F>(name: &str, x: &str, y: &str, mut on_click: F) -> Dom where F: FnMut() + 'static {
+    fn make_button<F>(name: &str, mut on_click: F) -> Dom where F: FnMut() + 'static {
         html!("button", {
-            .style("position", "absolute")
-            .style("left", x)
-            .style("top", y)
+            .class(&*WIDGET)
 
             .event(move |_: ClickEvent| {
                 on_click();
@@ -1008,6 +1006,19 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             .style("height", "calc(100% - 10px)")
             .style("display", "flex")
         };
+
+        static ref CLASS_INFO: String = class! {
+            .style("display", "flex")
+            .style("flex-direction", "column")
+            .style("align-items", "flex-start")
+            .style("justify-content", "flex-start")
+            .style("position", "absolute")
+            .style("left", "-5px")
+            .style("top", "-5px")
+            .style("background-color", BACKGROUND_COLOR)
+            .style("white-space", "pre")
+            .style("padding", "5px")
+        };
     }
 
     html!("div", {
@@ -1018,47 +1029,52 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
             svg_root(state.clone()),
 
-            make_text(state.clone(), "left"),
+            html!("div", {
+                .class(&*CLASS_INFO)
+                .children(&mut [
+                    make_text(state.clone()),
 
-            make_dropdown("220px", state.simulation_type.clone(), &[
-                ("RealData", "real-data"),
-                ("ExpectedBetWinner", "expected-bet-winner"),
-                ("ExpectedBet", "expected-bet"),
-                ("WinnerBet", "winner-bet"),
-                ("ExpectedProfit", "earnings"),
-                ("Upsets", "upset-percentage"),
-                ("Odds", "upset-odds"),
-                ("WinnerOdds", "upset-odds-winner"),
-                ("Wins", "winrate-high"),
-                ("Losses", "winrate-low"),
-                ("Left", "random-left"),
-                ("Right", "random-right"),
-                ("Random", "random"),
-            ]),
+                    make_dropdown(state.simulation_type.clone(), &[
+                        ("RealData", "real-data"),
+                        ("ExpectedBetWinner", "expected-bet-winner"),
+                        ("ExpectedBet", "expected-bet"),
+                        ("WinnerBet", "winner-bet"),
+                        ("ExpectedProfit", "earnings"),
+                        ("Upsets", "upset-percentage"),
+                        ("Odds", "upset-odds"),
+                        ("WinnerOdds", "upset-odds-winner"),
+                        ("Wins", "winrate-high"),
+                        ("Losses", "winrate-low"),
+                        ("Left", "random-left"),
+                        ("Right", "random-right"),
+                        ("Random", "random"),
+                    ]),
 
-            make_dropdown("245px", state.money_type.clone(), &[
-                ("ExpectedBetWinner", "expected-bet-winner"),
-                ("ExpectedBet", "expected-bet"),
-                ("Percentage", "percentage"),
-                ("WinnerBet", "winner-bet"),
-                ("Fixed", "fixed"),
-                ("AllIn", "all-in"),
-            ]),
+                    make_dropdown(state.money_type.clone(), &[
+                        ("ExpectedBetWinner", "expected-bet-winner"),
+                        ("ExpectedBet", "expected-bet"),
+                        ("Percentage", "percentage"),
+                        ("WinnerBet", "winner-bet"),
+                        ("Fixed", "fixed"),
+                        ("AllIn", "all-in"),
+                    ]),
 
-            make_checkbox("Use average for current money", "0px", "270px", state.average_sums.clone()),
-            make_checkbox("Show only recent data", "0px", "295px", state.show_only_recent_data.clone()),
-            make_checkbox("Round to nearest magnitude", "0px", "320px", state.round_to_magnitude.clone()),
-            make_checkbox("Reset money at regular intervals", "0px", "345px", state.reset_money.clone()),
-            make_checkbox("Simulate extra data", "0px", "370px", state.extra_data.clone()),
+                    make_checkbox("Use average for current money", state.average_sums.clone()),
+                    make_checkbox("Show only recent data", state.show_only_recent_data.clone()),
+                    make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone()),
+                    make_checkbox("Reset money at regular intervals", state.reset_money.clone()),
+                    make_checkbox("Simulate extra data", state.extra_data.clone()),
 
-            make_button("Run simulation", "0px", "395px", move || {
-                loading.show();
+                    make_button("Run simulation", move || {
+                        loading.show();
 
-                set_timeout(clone!(loading, state => move || {
-                    state.update();
-                    // TODO handle this better
-                    loading.hide();
-                }), 0);
+                        set_timeout(clone!(loading, state => move || {
+                            state.update();
+                            // TODO handle this better
+                            loading.hide();
+                        }), 0);
+                    }),
+                ])
             }),
         ])
     })
