@@ -729,8 +729,6 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             })
 
             .children_signal_vec(state.information.signal_cloned().map(|information| {
-                log!("{:?}", &information.record_information[0..10]);
-
                 let statistics = &information.recent_statistics;
 
                 let mut d_gains = vec![];
@@ -1001,8 +999,19 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
     let state = Rc::new(State::new(records));
 
+    lazy_static! {
+        static ref CLASS_ROOT: String = class! {
+            .style("position", "absolute")
+            .style("left", "5px")
+            .style("top", "5px")
+            .style("width", "calc(100% - 10px)")
+            .style("height", "calc(100% - 10px)")
+            .style("display", "flex")
+        };
+    }
+
     html!("div", {
-        .class("root")
+        .class(&*CLASS_ROOT)
 
         .children(&mut [
             make_info_popup(state.clone()),
@@ -1062,6 +1071,14 @@ fn main() {
     set_panic_hook();
 
     log!("Initializing...");
+
+    stylesheet!("html, body", {
+        .style("width", "100%")
+        .style("height", "100%")
+        .style("margin", "0px")
+        .style("padding", "0px")
+        .style("background-color", "#201d2b")
+    });
 
     let loading = Loading::new();
 
