@@ -25,7 +25,7 @@ use stdweb::web::html_element::SelectElement;
 use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
 use stdweb::unstable::TryInto;
 use futures_signals::signal::{Mutable, SignalExt, and, not};
-use dominator::{Dom, HIGHEST_ZINDEX, text};
+use dominator::{Dom, text};
 
 
 // 21 days
@@ -113,13 +113,13 @@ impl RecordInformation {
 
                     let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
 
-                    simulation.calculate(&record, &bet);
+                    if let Some(amount) = bet.amount() {
+                        if amount > 1.0 {
+                            simulation.calculate(&record, &bet);
 
-                    let new_sum = simulation.tournament_sum;
+                            let new_sum = simulation.tournament_sum;
 
-                    if let Mode::Tournament = record.mode {
-                        if let Some(amount) = bet.amount() {
-                            if amount > 1.0 {
+                            if let Mode::Tournament = record.mode {
                                 let date = index;
                                 index += 1.0;
 
@@ -208,8 +208,8 @@ impl RecordInformation {
 
                         let bet = simulation.bet(&record);
 
-                        //if let Some(amount) = bet.amount() {
-                            //if amount > 1.0 {
+                        if let Some(amount) = bet.amount() {
+                            if amount > 1.0 {
                                 simulation.calculate(&record, &bet);
 
                                 simulation.sum -= tournament_profit.unwrap_or(0.0);
@@ -235,8 +235,8 @@ impl RecordInformation {
                                     odds: record.odds(&bet),
                                     bet,
                                 });
-                            //}
-                        //}
+                            }
+                        }
                     }
 
                     if !extra_data {
@@ -289,8 +289,8 @@ impl RecordInformation {
 
                         let bet = record.bet.clone();
 
-                        //if let Some(amount) = bet.amount() {
-                            //if amount > 1.0 {
+                        if let Some(amount) = bet.amount() {
+                            if amount > 1.0 {
                                 simulation.calculate(&record, &bet);
 
                                 if let Mode::Matchmaking = record.mode {
@@ -312,8 +312,8 @@ impl RecordInformation {
                                         bet,
                                     });
                                 }
-                            //}
-                        //}
+                            }
+                        }
 
                     } else {
                         simulation.calculate(&record, &record.bet);
@@ -367,6 +367,7 @@ struct Statistics {
 
     max_bet: f64,
     min_bet: f64,
+    average_bet: f64,
 
     max_money: f64,
     min_money: f64,
@@ -395,6 +396,7 @@ impl Statistics {
 
         let mut max_bet: f64 = 0.0;
         let mut min_bet: f64 = 0.0;
+        let mut average_bet: f64 = 0.0;
 
         let mut min_money: f64 = -1.0;
         let mut max_money: f64 = 0.0;
@@ -428,49 +430,52 @@ impl Statistics {
                     max_gain = max_gain.max(*profit);
                 },
                 RecordInformation::Match { profit, won, odds, bet, match_len, .. } => {
-                    // TODO is this correct ?
-                    len += 1.0;
-
-                    match profit {
-                        Profit::Gain(gain) => {
-                            max_gain = max_gain.max(*gain);
-                        },
-                        Profit::Loss(loss) => {
-                            max_loss = max_loss.max(*loss);
-                        },
-                        Profit::None => {},
-                    }
-
-                    min_match_len = if min_match_len == -1.0 { *match_len } else { min_match_len.min(*match_len) };
-                    max_match_len = max_match_len.max(*match_len);
-
-                    if *won {
-                        wins += 1.0;
-
-                    } else {
-                        losses += 1.0;
-                    }
-
-                    match odds {
-                        Some(Ok(amount)) => {
-                            average_odds += amount;
-                            odds_gain += amount;
-                            max_odds_gain = max_odds_gain.max(*amount);
-                        },
-
-                        Some(Err(amount)) => {
-                            average_odds += -1.0;
-                            odds_loss += -1.0;
-                            max_odds_loss = max_odds_loss.max(*amount);
-                        },
-
+                    if let Some(bet_amount) = bet.amount() {
                         // TODO is this correct ?
-                        None => {},
-                    }
+                        if bet_amount > 1.0 {
+                            len += 1.0;
 
-                    if let Some(amount) = bet.amount() {
-                        min_bet = if min_bet == 0.0 { amount } else { min_bet.min(amount) };
-                        max_bet = max_bet.max(amount);
+                            match profit {
+                                Profit::Gain(gain) => {
+                                    max_gain = max_gain.max(*gain);
+                                },
+                                Profit::Loss(loss) => {
+                                    max_loss = max_loss.max(*loss);
+                                },
+                                Profit::None => {},
+                            }
+
+                            min_match_len = if min_match_len == -1.0 { *match_len } else { min_match_len.min(*match_len) };
+                            max_match_len = max_match_len.max(*match_len);
+
+                            if *won {
+                                wins += 1.0;
+
+                            } else {
+                                losses += 1.0;
+                            }
+
+                            match odds {
+                                Some(Ok(amount)) => {
+                                    average_odds += amount;
+                                    odds_gain += amount;
+                                    max_odds_gain = max_odds_gain.max(*amount);
+                                },
+
+                                Some(Err(amount)) => {
+                                    average_odds += -1.0;
+                                    odds_loss += -1.0;
+                                    max_odds_loss = max_odds_loss.max(*amount);
+                                },
+
+                                // TODO is this correct ?
+                                None => {},
+                            }
+
+                            min_bet = if min_bet == 0.0 { bet_amount } else { min_bet.min(bet_amount) };
+                            max_bet = max_bet.max(bet_amount);
+                            average_bet += bet_amount;
+                        }
                     }
                 },
             }
@@ -482,6 +487,7 @@ impl Statistics {
             average_odds: average_odds / len,
             odds_gain: odds_gain / len,
             odds_loss: odds_loss / len,
+            average_bet: average_bet / len,
             max_odds_loss, max_odds_gain, len, wins, losses, max_gain, max_loss, max_bet, min_bet, max_money, min_money, min_match_len, max_match_len, lowest_date, highest_date,
         }
     }
@@ -689,6 +695,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             "winner-bet" => BetStrategy::WinnerBet,
                             "upset-percentage" => BetStrategy::Upsets,
                             "upset-odds" => BetStrategy::Odds,
+                            "upset-odds-difference" => BetStrategy::OddsDifference,
                             "upset-odds-winner" => BetStrategy::WinnerOdds,
                             "winrate-high" => BetStrategy::Wins,
                             "winrate-low" => BetStrategy::Losses,
@@ -857,7 +864,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 .style("top", "0px")
                 .style("width", "1px")
                 .style("height", "100%")
-                .style("z-index", HIGHEST_ZINDEX)
+                .style("z-index", "1")
                 .style("background-color", "white")
                 .style("pointer-events", "none")
             };
@@ -975,19 +982,18 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                 let total_gains = final_money - starting_money;
                 let average_gains = total_gains / statistics.len;
-                let average_money = final_money / information.total_statistics.len;
 
-                format!("Starting money: {}\nFinal money: {}\nAverage money: {}\nTotal gains: {}\nMaximum: {}\nMinimum: {}\nMatches: {} (out of {})\nAverage gains: {}\nAverage odds: {}\nWinrate: {}%",
+                format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%",
+                    salty_bet_bot::money(statistics.min_money),
+                    salty_bet_bot::money(statistics.max_money),
                     salty_bet_bot::money(starting_money),
                     salty_bet_bot::money(final_money),
-                    salty_bet_bot::money(average_money),
                     salty_bet_bot::money(total_gains),
-                    salty_bet_bot::money(statistics.max_money),
-                    salty_bet_bot::money(statistics.min_money),
+                    salty_bet_bot::money(average_gains),
                     decimal(statistics.len),
                     decimal(information.total_statistics.len),
-                    salty_bet_bot::money(average_gains),
                     statistics.average_odds,
+                    salty_bet_bot::money(statistics.average_bet),
                     (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)
             }))
         })
@@ -1070,8 +1076,6 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    loading.hide();
-
     let state = Rc::new(State::new(records));
 
     lazy_static! {
@@ -1102,7 +1106,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             .style("position", "absolute")
             .style("left", "-5px")
             .style("top", "-5px")
-            .style("z-index", HIGHEST_ZINDEX)
+            .style("z-index", "2")
             .style("background-color", BACKGROUND_COLOR)
             .style("white-space", "pre")
             .style("padding", "10px")
@@ -1145,6 +1149,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 ("ExpectedProfit", "earnings"),
                                 ("Upsets", "upset-percentage"),
                                 ("Odds", "upset-odds"),
+                                ("OddsDifference", "upset-odds-difference"),
                                 ("WinnerOdds", "upset-odds-winner"),
                                 ("Wins", "winrate-high"),
                                 ("Losses", "winrate-low"),
@@ -1210,7 +1215,9 @@ fn main() {
     records_get_all(move |mut records| {
         records.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
 
-        dominator::append_dom(&dominator::body(), display_records(records, loading));
+        dominator::append_dom(&dominator::body(), display_records(records, loading.clone()));
+
+        loading.hide();
     });
 
     stdweb::event_loop();

@@ -162,7 +162,7 @@ pub mod lookup {
     }
 
 
-    pub fn needed_odds<'a>(iter: &[&Record], name: &str) -> f64 {
+    pub fn needed_odds(iter: &[&Record], name: &str) -> f64 {
         let mut wins = 0.0;
         let mut losses = 0.0;
 
@@ -185,7 +185,7 @@ pub mod lookup {
         }
     }
 
-    pub fn expected_bet_winner<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
+    pub fn expected_bet_winner(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
         let needed_odds = needed_odds(&iter, name);
 
         let mut sum = 0.0;
@@ -214,7 +214,7 @@ pub mod lookup {
         }
     }
 
-    pub fn expected_bet<'a>(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
+    pub fn expected_bet(iter: &[&Record], name: &str, max_bet: f64) -> f64 {
         let needed_odds = needed_odds(&iter, name);
 
         let mut sum = 0.0;
@@ -395,6 +395,12 @@ pub mod lookup {
             }
         // The `max` is so that it won't bet if they're both negative
         }).unwrap_or(0.0).max(0.0)
+    }
+
+    pub fn odds_difference(iter: &[&Record], name: &str, bet_amount: f64) -> f64 {
+        let odds = odds(iter.into_iter().map(|x| *x), name, bet_amount);
+        let needed = needed_odds(iter, name);
+        (odds - needed).max(0.0)
     }
 
     pub fn earnings<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64

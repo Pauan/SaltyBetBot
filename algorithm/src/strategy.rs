@@ -7,7 +7,7 @@ pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 40.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
-const MAXIMUM_BET_PERCENTAGE: f64 = 0.015;       // maximum percentage that it will bet (of current money)
+const MAXIMUM_BET_PERCENTAGE: f64 = 0.015;      // maximum percentage that it will bet (of current money)
 //const MAXIMUM_BET_AMOUNT: f64 = 350000.0;       // maximum amount it will bet
 const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet
 
@@ -128,7 +128,7 @@ pub fn winrates<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where 
 }
 
 pub fn average_odds<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds(records, name, bet))
+    weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds(records.into_iter(), name, bet))
 }
 
 pub fn needed_odds<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
@@ -192,6 +192,7 @@ pub enum BetStrategy {
     ExpectedProfit,
     WinnerBet,
     Odds,
+    OddsDifference,
     WinnerOdds,
     Upsets,
     Wins,
@@ -212,6 +213,7 @@ impl BetStrategy {
             BetStrategy::ExpectedProfit => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet)),
             BetStrategy::WinnerBet => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
             BetStrategy::Odds => average_odds(simulation, left, right, left_bet, right_bet),
+            BetStrategy::OddsDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),
             BetStrategy::WinnerOdds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
             BetStrategy::Upsets => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
             BetStrategy::Wins => winrates(simulation, left, right),
