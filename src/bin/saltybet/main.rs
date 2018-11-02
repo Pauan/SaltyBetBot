@@ -466,7 +466,7 @@ pub struct State {
 
 impl State {
     fn update_info_container(&self, mode: &Mode, tier: &Tier, left: &str, right: &str) {
-        //self.info_container.clear();
+        self.info_container.clear();
 
         // TODO avoid the to_string somehow
         self.info_container.left.name.set(Some(left.to_string()));
