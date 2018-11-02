@@ -1,11 +1,17 @@
 #![recursion_limit="128"]
 
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate stdweb;
 extern crate serde_json;
 #[macro_use]
 extern crate salty_bet_bot;
 extern crate algorithm;
+#[macro_use]
+extern crate dominator;
+#[macro_use]
+extern crate futures_signals;
 
 use std::cmp::Ordering;
 use std::rc::Rc;
@@ -13,8 +19,10 @@ use std::cell::RefCell;
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
-use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds, needed_odds};
-use stdweb::web::{document, set_timeout, Element, INode};
+use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds, needed_odds, expected_profits};
+use stdweb::web::set_timeout;
+use futures_signals::signal::{always, Mutable, Signal, SignalExt};
+use dominator::Dom;
 
 
 //const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
@@ -458,50 +466,42 @@ pub struct State {
 
 impl State {
     fn update_info_container(&self, mode: &Mode, tier: &Tier, left: &str, right: &str) {
-        self.info_container.clear();
+        //self.info_container.clear();
 
-        self.info_container.left.set_name(left);
-        self.info_container.right.set_name(right);
+        // TODO avoid the to_string somehow
+        self.info_container.left.name.set(Some(left.to_string()));
+        self.info_container.right.name.set(Some(right.to_string()));
 
         let (left_winrate, right_winrate) = winrates(&self.simulation, left, right);
-        self.info_container.left.set_winrate(left_winrate, left_winrate.partial_cmp(&right_winrate).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_winrate(right_winrate, right_winrate.partial_cmp(&left_winrate).unwrap_or(Ordering::Equal));
+        self.info_container.left.winrate.set(Some(left_winrate));
+        self.info_container.right.winrate.set(Some(right_winrate));
 
-        let left_matches = self.simulation.matches_len(left);
-        let right_matches = self.simulation.matches_len(right);
-        self.info_container.left.set_matches_len(left_matches, left_matches.partial_cmp(&right_matches).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_matches_len(right_matches, right_matches.partial_cmp(&left_matches).unwrap_or(Ordering::Equal));
+        self.info_container.left.matches_len.set(Some(self.simulation.matches_len(left)));
+        self.info_container.right.matches_len.set(Some(self.simulation.matches_len(right)));
 
         let specific_matches = self.simulation.specific_matches_len(left, right);
-        self.info_container.left.set_specific_matches_len(specific_matches, specific_matches.cmp(&0));
-        self.info_container.right.set_specific_matches_len(specific_matches, specific_matches.cmp(&0));
+        self.info_container.left.specific_matches_len.set(Some(specific_matches));
+        self.info_container.right.specific_matches_len.set(Some(specific_matches));
+
+        let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right);
+        self.info_container.left.needed_odds.set(Some(left_needed_odds));
+        self.info_container.right.needed_odds.set(Some(right_needed_odds));
 
         let (left_bet, right_bet) = match *mode {
             Mode::Matchmaking => self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
             Mode::Tournament => self.simulation.tournament_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
         };
 
+        self.info_container.left.bet_amount.set(Some(left_bet));
+        self.info_container.right.bet_amount.set(Some(right_bet));
+
         let (left_odds, right_odds) = average_odds(&self.simulation, left, right, left_bet, right_bet);
-        let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right);
+        self.info_container.left.odds.set(Some(left_odds));
+        self.info_container.right.odds.set(Some(right_odds));
 
-        self.info_container.left.set_odds(left_odds, left_odds.partial_cmp(&left_needed_odds).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_odds(right_odds, right_odds.partial_cmp(&right_needed_odds).unwrap_or(Ordering::Equal));
-
-        self.info_container.left.set_needed_odds(left_needed_odds, left_needed_odds.partial_cmp(&left_odds).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_needed_odds(right_needed_odds, right_needed_odds.partial_cmp(&right_odds).unwrap_or(Ordering::Equal));
-
-        self.info_container.left.set_bet_amount(left_bet, left_bet.partial_cmp(&right_bet).unwrap_or(Ordering::Equal));
-        self.info_container.right.set_bet_amount(right_bet, right_bet.partial_cmp(&left_bet).unwrap_or(Ordering::Equal));
-
-        match *mode {
-            Mode::Matchmaking => {
-                /*let bet_amount = self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right, false);
-                let (left_profit, right_profit) = expected_profits(&self.simulation, tier, left, right, bet_amount);
-                self.info_container.left.set_expected_profit(left_profit, left_profit.partial_cmp(&right_profit).unwrap_or(Ordering::Equal));
-                self.info_container.right.set_expected_profit(right_profit, right_profit.partial_cmp(&left_profit).unwrap_or(Ordering::Equal));*/
-            },
-            Mode::Tournament => {},
-        }
+        let (left_profit, right_profit) = expected_profits(&self.simulation, left, right, left_bet, right_bet);
+        self.info_container.left.expected_profit.set(Some(left_profit));
+        self.info_container.right.expected_profit.set(Some(right_profit));
     }
 
     fn clear_info_container(&self) {
@@ -510,206 +510,185 @@ impl State {
 }
 
 
-struct InfoBar {
-    pub element: Element,
-}
-
-impl InfoBar {
-    pub fn new() -> Self {
-        let element = document().create_element("div").unwrap();
-
-        js! { @(no_return)
-            var element = @{&element};
-            element.style.display = "flex";
-            element.style.alignItems = "center";
-            element.style.padding = "0px 7px";
-            element.style.color = "white";
-        }
-
-        InfoBar {
-            element,
-        }
-    }
-
-    pub fn set(&self, text: &str) {
-        self.element.set_text_content(text);
-    }
-
-    pub fn set_color(&self, cmp: Ordering) {
-        let color = match cmp {
-            Ordering::Equal => "white",
-            Ordering::Less => "lightcoral",
-            Ordering::Greater => "limegreen",
-        };
-
-        js! { @(no_return)
-            @{&self.element}.style.color = @{color};
-        }
-    }
-}
-
 struct InfoSide {
-    pub element: Element,
-    name: Element,
-    expected_profit: InfoBar,
-    bet_amount: InfoBar,
-    odds: InfoBar,
-    needed_odds: InfoBar,
-    matches_len: InfoBar,
-    specific_matches_len: InfoBar,
-    winrate: InfoBar,
+    name: Mutable<Option<String>>,
+    expected_profit: Mutable<Option<f64>>,
+    bet_amount: Mutable<Option<f64>>,
+    odds: Mutable<Option<f64>>,
+    needed_odds: Mutable<Option<f64>>,
+    matches_len: Mutable<Option<usize>>,
+    specific_matches_len: Mutable<Option<usize>>,
+    winrate: Mutable<Option<f64>>,
 }
 
 impl InfoSide {
-    pub fn new(color: &str) -> Self {
-        let element = document().create_element("div").unwrap();
-
-        js! { @(no_return)
-            var element = @{&element};
-            element.style.flex = "1";
-            element.style.borderRight = "1px solid #6441a5";
-            element.style.marginRight = "-1px";
-        }
-
-        let name = document().create_element("div").unwrap();
-
-        js! { @(no_return)
-            var name = @{&name};
-            name.style.display = "flex";
-            name.style.alignItems = "center";
-            name.style.justifyContent = "center";
-            name.style.height = "50px";
-            name.style.padding = "5px";
-            name.style.color = "white";
-            name.style.fontSize = "15px";
-            name.style.boxShadow = "hsla(0, 0%, 0%, 0.5) 0px -1px 2px inset";
-            name.style.marginBottom = "2px";
-            name.style.backgroundColor = @{color};
-        }
-
-        element.append_child(&name);
-
-        let matches_len = InfoBar::new();
-        element.append_child(&matches_len.element);
-
-        let specific_matches_len = InfoBar::new();
-        element.append_child(&specific_matches_len.element);
-
-        let expected_profit = InfoBar::new();
-        element.append_child(&expected_profit.element);
-
-        let winrate = InfoBar::new();
-        element.append_child(&winrate.element);
-
-        let needed_odds = InfoBar::new();
-        element.append_child(&needed_odds.element);
-
-        let odds = InfoBar::new();
-        element.append_child(&odds.element);
-
-        let bet_amount = InfoBar::new();
-        element.append_child(&bet_amount.element);
-
+    pub fn new() -> Self {
         Self {
-            element,
-            name,
-            expected_profit,
-            bet_amount,
-            odds,
-            needed_odds,
-            matches_len,
-            specific_matches_len,
-            winrate
+            name: Mutable::new(None),
+            expected_profit: Mutable::new(None),
+            bet_amount: Mutable::new(None),
+            odds: Mutable::new(None),
+            needed_odds: Mutable::new(None),
+            matches_len: Mutable::new(None),
+            specific_matches_len: Mutable::new(None),
+            winrate: Mutable::new(None),
         }
     }
 
-    pub fn set_name(&self, name: &str) {
-        self.name.set_text_content(name);
+    fn clear(&self) {
+        self.name.set(None);
+        self.expected_profit.set(None);
+        self.bet_amount.set(None);
+        self.odds.set(None);
+        self.needed_odds.set(None);
+        self.matches_len.set(None);
+        self.specific_matches_len.set(None);
+        self.winrate.set(None);
     }
 
-    pub fn set_expected_profit(&self, profits: f64, cmp: Ordering) {
-        self.expected_profit.set_color(cmp);
-        self.expected_profit.set(&format!("Expected profit: {}", money(profits.round())));
-    }
+    fn render(&self, other: &Self, color: &str) -> Dom {
+        fn info_bar<A, S, F>(this: &Mutable<Option<A>>, other: S, mut f: F) -> Dom
+            where A: Copy + PartialOrd + 'static,
+                  S: Signal<Item = Option<A>> + 'static,
+                  F: FnMut(A) -> String + 'static {
+            lazy_static! {
+                static ref CLASS: String = class! {
+                    .style("display", "flex")
+                    .style("align-items", "center")
+                    .style("padding", "0px 7px")
+                    .style("color", "white")
+                };
+            }
 
-    pub fn set_odds(&self, odds: f64, cmp: Ordering) {
-        self.odds.set_color(cmp);
-        self.odds.set(&format!("Average odds: {}", display_odds(odds)));
-    }
+            html!("div", {
+                .class(&*CLASS)
 
-    pub fn set_needed_odds(&self, odds: f64, cmp: Ordering) {
-        self.needed_odds.set_color(cmp);
-        self.needed_odds.set(&format!("Needed odds: {}", display_odds(odds)));
-    }
+                .style_signal("color", map_ref! {
+                    let this = this.signal(),
+                    let other = other => {
+                        let cmp = this.and_then(|this| {
+                            other.and_then(|other| {
+                                this.partial_cmp(&other)
+                            })
+                        }).unwrap_or(Ordering::Equal);
 
-    pub fn set_bet_amount(&self, bet_amount: f64, cmp: Ordering) {
-        self.bet_amount.set_color(cmp);
-        self.bet_amount.set(&format!("Bet amount: {}", money(bet_amount)));
-    }
+                        // TODO different color if it's None ?
+                        match cmp {
+                            Ordering::Equal => "white",
+                            Ordering::Less => "lightcoral",
+                            Ordering::Greater => "limegreen",
+                        }
+                    }
+                })
 
-    pub fn set_matches_len(&self, len: usize, cmp: Ordering) {
-        self.matches_len.set_color(cmp);
-        self.matches_len.set(&format!("Number of past matches (in general): {}", len));
-    }
+                .text_signal(this.signal().map(move |x| {
+                    // TODO use RefFn
+                    x.map(|x| f(x)).unwrap_or_else(|| "".to_string())
+                }))
+            })
+        }
 
-    pub fn set_specific_matches_len(&self, len: usize, cmp: Ordering) {
-        self.specific_matches_len.set_color(cmp);
-        self.specific_matches_len.set(&format!("Number of past matches (in specific): {}", len));
-    }
+        lazy_static! {
+            static ref CLASS: String = class! {
+                .style("flex", "1")
+                .style("border-right", "1px solid #6441a5")
+                .style("margin-right", "-1px")
+            };
 
-    pub fn set_winrate(&self, percentage: f64, cmp: Ordering) {
-        self.winrate.set_color(cmp);
-        self.winrate.set(&format!("Winrate: {}%", percentage * 100.0));
-    }
+            static ref CLASS_TEXT: String = class! {
+                .style("display", "flex")
+                .style("align-items", "center")
+                .style("justify-content", "center")
+                .style("height", "50px")
+                .style("padding", "5px")
+                .style("color", "white")
+                .style("font-size", "15px")
+                .style("box-shadow", "hsla(0, 0%, 0%, 0.5) 0px -1px 2px inset")
+                .style("margin-bottom", "2px")
+            };
+        }
 
-    pub fn clear(&self) {
-        self.name.set_text_content("");
-        self.expected_profit.set("");
-        self.odds.set("");
-        self.needed_odds.set("");
-        self.winrate.set("");
-        self.bet_amount.set("");
-        self.matches_len.set("");
-        self.specific_matches_len.set("");
+        html!("div", {
+            .class(&*CLASS)
+            .children(&mut [
+                html!("div", {
+                    .class(&*CLASS_TEXT)
+                    .style("background-color", color)
+                    .text_signal(self.name.signal_cloned().map(|x| {
+                        // TODO use RefFn
+                        x.unwrap_or_else(|| "".to_string())
+                    }))
+                }),
+
+                info_bar(&self.matches_len, other.matches_len.signal(), |x| {
+                    format!("Number of past matches (in general): {}", x)
+                }),
+
+                info_bar(&self.specific_matches_len, always(Some(0)), |x| {
+                    format!("Number of past matches (in specific): {}", x)
+                }),
+
+                info_bar(&self.winrate, other.winrate.signal(), |x| {
+                    format!("Winrate: {}%", x * 100.0)
+                }),
+
+                info_bar(&self.needed_odds, self.odds.signal(), |x| {
+                    format!("Needed odds: {}", display_odds(x))
+                }),
+
+                info_bar(&self.odds, self.needed_odds.signal(), |x| {
+                    format!("Average odds: {}", display_odds(x))
+                }),
+
+                info_bar(&self.bet_amount, other.bet_amount.signal(), |x| {
+                    format!("Bet amount: {}", money(x))
+                }),
+
+                info_bar(&self.expected_profit, other.expected_profit.signal(), |x| {
+                    format!("Expected profit: {}", money(x.round()))
+                }),
+            ])
+        })
     }
 }
 
 struct InfoContainer {
-    pub element: Element,
-    pub left: InfoSide,
-    pub right: InfoSide,
+    left: InfoSide,
+    right: InfoSide,
 }
 
 impl InfoContainer {
-    pub fn new() -> Self {
-        let element = document().create_element("div").unwrap();
-
-        js! { @(no_return)
-            var element = @{&element};
-            element.style.display = "flex";
-            element.style.backgroundColor = "#201d2b"; // rgba(100, 65, 165, 0.09)
-            element.style.borderBottom = "1px solid #6441a5";
-            element.style.width = "100%";
-            element.style.height = "100%";
-            element.style.position = "absolute";
-            element.style.left = "0px";
-            element.style.top = "0px";
-        }
-
-        let left = InfoSide::new("rgb(176, 68, 68)");
-        element.append_child(&left.element);
-
-        let right = InfoSide::new("rgb(52, 158, 255)");
-        element.append_child(&right.element);
-
+    fn new() -> Self {
         Self {
-            element,
-            left,
-            right,
+            left: InfoSide::new(),
+            right: InfoSide::new(),
         }
     }
 
-    pub fn clear(&self) {
+    fn render(&self) -> Dom {
+        lazy_static! {
+            static ref CLASS: String = class! {
+                .style("display", "flex")
+                .style("background-color", "#201d2b") // rgba(100, 65, 165, 0.09)
+                .style("border-bottom", "1px solid #6441a5")
+                .style("width", "100%")
+                .style("height", "100%")
+                .style("position", "absolute")
+                .style("left", "0px")
+                .style("top", "0px")
+            };
+        }
+
+        html!("div", {
+            .class(&*CLASS)
+            .children(&mut [
+                self.left.render(&self.right, "rgb(176, 68, 68)"),
+                self.right.render(&self.left, "rgb(52, 158, 255)"),
+            ])
+        })
+    }
+
+    fn clear(&self) {
         self.left.clear();
         self.right.clear();
     }
@@ -737,13 +716,10 @@ fn main() {
 
     let container = Rc::new(InfoContainer::new());
 
-    {
-        let container = container.clone();
-
-        wait_until_defined(|| query("#stream"), move |stream| {
-            stream.append_child(&container.element);
-        });
-    }
+    wait_until_defined(|| query("#stream"), clone!(container => move |stream| {
+        dominator::append_dom(&stream, container.render());
+        log!("Information initialized");
+    }));
 
     wait_until_defined(|| query("#iframeplayer"), move |video| {
         // TODO hacky

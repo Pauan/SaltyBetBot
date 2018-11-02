@@ -135,6 +135,10 @@ pub fn needed_odds<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) whe
     weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::needed_odds(&records, name))
 }
 
+pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet))
+}
+
 
 #[derive(Debug, Clone, Copy)]
 pub enum MoneyStrategy {
@@ -210,7 +214,7 @@ impl BetStrategy {
         match self {
             BetStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
             BetStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
-            BetStrategy::ExpectedProfit => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet)),
+            BetStrategy::ExpectedProfit => expected_profits(simulation, left, right, left_bet, right_bet),
             BetStrategy::WinnerBet => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
             BetStrategy::Odds => average_odds(simulation, left, right, left_bet, right_bet),
             BetStrategy::OddsDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),

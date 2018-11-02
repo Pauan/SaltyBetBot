@@ -5,6 +5,8 @@ extern crate stdweb;
 #[macro_use]
 extern crate salty_bet_bot;
 extern crate algorithm;
+#[macro_use]
+extern crate dominator;
 
 use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, Loading, MAX_MATCH_TIME_LIMIT};
 use algorithm::record::Record;
@@ -102,88 +104,78 @@ fn main() {
     document().body().unwrap().append_child(loading.element());
 
     {
-        let on_start = {
-            let loading = loading.clone();
-
-            move || {
-                log!("Loading file");
-                loading.show();
-            }
-        };
+        let on_start = clone!(loading => move || {
+            log!("Loading file");
+            loading.show();
+        });
 
         let on_progress = |loaded, total| {
             log!("Loaded {} / {}", loaded, total);
         };
 
-        let on_loaded = {
-            let loading = loading.clone();
+        let on_loaded = clone!(loading => move |new_records: String| {
+            log!("File loaded, deserializing records");
 
-            move |new_records: String| {
-                log!("File loaded, deserializing records");
+            let mut new_records = deserialize_records(&new_records);
 
-                let mut new_records = deserialize_records(&new_records);
+            log!("{} records deserialized, now retrieving current records", new_records.len());
 
-                log!("{} records deserialized, now retrieving current records", new_records.len());
+            records_get_all(clone!(loading => move |mut old_records| {
+                log!("{} records retrieved, now sorting", old_records.len());
 
-                let loading = loading.clone();
+                old_records.sort_by(Record::sort_date);
+                new_records.sort_by(Record::sort_date);
 
-                records_get_all(move |mut old_records| {
-                    log!("{} records retrieved, now sorting", old_records.len());
+                log!("Sorting complete, now merging");
 
-                    old_records.sort_by(Record::sort_date);
-                    new_records.sort_by(Record::sort_date);
+                let mut added_records = vec![];
 
-                    log!("Sorting complete, now merging");
+                // TODO this can be implemented more efficiently (linear rather than quadratic)
+                for new_record in new_records {
+                    let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
+                    let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
 
-                    let mut added_records = vec![];
+                    let index = match old_records.binary_search_by(|x| x.date.partial_cmp(&start_date).unwrap()) {
+                        Ok(a) => a,
+                        Err(a) => a,
+                    };
 
-                    // TODO this can be implemented more efficiently (linear rather than quadratic)
-                    for new_record in new_records {
-                        let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
-                        let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
+                    let mut found = false;
 
-                        let index = match old_records.binary_search_by(|x| x.date.partial_cmp(&start_date).unwrap()) {
-                            Ok(a) => a,
-                            Err(a) => a,
-                        };
-
-                        let mut found = false;
-
-                        for old_record in &old_records[index..] {
-                            if old_record.date > end_date {
-                                break;
-                            }
-
-                            // TODO is the bet_amount reliable enough to be used ?
-                            if old_record.left.name        == new_record.left.name &&
-                               old_record.left.win_streak  == new_record.left.win_streak &&
-                               old_record.right.name       == new_record.right.name &&
-                               old_record.right.win_streak == new_record.right.win_streak &&
-                               old_record.winner           == new_record.winner &&
-                               old_record.tier             == new_record.tier &&
-                               old_record.mode             == new_record.mode {
-                                found = true;
-                                break;
-                            }
+                    for old_record in &old_records[index..] {
+                        if old_record.date > end_date {
+                            break;
                         }
 
-                        if !found {
-                            added_records.push(new_record);
+                        // TODO is the bet_amount reliable enough to be used ?
+                        if old_record.left.name        == new_record.left.name &&
+                           old_record.left.win_streak  == new_record.left.win_streak &&
+                           old_record.right.name       == new_record.right.name &&
+                           old_record.right.win_streak == new_record.right.win_streak &&
+                           old_record.winner           == new_record.winner &&
+                           old_record.tier             == new_record.tier &&
+                           old_record.mode             == new_record.mode {
+                            found = true;
+                            break;
                         }
                     }
 
-                    log!("Merging complete, inserting new records");
+                    if !found {
+                        added_records.push(new_record);
+                    }
+                }
 
-                    let len = added_records.len();
+                log!("Merging complete, inserting new records");
 
-                    records_insert_many(&added_records, move || {
-                        loading.hide();
+                let len = added_records.len();
 
-                        log!("Inserted {} new records", len);
-                    });
+                records_insert_many(&added_records, move || {
+                    loading.hide();
+
+                    log!("Inserted {} new records", len);
                 });
-            }
-        };
+            }));
+        });
 
         on_import_file("import-input", on_start, on_progress, on_loaded);
     }
@@ -192,50 +184,39 @@ fn main() {
         click("import-input");
     });
 
-    {
-        let loading = loading.clone();
 
-        on_click("export-button", move || {
-            log!("Getting records");
+    on_click("export-button", clone!(loading => move || {
+        log!("Getting records");
+
+        loading.show();
+
+        records_get_all(clone!(loading => move |records| {
+            log!("Got records, now serializing");
+
+            let records = serialize_records(records);
+
+            log!("Serialization complete, now downloading");
+
+            download(&format!("SaltyBet Records ({}).json", current_date()), &records);
+
+            loading.hide();
+
+            log!("Download complete");
+        }));
+    }));
+
+    on_click("delete-button", clone!(loading => move || {
+        if confirm("This will PERMANENTLY delete ALL of the match records!\n\nYou should export the match records before doing this.\n\nAre you sure that you want to delete the match records?") {
+            log!("Deleting match records");
 
             loading.show();
 
-            let loading = loading.clone();
-
-            records_get_all(move |records| {
-                log!("Got records, now serializing");
-
-                let records = serialize_records(records);
-
-                log!("Serialization complete, now downloading");
-
-                download(&format!("SaltyBet Records ({}).json", current_date()), &records);
-
+            records_delete_all(clone!(loading => move || {
                 loading.hide();
-
-                log!("Download complete");
-            });
-        });
-    }
-
-    {
-        let loading = loading.clone();
-
-        on_click("delete-button", move || {
-            if confirm("This will PERMANENTLY delete ALL of the match records!\n\nYou should export the match records before doing this.\n\nAre you sure that you want to delete the match records?") {
-                log!("Deleting match records");
-
-                loading.show();
-
-                let loading = loading.clone();
-
-                records_delete_all(move || {
-                    loading.hide();
-                    log!("Match records deleted");
-                });
-            }
-        });
-    }
+                log!("Match records deleted");
+            }));
+        }
+    }));
 
     on_click("open-chart", || {
         open_tab("chart.html");
