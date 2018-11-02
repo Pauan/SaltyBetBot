@@ -107,6 +107,15 @@ pub fn collapse_whitespace(input: &str) -> String {
 }
 
 
+pub fn parse_name(input: &str) -> Option<String> {
+    lazy_static! {
+        static ref REGEXP: regexp::RegExp = regexp::RegExp::new(r"^(.+) \[-?[0-9,]+\] #[0-9,]+$");
+    }
+
+    REGEXP.first_match(input).and_then(|mut captures| captures[1].take())
+}
+
+
 pub fn parse_money(input: &str) -> Option<f64> {
     lazy_static! {
         static ref MONEY_REGEX: regexp::RegExp = regexp::RegExp::new(

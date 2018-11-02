@@ -16,11 +16,11 @@ extern crate futures_signals;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds, needed_odds, expected_profits};
-use stdweb::web::set_timeout;
+use stdweb::web::{set_timeout, NodeList};
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
 use dominator::Dom;
 
@@ -55,7 +55,6 @@ const MAX_BET_TIME_LIMIT: f64 = 1000.0 * 60.0 * 10.0;
 
 #[derive(Debug, Clone)]
 pub struct Information {
-    player_is_illuminati: bool,
     left_bettors_illuminati: f64,
     right_bettors_illuminati: f64,
     left_bettors_normal: f64,
@@ -181,40 +180,78 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
             .and_then(get_text_content)
             .and_then(|x| parse_f64(&x));
 
+        // TODO detect whether the player is Illuminati or not ?
+        let name = query("#header span.navbar-text")
+            .and_then(get_text_content)
+            .and_then(|x| parse_name(&x));
+
         if let Some(current_balance) = current_balance {
-            let left_bettors_illuminati = query_all("#bettors1 > p.bettor-line > strong.goldtext").len() as f64;
-            let right_bettors_illuminati = query_all("#bettors2 > p.bettor-line > strong.goldtext").len() as f64;
+            if let Some(name) = name {
+                let mut matched_left = false;
+                let mut matched_right = false;
 
-            let left_bettors_normal = query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)").len() as f64;
-            let right_bettors_normal = query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)").len() as f64;
+                fn filtered_len(list: NodeList, name: &str, matched: &mut bool) -> f64 {
+                    let mut len = 0.0;
 
-            let left_bet = query("#lastbet > span:first-of-type.redtext")
-                .and_then(get_text_content)
-                .and_then(|x| parse_money(&x));
+                    for bettor in list {
+                        if let Some(bettor) = get_text_content(bettor) {
+                            if bettor != name {
+                                len += 1.0;
 
-            let right_bet = query("#lastbet > span:first-of-type.bluetext")
-                .and_then(get_text_content)
-                .and_then(|x| parse_money(&x));
+                            } else {
+                                assert!(!*matched);
+                                *matched = true;
+                            }
+                        }
+                    }
 
-            state.borrow_mut().information = Some(Information {
-                // TODO handle the situation where the player is Illuminati
-                player_is_illuminati: false,
-                left_bettors_illuminati,
-                right_bettors_illuminati,
-                left_bettors_normal,
-                right_bettors_normal,
-                bet: match left_bet {
-                    Some(left) => match right_bet {
-                        None => Bet::Left(left),
-                        Some(_) => unreachable!(),
+                    len
+                }
+
+                let left_bettors_illuminati = filtered_len(query_all("#bettors1 > p.bettor-line > strong.goldtext"), &name, &mut matched_left);
+                let right_bettors_illuminati = filtered_len(query_all("#bettors2 > p.bettor-line > strong.goldtext"), &name, &mut matched_right);
+
+                let left_bettors_normal = filtered_len(query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_left);
+                let right_bettors_normal = filtered_len(query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_right);
+
+                let left_bet = query("#lastbet > span:first-of-type.redtext")
+                    .and_then(get_text_content)
+                    .and_then(|x| parse_money(&x));
+
+                let right_bet = query("#lastbet > span:first-of-type.bluetext")
+                    .and_then(get_text_content)
+                    .and_then(|x| parse_money(&x));
+
+                state.borrow_mut().information = Some(Information {
+                    left_bettors_illuminati,
+                    right_bettors_illuminati,
+                    left_bettors_normal,
+                    right_bettors_normal,
+                    bet: match left_bet {
+                        Some(left) => match right_bet {
+                            None => {
+                                assert!(matched_left);
+                                assert!(!matched_right);
+                                Bet::Left(left)
+                            },
+                            Some(_) => unreachable!(),
+                        },
+                        None => match right_bet {
+                            Some(right) => {
+                                assert!(!matched_left);
+                                assert!(matched_right);
+                                Bet::Right(right)
+                            },
+                            None => {
+                                assert!(!matched_left);
+                                assert!(!matched_right);
+                                Bet::None
+                            },
+                        },
                     },
-                    None => match right_bet {
-                        Some(right) => Bet::Right(right),
-                        None => Bet::None,
-                    },
-                },
-                sum: current_balance,
-            });
+                    sum: current_balance,
+                });
+            }
         }
     }
 }
@@ -348,23 +385,9 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
 
                                             match information.bet {
                                                 Bet::Left(amount) => {
-                                                    if information.player_is_illuminati {
-                                                        information.left_bettors_illuminati -= 1.0;
-
-                                                    } else {
-                                                        information.left_bettors_normal -= 1.0;
-                                                    }
-
                                                     closed.left.bet_amount -= amount;
                                                 },
                                                 Bet::Right(amount) => {
-                                                    if information.player_is_illuminati {
-                                                        information.right_bettors_illuminati -= 1.0;
-
-                                                    } else {
-                                                        information.right_bettors_normal -= 1.0;
-                                                    }
-
                                                     closed.right.bet_amount -= amount;
                                                 },
                                                 Bet::None => {},

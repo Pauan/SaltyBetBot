@@ -219,14 +219,20 @@ fn main() {
                                                         break;
                                                     }
 
-                                                    // TODO is the bet_amount reliable enough to be used ?
-                                                    if old_record.left.name        == new_record.left.name &&
-                                                       old_record.left.win_streak  == new_record.left.win_streak &&
-                                                       old_record.right.name       == new_record.right.name &&
-                                                       old_record.right.win_streak == new_record.right.win_streak &&
-                                                       old_record.winner           == new_record.winner &&
-                                                       old_record.tier             == new_record.tier &&
-                                                       old_record.mode             == new_record.mode {
+                                                    // TODO are the bet_amount, illuminati_bettors, and normal_bettors reliable enough to be used ?
+                                                    if old_record.left.name                == new_record.left.name &&
+                                                       old_record.left.bet_amount          == new_record.left.bet_amount &&
+                                                       old_record.left.win_streak          == new_record.left.win_streak &&
+                                                       old_record.left.illuminati_bettors  == new_record.left.illuminati_bettors &&
+                                                       old_record.left.normal_bettors      == new_record.left.normal_bettors &&
+                                                       old_record.right.name               == new_record.right.name &&
+                                                       old_record.right.bet_amount         == new_record.right.bet_amount &&
+                                                       old_record.right.win_streak         == new_record.right.win_streak &&
+                                                       old_record.right.illuminati_bettors == new_record.right.illuminati_bettors &&
+                                                       old_record.right.normal_bettors     == new_record.right.normal_bettors &&
+                                                       old_record.winner                   == new_record.winner &&
+                                                       old_record.tier                     == new_record.tier &&
+                                                       old_record.mode                     == new_record.mode {
                                                         found = true;
                                                         break;
                                                     }
