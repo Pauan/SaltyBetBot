@@ -32,7 +32,8 @@ extern crate algorithm;
 use std::iter::Iterator;
 use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp};
 use algorithm::record::{Tier, Mode, Winner};
-use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node};
+use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode};
+use stdweb::unstable::TryInto;
 
 
 fn parse_tier(input: &str) -> Option<Tier> {
@@ -199,6 +200,22 @@ fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
 
 
 fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
+    let node: Element = node.try_into().unwrap();
+
+    // This removes the Twitch badges
+    // TODO quite hacky, make this more robust
+    node.remove_child(&node.first_child().unwrap()).unwrap();
+
+    // Hack to replace emotes with their text version, needed because sometimes fighters have emotes in their name
+    // TODO can this be made better somehow ?
+    for node in node.query_selector_all("img").unwrap() {
+        // TODO replace with stdweb stuff
+        js! { @(no_return)
+            var node = @{node};
+            node.parentNode.replaceChild(document.createTextNode(node.alt || ""), node);
+        }
+    }
+
     get_text_content(node).and_then(|x| parse_message(&x, date))
 }
 
