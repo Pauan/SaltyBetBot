@@ -13,9 +13,11 @@ extern crate futures_signals;
 extern crate lazy_static;
 
 use std::rc::Rc;
-use salty_bet_bot::{records_get_all, percentage, decimal, money, Loading};
-use algorithm::simulation::{Simulation, Simulator, Bet};
-use algorithm::record::{Record, Character, Winner, Tier, Mode, Profit};
+use std::cmp::Ordering;
+use salty_bet_bot::{records_get_all, percentage, decimal, money, display_odds, Loading};
+use algorithm::simulation::{Simulation, Simulator, Strategy, Bet};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
+use algorithm::record::{Record, Winner, Tier, Mode, Profit};
 use stdweb::unstable::TryInto;
 use stdweb::traits::*;
 use stdweb::web::document;
@@ -31,14 +33,32 @@ fn get_ending_index(starting_index: usize) -> usize {
 }
 
 
+struct Information {
+    name: String,
+    matches_len: usize,
+    specific_matches_len: usize,
+    bet_amount: f64,
+    win_streak: f64,
+    illuminati_bettors: f64,
+    normal_bettors: f64,
+    winrate: f64,
+    needed_odds: f64,
+    simulated_bet: f64,
+    odds: f64,
+    expected_profit: f64,
+}
+
 struct State {
     starting_index: Mutable<usize>,
-    records: Vec<(usize, usize, Record)>,
+    records: Vec<(Record, Information, Information)>,
 }
 
 impl State {
     fn new(records: Vec<Record>) -> Self {
-        let mut simulation: Simulation<(), ()> = Simulation::new();
+        let mut simulation: Simulation<CustomStrategy, AllInStrategy> = Simulation::new();
+
+        simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
+        simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
 
         Self {
             starting_index: Mutable::new(0),
@@ -46,8 +66,79 @@ impl State {
                 .map(|record| {
                     let left_len = simulation.matches_len(&record.left.name);
                     let right_len = simulation.matches_len(&record.right.name);
+                    let specific_matches_len = simulation.specific_matches_len(&record.left.name, &record.right.name);
+
+                    // TODO code duplication with bin/chart
+                    if record.sum != -1.0 {
+                        match record.mode {
+                            Mode::Tournament => {
+                                simulation.tournament_sum = record.sum;
+                            },
+                            Mode::Matchmaking => {
+                                simulation.sum = record.sum;
+                            },
+                        }
+                    }
+
+                    // TODO code duplication with bin/saltybet
+                    let (left_winrate, right_winrate) = winrates(&simulation, &record.left.name, &record.right.name);
+                    let (left_needed_odds, right_needed_odds) = needed_odds(&simulation, &record.left.name, &record.right.name);
+
+                    // TODO code duplication with bin/saltybet
+                    let (left_bet, right_bet) = match record.mode {
+                        Mode::Matchmaking => simulation.matchmaking_strategy.unwrap().bet_amount(&simulation,&record.tier, &record.left.name, &record.right.name),
+                        Mode::Tournament => simulation.tournament_strategy.unwrap().bet_amount(&simulation, &record.tier, &record.left.name, &record.right.name),
+                    };
+
+                    // TODO code duplication with bin/saltybet
+                    let (left_odds, right_odds) = average_odds(&simulation, &record.left.name, &record.right.name, left_bet, right_bet);
+                    let (left_profit, right_profit) = expected_profits(&simulation, &record.left.name, &record.right.name, left_bet, right_bet);
+
+                    let left = Information {
+                        // TODO avoid this clone somehow ?
+                        name: record.left.name.clone(),
+                        matches_len: left_len,
+                        specific_matches_len: specific_matches_len,
+                        win_streak: record.left.win_streak,
+                        illuminati_bettors: record.left.illuminati_bettors,
+                        normal_bettors: record.left.normal_bettors,
+                        bet_amount: record.left.bet_amount + if let Bet::Left(amount) = record.bet { amount } else { 0.0 },
+                        winrate: left_winrate,
+                        needed_odds: left_needed_odds,
+                        simulated_bet: left_bet,
+                        odds: left_odds,
+                        expected_profit: left_profit,
+                    };
+
+                    let right = Information {
+                        // TODO avoid this clone somehow ?
+                        name: record.right.name.clone(),
+                        matches_len: right_len,
+                        specific_matches_len: specific_matches_len,
+                        win_streak: record.right.win_streak,
+                        illuminati_bettors: record.right.illuminati_bettors,
+                        normal_bettors: record.right.normal_bettors,
+                        bet_amount: record.right.bet_amount + if let Bet::Right(amount) = record.bet { amount } else { 0.0 },
+                        winrate: right_winrate,
+                        needed_odds: right_needed_odds,
+                        simulated_bet: right_bet,
+                        odds: right_odds,
+                        expected_profit: right_profit,
+                    };
+
+                    // TODO code duplication with bin/chart
+                    simulation.calculate(&record, &record.bet);
+
+                    // TODO code duplication with bin/chart
+                    if let Mode::Matchmaking = record.mode {
+                        let new_sum = simulation.sum;
+                        simulation.insert_sum(new_sum);
+                    }
+
+                    // TODO code duplication with bin/chart
                     simulation.insert_record(&record);
-                    (left_len, right_len, record)
+
+                    (record, left, right)
                     /*simulation.calculate(&record, &record.bet);
 
                     if let Mode::Tournament = record.mode {
@@ -100,6 +191,10 @@ fn display_records(records: Vec<Record>) -> Dom {
             .style("text-align", "right")
         };
 
+        static ref CLASS_NORMAL: String = class! {
+            .style("color", "white")
+        };
+
         static ref CLASS_RED: String = class! {
             .style("color", "#D14836")
         };
@@ -133,8 +228,7 @@ fn display_records(records: Vec<Record>) -> Dom {
 
         static ref CLASS_CELL: String = class! {
             .style("border", "1px solid #6441a5")
-            .style("padding-left", "5px")
-            .style("padding-right", "5px")
+            .style("padding", "5px")
         };
 
         static ref CLASS_HEADER: String = class! {
@@ -146,7 +240,7 @@ fn display_records(records: Vec<Record>) -> Dom {
             .style("background-color", "#19191f")
 
             .style("font-size", "14px")
-            .style("padding", "2px 5px")
+            .style("padding", "5px")
         };
 
         static ref CLASS_PAGINATOR: String = class! {
@@ -252,10 +346,15 @@ fn display_records(records: Vec<Record>) -> Dom {
                                 })
                             }
 
-                            fn field(name: &str, child: Dom) -> Dom {
+                            fn field(name: &str, child: Dom, order: Ordering) -> Dom {
                                 html!("div", {
                                     .children(&mut [
                                         html!("span", {
+                                            .class(match order {
+                                                Ordering::Equal => &*CLASS_NORMAL,
+                                                Ordering::Less => &*CLASS_LOSS,
+                                                Ordering::Greater => &*CLASS_GAIN,
+                                            })
                                             .text(name)
                                         }),
                                         child,
@@ -272,14 +371,20 @@ fn display_records(records: Vec<Record>) -> Dom {
                             }
 
                             // TODO calculate the illuminati and normal bettors correctly (adding 1 depending on whether it bet or not)
-                            fn display_character(character: &Character, class: &str, matches_len: usize, bet_amount: f64) -> Dom {
+                            fn display_character(this: &Information, other: &Information, class: &str) -> Dom {
                                 td(&*CLASS_ALIGN_LEFT, &mut [
-                                    field("Name: ", span(class, &character.name)),
-                                    field("Bet amount: ", span(&*CLASS_MONEY, &money(character.bet_amount + bet_amount))),
-                                    field("Number of matches: ", text(&matches_len.to_string())),
-                                    //field("Win streak: ", &character.win_streak.to_string()),
-                                    //field("Illuminati bettors: ", &character.illuminati_bettors.to_string()),
-                                    //field("Normal bettors: ", &character.normal_bettors.to_string()),
+                                    field("Name: ", span(class, &this.name), Ordering::Equal),
+                                    field("Bet amount: ", span(&*CLASS_MONEY, &money(this.bet_amount)), this.bet_amount.partial_cmp(&other.bet_amount).unwrap()),
+                                    field("Win streak: ", text(&this.win_streak.to_string()), this.win_streak.partial_cmp(&other.win_streak).unwrap()),
+                                    field("Illuminati bettors: ", text(&this.illuminati_bettors.to_string()), this.illuminati_bettors.partial_cmp(&other.illuminati_bettors).unwrap()),
+                                    field("Normal bettors: ", text(&this.normal_bettors.to_string()), this.normal_bettors.partial_cmp(&other.normal_bettors).unwrap()),
+                                    field("Number of past matches (in general): ", text(&this.matches_len.to_string()), this.matches_len.cmp(&other.matches_len)),
+                                    field("Number of past matches (in specific): ", text(&this.specific_matches_len.to_string()), this.specific_matches_len.cmp(&0)),
+                                    field("Winrate: ", text(&format!("{}%", this.winrate * 100.0)), this.winrate.partial_cmp(&other.winrate).unwrap()),
+                                    field("Needed odds: ", text(&display_odds(this.needed_odds)), this.needed_odds.partial_cmp(&this.odds).unwrap()),
+                                    field("Average odds: ", text(&display_odds(this.odds)), this.odds.partial_cmp(&this.needed_odds).unwrap()),
+                                    field("Simulated bet amount: ", span(&*CLASS_MONEY, &money(this.simulated_bet)), this.simulated_bet.partial_cmp(&other.simulated_bet).unwrap()),
+                                    field("Simulated expected profit: ", span(&*CLASS_MONEY, &money(this.expected_profit)), this.expected_profit.partial_cmp(&other.expected_profit).unwrap()),
                                 ])
                             }
 
@@ -306,7 +411,7 @@ fn display_records(records: Vec<Record>) -> Dom {
                             let start_index = state.records.len().saturating_sub(ending_index);
                             let end_index = state.records.len().saturating_sub(starting_index);
 
-                            state.records[start_index..end_index].iter().rev().map(|(left_matches_len, right_matches_len, record)| {
+                            state.records[start_index..end_index].iter().rev().map(|(record, left_information, right_information)| {
                                 let profit = record.profit(&record.bet);
                                 let bet_amount = record.bet.amount();
 
@@ -353,8 +458,17 @@ fn display_records(records: Vec<Record>) -> Dom {
                                             })
                                         ]),
 
-                                        display_character(&record.left, &*CLASS_RED, *left_matches_len, if let Bet::Left(amount) = record.bet { amount } else { 0.0 }),
-                                        display_character(&record.right, &*CLASS_BLUE, *right_matches_len, if let Bet::Right(amount) = record.bet { amount } else { 0.0 }),
+                                        display_character(
+                                            &left_information,
+                                            &right_information,
+                                            &*CLASS_RED,
+                                        ),
+
+                                        display_character(
+                                            &right_information,
+                                            &left_information,
+                                            &*CLASS_BLUE,
+                                        ),
 
                                         td(&*CLASS_ALIGN_CENTER, &mut [
                                             match record.winner {

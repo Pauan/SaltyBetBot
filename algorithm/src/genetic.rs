@@ -11,6 +11,55 @@ pub const MUTATION_RATE: Percentage = Percentage(0.10);
 const MAX_RECURSION_DEPTH: u32 = 2; // 4 maximum nodes
 
 
+/*const LAYERS: usize = 10;
+const NODES: usize = 10;
+
+struct Layer {
+    weights: Vec<Percentage>,
+    outputs: Vec<Layer>,
+}
+
+pub struct NeuralNetwork {
+    layers: Vec<Layer>,
+    weights: Vec<Vec<Percentage>>,
+    biases: Vec<Vec<Percentage>>,
+}
+
+impl Creature<()> for NeuralNetwork {
+    fn new() -> Self {
+        Self {
+            weights: (0..LAYERS).map(|_| {
+                (0..NODES).map(|_| Gene::new()).collect()
+            }).collect(),
+
+            biases: (0..LAYERS).map(|_| {
+                (0..NODES).map(|_| Gene::new()).collect()
+            }).collect(),
+        }
+    }
+
+    fn breed(&self, other: &Self, data: ()) -> Self {
+        Self {
+            weights: self.weights.iter().zip(other.weights.iter())
+                .map(|(left, right)| {
+                    left.into_iter().zip(right.into_iter())
+                        .map(|(left, right)| left.choose(right))
+                        .collect()
+                })
+                .collect(),
+
+            biases: self.biases.iter().zip(other.biases.iter())
+                .map(|(left, right)| {
+                    left.into_iter().zip(right.into_iter())
+                        .map(|(left, right)| left.choose(right))
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+}*/
+
+
 pub trait Creature<A>: Ord {
     fn new(data: &A) -> Self;
 

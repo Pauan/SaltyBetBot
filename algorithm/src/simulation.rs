@@ -438,7 +438,8 @@ pub mod lookup {
 
         } else {
             // The `max` is so that it won't bet if they're both negative
-            (earnings / len).max(0.0)
+            // TODO is this round a good idea ?
+            (earnings / len).round().max(0.0)
         }
     }
 

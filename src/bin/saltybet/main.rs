@@ -19,31 +19,10 @@ use std::cell::RefCell;
 use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
-use algorithm::strategy::{AllInStrategy, CustomStrategy, BetStrategy, MoneyStrategy, winrates, average_odds, needed_odds, expected_profits};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
 use stdweb::web::{set_timeout, NodeList};
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
 use dominator::Dom;
-
-
-//const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
-
-const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
-    average_sums: false,
-    round_to_magnitude: false,
-    scale_by_matches: true,
-    bet: BetStrategy::Odds,
-    money: MoneyStrategy::ExpectedBetWinner,
-};
-
-/*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
-    expected_profit: true,
-    winrate: false,
-    bet_difference: false,
-    winrate_difference: false,
-    use_percentages: true,
-};*/
-
-const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
 
 
 const SHOULD_BET: bool = true;
@@ -664,11 +643,11 @@ impl InfoSide {
                 }),
 
                 info_bar(&self.bet_amount, other.bet_amount.signal(), |x| {
-                    format!("Bet amount: {}", money(x))
+                    format!("Simulated bet amount: {}", money(x))
                 }),
 
                 info_bar(&self.expected_profit, other.expected_profit.signal(), |x| {
-                    format!("Expected profit: {}", money(x.round()))
+                    format!("Simulated expected profit: {}", money(x))
                 }),
             ])
         })

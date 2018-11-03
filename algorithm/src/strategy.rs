@@ -3,6 +3,27 @@ use record::{Tier, Record};
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
+//const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
+
+pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
+    average_sums: false,
+    round_to_magnitude: false,
+    scale_by_matches: true,
+    bet: BetStrategy::Odds,
+    money: MoneyStrategy::ExpectedBetWinner,
+};
+
+/*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
+    expected_profit: true,
+    winrate: false,
+    bet_difference: false,
+    winrate_difference: false,
+    use_percentages: true,
+};*/
+
+pub const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
+
+
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 40.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
