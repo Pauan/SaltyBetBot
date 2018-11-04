@@ -230,16 +230,22 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                     },
                     sum: current_balance,
                 });
+
+            }  else {
+                log!("Invalid name");
             }
+
+        }  else {
+            log!("Invalid current balance");
         }
     }
 }
 
 
 fn reload_page() {
-    js! { @(no_return)
+    /*js! { @(no_return)
         location.reload();
-    }
+    }*/
 }
 
 

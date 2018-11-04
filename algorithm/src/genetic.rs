@@ -1,9 +1,9 @@
 use std;
 use random;
-use record::{ Record, Mode, Tier };
+use record::{Record, Mode, Tier};
 use rayon::prelude::*;
-use simulation::{ Simulation, Strategy, Bet, Calculate, Simulator };
-use types::{BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
+use simulation::{Simulation, Strategy, Bet, Calculate, Simulator, SALT_MINE_AMOUNT, lookup};
+use types::{FitnessResult, BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
 
 
 const MAX_BET_AMOUNT: f64 = 1000000.0;
@@ -11,59 +11,147 @@ pub const MUTATION_RATE: Percentage = Percentage(0.10);
 const MAX_RECURSION_DEPTH: u32 = 2; // 4 maximum nodes
 
 
-/*const LAYERS: usize = 10;
-const NODES: usize = 10;
+const INPUTS: usize = 6;
+const LAYERS: usize = 3;
 
-struct Layer {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Node {
+    bias: Percentage,
     weights: Vec<Percentage>,
-    outputs: Vec<Layer>,
 }
 
-pub struct NeuralNetwork {
-    layers: Vec<Layer>,
-    weights: Vec<Vec<Percentage>>,
-    biases: Vec<Vec<Percentage>>,
+impl Node {
+    fn calculate(&self, layers: &[Layer], input: &[f64]) -> f64 {
+        let sum: f64 = match layers.split_last() {
+            Some((layer, rest)) => {
+                self.weights.iter().zip(layer.nodes.iter()).map(|(weight, node)| node.calculate(rest, input) * weight.0).sum()
+            },
+            None => {
+                self.weights.iter().zip(input.into_iter()).map(|(weight, input)| input * weight.0).sum()
+            },
+        };
+
+        sum + self.bias.0
+    }
 }
 
-impl Creature<()> for NeuralNetwork {
+impl Gene for Node {
     fn new() -> Self {
         Self {
-            weights: (0..LAYERS).map(|_| {
-                (0..NODES).map(|_| Gene::new()).collect()
-            }).collect(),
-
-            biases: (0..LAYERS).map(|_| {
-                (0..NODES).map(|_| Gene::new()).collect()
-            }).collect(),
+            bias: Gene::new(),
+            weights: (0..INPUTS).map(|_| Gene::new()).collect(),
         }
     }
 
-    fn breed(&self, other: &Self, data: ()) -> Self {
+    fn choose(&self, other: &Self) -> Self {
         Self {
-            weights: self.weights.iter().zip(other.weights.iter())
-                .map(|(left, right)| {
-                    left.into_iter().zip(right.into_iter())
-                        .map(|(left, right)| left.choose(right))
-                        .collect()
-                })
-                .collect(),
-
-            biases: self.biases.iter().zip(other.biases.iter())
-                .map(|(left, right)| {
-                    left.into_iter().zip(right.into_iter())
-                        .map(|(left, right)| left.choose(right))
-                        .collect()
-                })
-                .collect(),
+            bias: self.bias.choose(&other.bias),
+            weights: choose_vec(&self.weights, &other.weights),
         }
     }
-}*/
+}
 
 
-pub trait Creature<A>: Ord {
-    fn new(data: &A) -> Self;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Layer {
+    nodes: Vec<Node>,
+}
 
-    fn breed(&self, other: &Self, data: &A) -> Self;
+impl Gene for Layer {
+    fn new() -> Self {
+        Self {
+            nodes: (0..INPUTS).map(|_| Gene::new()).collect(),
+        }
+    }
+
+    fn choose(&self, other: &Self) -> Self {
+        Self {
+            nodes: choose_vec(&self.nodes, &other.nodes),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeuralNetwork {
+    hidden_layers: Vec<Layer>,
+    output_layer: Node,
+}
+
+impl NeuralNetwork {
+    fn calculate(&self, input: &[f64]) -> f64 {
+        self.output_layer.calculate(&self.hidden_layers, input)
+    }
+}
+
+impl Strategy for NeuralNetwork {
+    fn bet_amount<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
+        (SALT_MINE_AMOUNT, SALT_MINE_AMOUNT)
+    }
+
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let (left_bet, right_bet) = self.bet_amount(simulation, tier, left, right);
+
+        let left_matches = simulation.lookup_character(left);
+        let right_matches = simulation.lookup_character(right);
+
+        // NeededOdds
+        // Odds
+        // Duration
+        // Bettors
+        // Winrate
+        // MatchLen
+        let left_value = self.calculate(&[
+            lookup::needed_odds(&left_matches, left),
+            lookup::odds(left_matches.iter().map(|x| *x), left, left_bet),
+            lookup::duration(left_matches.iter().map(|x| *x)),
+            lookup::bettors(left_matches.iter().map(|x| *x), left),
+            lookup::wins(left_matches.iter().map(|x| *x), left),
+            left_matches.len() as f64,
+        ]);
+
+        let right_value = self.calculate(&[
+            lookup::needed_odds(&right_matches, right),
+            lookup::odds(right_matches.iter().map(|x| *x), right, right_bet),
+            lookup::duration(right_matches.iter().map(|x| *x)),
+            lookup::bettors(right_matches.iter().map(|x| *x), right),
+            lookup::wins(right_matches.iter().map(|x| *x), right),
+            right_matches.len() as f64,
+        ]);
+
+        if left_value > right_value {
+            Bet::Left(left_bet)
+
+        } else if right_value > left_value {
+            Bet::Right(right_bet)
+
+        } else {
+            // TODO is this correct ?
+            Bet::None
+        }
+    }
+}
+
+impl Creature for NeuralNetwork {
+    fn new() -> Self {
+        Self {
+            hidden_layers: (0..LAYERS).map(|_| Gene::new()).collect(),
+            output_layer: Gene::new(),
+        }
+    }
+
+    fn breed(&self, other: &Self) -> Self {
+        Self {
+            hidden_layers: choose_vec(&self.hidden_layers, &other.hidden_layers),
+            output_layer: self.output_layer.choose(&other.output_layer),
+        }
+    }
+}
+
+
+pub trait Creature: Strategy {
+    fn new() -> Self;
+
+    fn breed(&self, other: &Self) -> Self;
 }
 
 
@@ -71,6 +159,11 @@ pub trait Gene {
     fn new() -> Self;
 
     fn choose(&self, other: &Self) -> Self;
+}
+
+
+fn choose_vec<A>(left: &[A], right: &[A]) -> Vec<A> where A: Gene {
+    left.into_iter().zip(right.into_iter()).map(|(x, y)| x.choose(&y)).collect()
 }
 
 
@@ -886,90 +979,21 @@ impl<A> Gene for BooleanCalculator<A> where A: Calculate<f64> + Gene + Clone + P
 }
 
 
-#[derive(Debug)]
-pub struct SimulationSettings<'a> {
-    pub records: &'a [Record],
-    pub mode: Mode,
-}
-
-impl<'a> SimulationSettings<'a> {
-    pub fn calculate_fitness<A: Strategy>(&self, strategy: A) -> f64 {
-        let mut simulation = Simulation::new();
-
-        match self.mode {
-            Mode::Matchmaking => simulation.matchmaking_strategy = Some(strategy),
-            Mode::Tournament => simulation.tournament_strategy = Some(strategy),
-        }
-
-        // TODO figure out a way to avoid the to_vec
-        simulation.simulate(self.records.to_vec());
-
-        simulation.sum / simulation.record_len
-    }
-}
-
-
-impl<'a> BetStrategy {
-    // TODO figure out a way to avoid the clones and to_vec
-    fn calculate_self(mut self, settings: &SimulationSettings<'a>) -> Self {
-        let (sum, successes, failures, record_len, characters_len, max_character_len) = {
-            let mut simulation = Simulation::new();
-
-            match settings.mode {
-                Mode::Matchmaking => simulation.matchmaking_strategy = Some(self.clone()),
-                Mode::Tournament => simulation.tournament_strategy = Some(self.clone()),
-            }
-
-            simulation.simulate(settings.records.to_vec());
-
-            (
-                simulation.sum,
-                simulation.successes,
-                simulation.failures,
-                simulation.record_len,
-                simulation.characters.len(),
-                simulation.max_character_len,
-            )
-        };
-
-        self.fitness = sum / record_len;
-        self.successes = successes;
-        self.failures = failures;
-        self.record_len = record_len;
-        self.characters_len = characters_len;
-        self.max_character_len = max_character_len;
-
-        self
-    }
-}
-
-impl<'a> Creature<SimulationSettings<'a>> for BetStrategy {
-    fn new(settings: &SimulationSettings<'a>) -> Self {
+impl Creature for BetStrategy {
+    fn new() -> Self {
         Self {
-            fitness: 0.0,
-            successes: 0.0,
-            failures: 0.0,
-            record_len: 0.0,
-            characters_len: 0,
-            max_character_len: 0,
             bet_strategy: Gene::new(),
             prediction_strategy: Gene::new(),
             money_strategy: NumericCalculator::Multiply(Box::new(NumericCalculator::Base(Lookup::Sum)), Box::new(NumericCalculator::Percentage(Percentage(0.01)))), //Gene::new(),
-        }.calculate_self(settings)
+        }
     }
 
-    fn breed(&self, other: &Self, settings: &SimulationSettings<'a>) -> Self {
+    fn breed(&self, other: &Self) -> Self {
         Self {
-            fitness: 0.0,
-            successes: 0.0,
-            failures: 0.0,
-            record_len: 0.0,
-            characters_len: 0,
-            max_character_len: 0,
             bet_strategy: self.bet_strategy.choose(&other.bet_strategy),
             prediction_strategy: self.prediction_strategy.choose(&other.prediction_strategy),
             money_strategy: NumericCalculator::Multiply(Box::new(NumericCalculator::Base(Lookup::Sum)), Box::new(NumericCalculator::Percentage(Percentage(0.01)))), //self.money_strategy.choose(&other.money_strategy),
-        }.calculate_self(settings)
+        }
     }
 }
 
@@ -1002,7 +1026,49 @@ impl Strategy for BetStrategy {
     }
 }
 
-impl Ord for BetStrategy {
+
+#[derive(Debug)]
+pub struct SimulationSettings<'a> {
+    pub records: &'a [Record],
+    pub mode: Mode,
+}
+
+impl<A> FitnessResult<A> where A: Strategy + Clone {
+    // TODO figure out a way to avoid the clone and to_vec
+    pub fn new<'a>(settings: &SimulationSettings<'a>, creature: A) -> Self {
+        let (sum, successes, failures, record_len, characters_len, max_character_len) = {
+            let mut simulation = Simulation::new();
+
+            match settings.mode {
+                Mode::Matchmaking => simulation.matchmaking_strategy = Some(creature.clone()),
+                Mode::Tournament => simulation.tournament_strategy = Some(creature.clone()),
+            }
+
+            simulation.simulate(settings.records.to_vec());
+
+            (
+                simulation.sum,
+                simulation.successes,
+                simulation.failures,
+                simulation.record_len,
+                simulation.characters.len(),
+                simulation.max_character_len,
+            )
+        };
+
+        FitnessResult {
+            fitness: sum / record_len,
+            successes: successes,
+            failures: failures,
+            record_len: record_len,
+            characters_len: characters_len,
+            max_character_len: max_character_len,
+            creature,
+        }
+    }
+}
+
+impl<A> Ord for FitnessResult<A> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.fitness.is_nan() {
             if other.fitness.is_nan() {
@@ -1021,45 +1087,49 @@ impl Ord for BetStrategy {
     }
 }
 
-impl PartialOrd for BetStrategy {
+impl<A> PartialOrd for FitnessResult<A> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.fitness.partial_cmp(&other.fitness)
     }
 }
 
-impl PartialEq for BetStrategy {
+impl<A> PartialEq for FitnessResult<A> {
+    // TODO handle NaN ?
     fn eq(&self, other: &Self) -> bool {
         self.fitness == other.fitness
     }
 }
 
-impl Eq for BetStrategy {}
-
+impl<A> Eq for FitnessResult<A> {}
 
 
 #[derive(Debug)]
-pub struct Population<'a, A, B> where A: Creature<B>, B: 'a {
+pub struct Population<'a, A, B> where A: Creature, B: 'a {
     data: &'a B,
-    amount: usize,
-    pub populace: Vec<A>,
+    size: usize,
+    pub populace: Vec<FitnessResult<A>>,
 }
 
-impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + Sync {
-    pub fn new(amount: usize, data: &'a B) -> Self {
+impl<'a, A, B> Population<'a, A, B> where A: Creature, B: 'a {
+    pub fn new(size: usize, data: &'a B) -> Self {
         Self {
-            data: data,
-            amount: amount,
-            populace: Vec::with_capacity(amount),
+            data,
+            size,
+            populace: Vec::with_capacity(size),
         }
     }
+}
 
-    fn insert_creature(&mut self, creature: A) {
-        let index = self.populace.binary_search(&creature);
+impl<'a, A> Population<'a, A, SimulationSettings<'a>> where A: Creature + Clone + Send + Sync {
+    fn insert_creature(&mut self, result: FitnessResult<A>) {
+        let index = self.populace.binary_search(&result);
 
-        match index {
-            Ok(index) => self.populace.insert(index, creature),
-            Err(index) => self.populace.insert(index, creature),
-        }
+        let index = match index {
+            Ok(index) => index,
+            Err(index) => index,
+        };
+
+        self.populace.insert(index, result);
     }
 
     fn kill_populace(&mut self) {
@@ -1076,21 +1146,21 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
     }
 
     fn breed_populace(&mut self) {
-        let new_creatures: Vec<A> = {
+        let new_creatures: Vec<FitnessResult<A>> = {
             let closure = |_| {
                 let father = choose(&self.populace);
                 let mother = choose(&self.populace);
 
-                match father {
+                FitnessResult::new(self.data, match father {
                     Some(father) => match mother {
-                        Some(mother) => father.breed(mother, self.data),
-                        None => A::new(self.data),
+                        Some(mother) => father.creature.breed(&mother.creature),
+                        None => A::new(),
                     },
-                    None => A::new(self.data),
-                }
+                    None => A::new(),
+                })
             };
 
-            (self.populace.len()..self.amount).into_par_iter().map(closure).collect()
+            (self.populace.len()..self.size).into_par_iter().map(closure).collect()
         };
 
         for creature in new_creatures {
@@ -1098,13 +1168,13 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature<B> + Send + Sync, B: 'a + 
         }
     }
 
-    pub fn best(&self) -> &A {
+    pub fn best(&self) -> &FitnessResult<A> {
         self.populace.last().unwrap()
     }
 
     pub fn init(&mut self) {
         // TODO code duplication
-        let new_creatures: Vec<A> = (0..self.amount).into_par_iter().map(|_|A::new(self.data)).collect();
+        let new_creatures: Vec<FitnessResult<A>> = (0..self.size).into_par_iter().map(|_| FitnessResult::new(self.data, A::new())).collect();
 
         for creature in new_creatures {
             self.insert_creature(creature);

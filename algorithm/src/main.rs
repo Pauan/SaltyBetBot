@@ -8,6 +8,7 @@ extern crate serde;
 extern crate serde_json;
 
 use algorithm::{genetic, types};
+use algorithm::types::FitnessResult;
 use algorithm::record::{Record, Mode};
 use algorithm::simulation::Strategy;
 use algorithm::strategy::{EarningsStrategy, AllInStrategy};
@@ -264,9 +265,9 @@ fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Re
     population.best().clone()
 }
 
-fn test_strategy<A: Strategy>(mode: Mode, records: &mut [Record], strategy: A) -> f64 {
+fn test_strategy<A: Strategy + Clone>(mode: Mode, records: &mut [Record], strategy: A) -> f64 {
     let records = shuffle_records(records, mode);
-    genetic::SimulationSettings { mode, records: &records }.calculate_fitness(strategy)
+    FitnessResult::new(&genetic::SimulationSettings { mode, records: &records }, strategy).fitness
 }
 
 

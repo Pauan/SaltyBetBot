@@ -304,6 +304,36 @@ pub mod lookup {
         iterate_average(iter, |record| record.duration as f64).unwrap_or(0.0)
     }
 
+    pub fn bettors<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            let record = if record.left.name == name { &record.left } else { &record.right };
+            -(record.illuminati_bettors + record.normal_bettors) as f64
+        }).unwrap_or(0.0)
+    }
+
+    pub fn illuminati_bettors<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            let record = if record.left.name == name { &record.left } else { &record.right };
+            -record.illuminati_bettors as f64
+        }).unwrap_or(0.0)
+    }
+
+    pub fn normal_bettors<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            let record = if record.left.name == name { &record.left } else { &record.right };
+            -record.normal_bettors as f64
+        }).unwrap_or(0.0)
+    }
+
     pub fn wins<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         // TODO what about mirror matches ?

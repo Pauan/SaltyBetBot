@@ -87,14 +87,18 @@ pub enum BooleanCalculator<A> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BetStrategy {
+pub struct FitnessResult<A> {
     pub fitness: f64,
     pub successes: f64,
     pub failures: f64,
     pub record_len: f64,
     pub characters_len: usize,
     pub max_character_len: usize,
+    pub creature: A,
+}
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BetStrategy {
     // Genes
     pub bet_strategy: BooleanCalculator<NumericCalculator<Lookup, f64>>,
     pub prediction_strategy: NumericCalculator<Lookup, f64>,

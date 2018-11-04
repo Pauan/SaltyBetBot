@@ -220,6 +220,8 @@ fn main() {
                                                     }
 
                                                     // TODO are the bet_amount, illuminati_bettors, and normal_bettors reliable enough to be used ?
+                                                    // TODO compare left and right directly, rather than using the fields ?
+                                                    // TODO move this into Record ?
                                                     if old_record.left.name                == new_record.left.name &&
                                                        old_record.left.bet_amount          == new_record.left.bet_amount &&
                                                        old_record.left.win_streak          == new_record.left.win_streak &&

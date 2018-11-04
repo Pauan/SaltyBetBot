@@ -83,7 +83,7 @@ pub enum Tier {
 }*/
 
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Mode {
     Matchmaking,
     Tournament,
@@ -100,7 +100,7 @@ pub enum Mode {
 }*/
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Character {
     pub name: String,
     pub bet_amount: f64,
@@ -112,9 +112,9 @@ pub struct Character {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Profit {
-    Gain(f64),
     Loss(f64),
     None,
+    Gain(f64),
 }
 
 impl Profit {
@@ -130,7 +130,7 @@ impl Profit {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Record {
     pub left: Character,
     pub right: Character,
