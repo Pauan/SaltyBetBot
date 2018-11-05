@@ -1,4 +1,5 @@
 #![recursion_limit="256"]
+#![feature(async_await, await_macro, futures_api)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -13,8 +14,9 @@ extern crate dominator;
 use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, Loading, MAX_MATCH_TIME_LIMIT};
 use algorithm::record::Record;
 use dominator::events::{ClickEvent, ChangeEvent};
-use stdweb::{Reference, Once};
+use stdweb::{Reference, Once, spawn_local, unwrap_future};
 use stdweb::web::{document, INode};
+use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 
 
@@ -186,13 +188,15 @@ fn main() {
                                     };
 
                                     let on_loaded = clone!(loading => move |new_records: String| {
-                                        log!("File loaded, deserializing records");
+                                        async fn future(loading: Loading, new_records: String) -> Result<(), Error> {
+                                            log!("File loaded, deserializing records");
 
-                                        let mut new_records = deserialize_records(&new_records);
+                                            let mut new_records = deserialize_records(&new_records);
 
-                                        log!("{} records deserialized, now retrieving current records", new_records.len());
+                                            log!("{} records deserialized, now retrieving current records", new_records.len());
 
-                                        records_get_all(clone!(loading => move |mut old_records| {
+                                            let mut old_records = await!(records_get_all())?;
+
                                             log!("{} records retrieved, now sorting", old_records.len());
 
                                             old_records.sort_by(Record::sort_date);
@@ -249,12 +253,16 @@ fn main() {
 
                                             let len = added_records.len();
 
-                                            records_insert_many(&added_records, move || {
-                                                loading.hide();
+                                            await!(records_insert_many(&added_records))?;
 
-                                                log!("Inserted {} new records", len);
-                                            });
-                                        }));
+                                            loading.hide();
+
+                                            log!("Inserted {} new records", len);
+
+                                            Ok(())
+                                        }
+
+                                        spawn_local(unwrap_future(future(loading, new_records)));
                                     });
 
                                     read_file(file, on_progress, on_loaded);
@@ -275,11 +283,13 @@ fn main() {
                             .class(&*CLASS_BUTTON)
                             .text("Export")
                             .event(clone!(loading => move |_: ClickEvent| {
-                                log!("Getting records");
+                                async fn future(loading: Loading) -> Result<(), Error> {
+                                    log!("Getting records");
 
-                                loading.show();
+                                    loading.show();
 
-                                records_get_all(clone!(loading => move |records| {
+                                    let records = await!(records_get_all())?;
+
                                     log!("Got records, now serializing");
 
                                     let records = serialize_records(records);
@@ -291,7 +301,11 @@ fn main() {
                                     loading.hide();
 
                                     log!("Download complete");
-                                }));
+
+                                    Ok(())
+                                }
+
+                                spawn_local(unwrap_future(future(loading.clone())));
                             }))
                         }),
 
@@ -301,14 +315,21 @@ fn main() {
                             .text("DELETE")
                             .event(clone!(loading => move |_: ClickEvent| {
                                 if confirm("This will PERMANENTLY delete ALL of the match records!\n\nYou should export the match records before doing this.\n\nAre you sure that you want to delete the match records?") {
-                                    log!("Deleting match records");
+                                    async fn future(loading: Loading) -> Result<(), Error> {
+                                        log!("Deleting match records");
 
-                                    loading.show();
+                                        loading.show();
 
-                                    records_delete_all(clone!(loading => move || {
+                                        await!(records_delete_all())?;
+
                                         loading.hide();
+
                                         log!("Match records deleted");
-                                    }));
+
+                                        Ok(())
+                                    }
+
+                                    spawn_local(unwrap_future(future(loading.clone())));
                                 }
                             }))
                         }),

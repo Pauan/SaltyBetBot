@@ -74,7 +74,7 @@ function create_twitch_tab() {
                 reject(chrome.runtime.lastError);
 
             } else {
-                resolve();
+                resolve(null);
             }
         });
     });
@@ -87,7 +87,7 @@ function remove_tabs(ids) {
                 reject(chrome.runtime.lastError);
 
             } else {
-                resolve();
+                resolve(null);
             }
         });
     });
@@ -137,7 +137,7 @@ function insert_records(db, values) {
         var transaction = db.transaction("records", "readwrite");
 
         transaction.oncomplete = function () {
-            resolve();
+            resolve(null);
         };
 
         transaction.onerror = function (event) {
@@ -158,7 +158,7 @@ function delete_all_records(db) {
         var transaction = db.transaction("records", "readwrite");
 
         transaction.oncomplete = function () {
-            resolve();
+            resolve(null);
         };
 
         transaction.onerror = function (event) {
@@ -172,6 +172,25 @@ function delete_all_records(db) {
     });
 }
 
+function send_message(reply, promise) {
+    run_promise(
+        promise.then(function (value) {
+            reply({
+                type: "success",
+                value: value
+            });
+
+        }).catch(function (error) {
+            reply({
+                type: "error",
+                error: error
+            });
+
+            throw error;
+        })
+    );
+}
+
 run_promise(
     get_db("", 2, function (db) {
         db.createObjectStore("records", { autoIncrement: true });
@@ -180,51 +199,33 @@ run_promise(
         // This is necessary because Chrome doesn't allow content scripts to use the tabs API
         chrome.runtime.onMessage.addListener(function (message, _sender, reply) {
             if (message.type === "records:get-all") {
-                run_promise(
-                    get_all_records(db)
-                        .then(function (records) {
-                            reply(records);
-                        })
-                );
-
+                send_message(reply, get_all_records(db));
                 return true;
 
             } else if (message.type === "records:insert") {
-                run_promise(
-                    insert_records(db, message.value)
-                        .then(function () {
-                            reply(null);
-                        })
-                );
-
+                send_message(reply, insert_records(db, message.value));
                 return true;
 
             } else if (message.type === "records:delete-all") {
-                run_promise(
-                    delete_all_records(db)
-                        .then(function () {
-                            reply(null);
-                        })
-                );
-
+                send_message(reply, delete_all_records(db));
                 return true;
 
             } else if (message.type === "tabs:open-twitch-chat") {
                 if (twitch_ports.length === 0) {
-                    run_promise(
+                    send_message(reply,
                         remove_twitch_tabs()
                             .then(function () {
                                 return create_twitch_tab();
-                            })
-                            .then(function () {
-                                reply(null);
                             })
                     );
 
                     return true;
 
                 } else {
-                    reply(null);
+                    reply({
+                        type: "success",
+                        value: null
+                    });
                 }
 
             } else {

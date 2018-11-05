@@ -499,182 +499,194 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__extjs_573f78ddb74010fede405487d72f98e9ee4ed97f": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). ty})());
-            },
-            "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
+                "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
                 Module.STDWEB_PRIVATE.decrement_refcount( $0 );
-            },
-            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
-            },
-            "__extjs_10f5aa3985855124ab83b21d4e9f7297eb496508": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Array) | 0;
-            },
-            "__extjs_1522b5ea59072f4360f8c07a28b1f8548cb70424": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){try {let bytes = require ("crypto"). randomBytes (($1)); HEAPU8.set (new Uint8Array (bytes), ($2)); return {success : true};}catch (err){return {success : false , error : err};}})());
-            },
-            "__extjs_23afc1c374218c72ec11a37442c756ed5f471943": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var array = self.exec (($2)); self.lastIndex = 0 ; return array ;})());
-            },
-            "__extjs_549e982121a9e76fa0c1295dd69b3084ab9688ff": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). textContent ;})());
-            },
-            "__extjs_08b01249624ddc3d96fbac0c69755a1223a49c67": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS (($1), ($2));})());
-            },
-            "__extjs_1eb4917b02a17cde3e29c67a46b0abf5e46dcd49": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return new RegExp (($1), ($2));})());
-            },
-            "__extjs_87b4e4c3d34c9f944cf0b8e8c1d62a587e5798be": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){try {let array = new Uint8Array (($1)); self.crypto.getRandomValues (array); HEAPU8.set (array , ($2)); return {success : true};}catch (err){return {success : false , error : err};}})());
-            },
-            "__extjs_91731db9b18c167a0dca230e25d8f4bbf6600f11": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). querySelectorAll (($2));})());
-            },
-            "__extjs_ee41f864457c794c278cdcafc28967ffbac29706": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1);})());
-            },
-            "__extjs_7a8d264960219d56eb855d4805d38340117514c6": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). style.getPropertyValue (($2));})());
-            },
-            "__extjs_8ecf7c25f74024fac652d6ddc604337756c5159f": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);chrome.runtime.sendMessage (null , {type : "tabs:open-twitch-chat"}, null , function (){($0)();});
-            },
-            "__extjs_4f998a6a2e8abfce697424379bb997930abe9f9e": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). value = ($1);
-            },
-            "__extjs_9956e6129dd3eaf3b4d0afa5d110953f3e3e7285": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). data = ($1);
-            },
-            "__extjs_1b47036256330bc1f1d6cf232021ddf04df850e2": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). style.removeProperty (($1));
-            },
-            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
-            },
-            "__extjs_917726eccf6a4104ccf894736895b9dcd730afd7": function($0, $1, $2, $3) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){function listener (message){($1)(message);}($2). onMessage.addListener (listener); return function (){($3). onMessage.removeListener (listener);};})());
-            },
-            "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
-            },
-            "__extjs_8de42e19567dc9a6c1a2ff637265f4d0db6f718a": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). classList.add (($1));
-            },
-            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
-            },
-            "__extjs_a342681e5c1e3fb0bdeac6e35d67bf944fcd4102": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). value ;})());
-            },
-            "__extjs_3ecdd6d868d80fde5f93aa618ffbd676701a4773": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof RegExp) | 0;
-            },
-            "__extjs_964a9c3ea63f7374eeff4e3e5c6b7525934ec155": function($0, $1, $2, $3) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);($0). style.setProperty (($1), ($2), (($3)? "important" : ""));
-            },
-            "__extjs_cb392b71162553130760deeb3964fa828c078f74": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof HTMLInputElement) | 0;
-            },
-            "__extjs_a0b7b9e5ff62e9d75889569ce62d2d2c2ed899e1": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof HTMLElement) | 0;
-            },
-            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
-                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
             },
             "__extjs_8c32019649bb581b1b742eeedfc410e2bedd56a6": function($0, $1) {
                 var array = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );Module.STDWEB_PRIVATE.serialize_array( $1, array );
             },
-            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
-                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
+            "__extjs_b99cfa99d8250298312cb71dd4ab8e05bc249cd0": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return {type : "records:insert" , value : [($1)]};})());
             },
-            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            "__extjs_549e982121a9e76fa0c1295dd69b3084ab9688ff": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). textContent ;})());
             },
-            "__extjs_222c2fb5a29f68d0c91605a201d353ebe248e0ee": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1)[($2)];})());
+            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
             },
-            "__extjs_2e6bf47ec7f31b4cb119a8d2793bacfcfe38b112": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Error) | 0;
+            "__extjs_7a6027d4ced528c61e9597e225c3b8e4e5c22b0e": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Promise) | 0;
             },
-            "__extjs_b99a06f7004f71b3f4e223fbd9f24cf2620b1047": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). message ;})());
-            },
-            "__extjs_a91f76b9ef152612487d901da5cb59638ee773d2": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). error})());
-            },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
-            },
-            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
-                console.error( 'Encountered a panic!' );
+            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
             },
             "__extjs_a7ab5f74041fe5b800b5238f34837560623fe11e": function($0) {
                 Module.STDWEB_PRIVATE.from_js($0, (function(){try {if (typeof self ==="object" && typeof self.crypto ==="object" && typeof self.crypto.getRandomValues ==="function"){return {success : true , ty : 1};}if (typeof require ("crypto"). randomBytes ==="function"){return {success : true , ty : 2};}return {success : false , error : new Error ("not supported")};}catch (err){return {success : false , error : err};}})());
             },
-            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
+            "__extjs_222c2fb5a29f68d0c91605a201d353ebe248e0ee": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1)[($2)];})());
             },
-            "__extjs_fc416b864acc476ccab184eceaf9b1686f47e048": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var video = ($0); video.parentNode.removeChild (video);
+            "__extjs_964a9c3ea63f7374eeff4e3e5c6b7525934ec155": function($0, $1, $2, $3) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);($0). style.setProperty (($1), ($2), (($3)? "important" : ""));
             },
-            "__extjs_74d5764ddc102a8d3b6252116087a68f2db0c9d4": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return window ;})());
+            "__extjs_a342681e5c1e3fb0bdeac6e35d67bf944fcd4102": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). value ;})());
             },
-            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            "__extjs_2e6bf47ec7f31b4cb119a8d2793bacfcfe38b112": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Error) | 0;
             },
-            "__extjs_7f342438c940bfafc63d7b76e806c8cc569cd9d6": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var stylesheet = ($1); var length = stylesheet.cssRules.length ; stylesheet.insertRule (($2)+ "{}" , length); return stylesheet.cssRules [length];})());
+            "__extjs_10f5aa3985855124ab83b21d4e9f7297eb496508": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Array) | 0;
             },
-            "__extjs_9230d6a62b16efd096288aa5d2a21e896e597baf": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);chrome.runtime.sendMessage (null , {type : "records:get-all"}, null , function (value){($0)(value);});
+            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
+                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
             },
-            "__extjs_b00332decb7a1ee6b8ac41a46cf9fd095a78679e": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var dropped = false ; function wrapper (){if (! dropped){callback ();}}var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){dropped = true ; callback.drop ();}; return nextTick ;})());
-            },
-            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
-                Module.STDWEB_PRIVATE.increment_refcount( $0 );
-            },
-            "__extjs_1b314661d7f229e657cf1110597325b26a0c54f2": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createTextNode ("");})());
-            },
-            "__extjs_bbc99df876df69bfb6a4a8650c37c610a3e06e61": function($0, $1, $2, $3) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). replace (($2), ($3));})());
-            },
-            "__extjs_dc10946714b9eb2c16751dfbc17d187a913866eb": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var chat = ($0); chat.style.display = "none" ;
-            },
-            "__extjs_c44823ca4ffecb1fc63ff99c8d1bd31834669f31": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). success})());
-            },
-            "__extjs_74b1b0b6327c6d2bad2259c05a1887a099ec3014": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "decimal" , maximumFractionDigits : 2});})());
-            },
-            "__extjs_68d21cddc428c8f40dc802238f92a69b9ba9f92b": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){var e = document.createElement ("style"); e.type = "text/css" ; document.head.appendChild (e); return e.sheet ;})());
-            },
-            "__extjs_d01fe6eb9e534673b5ce1d2f78a67e20bda4e1a5": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);chrome.runtime.sendMessage (null , {type : "records:insert" , value : [($0)]}, null , function (){($1)();});
+            "__extjs_a91f76b9ef152612487d901da5cb59638ee773d2": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). error})());
             },
             "__extjs_3f8256bfa4545084f3bf765e5b0c21812d1e1750": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);($0). click ();
             },
-            "__extjs_0e00a15cc549aaefd3d6dd8046cb0f65b2fd527c": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Text) | 0;
+            "__extjs_68d21cddc428c8f40dc802238f92a69b9ba9f92b": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){var e = document.createElement ("style"); e.type = "text/css" ; document.head.appendChild (e); return e.sheet ;})());
             },
-            "__extjs_496ebd7b1bc0e6eebd7206e8bee7671ea3b8006f": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). querySelector (($2));})());
+            "__extjs_8e58259110540e5448a6fe40a28dc94acd78c8a1": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var state = {cancelled : false , callback : callback}; ($2). then (function (value){if (! state.cancelled){callback (value , true);}}, function (value){if (! state.cancelled){callback (value , false);}}); return state ;})());
             },
-            "__extjs_d307ae261eb254e327a31a3ea462bf3cd9d25c54": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return chrome.runtime.connect (null , {name : ($1)});})());
+            "__extjs_08b01249624ddc3d96fbac0c69755a1223a49c67": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS (($1), ($2));})());
+            },
+            "__extjs_74d5764ddc102a8d3b6252116087a68f2db0c9d4": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return window ;})());
+            },
+            "__extjs_8de42e19567dc9a6c1a2ff637265f4d0db6f718a": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). classList.add (($1));
+            },
+            "__extjs_7f342438c940bfafc63d7b76e806c8cc569cd9d6": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var stylesheet = ($1); var length = stylesheet.cssRules.length ; stylesheet.insertRule (($2)+ "{}" , length); return stylesheet.cssRules [length];})());
+            },
+            "__extjs_91731db9b18c167a0dca230e25d8f4bbf6600f11": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). querySelectorAll (($2));})());
+            },
+            "__extjs_4f998a6a2e8abfce697424379bb997930abe9f9e": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). value = ($1);
+            },
+            "__extjs_1b47036256330bc1f1d6cf232021ddf04df850e2": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). style.removeProperty (($1));
+            },
+            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
+                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
+            },
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
             },
             "__extjs_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof CSSStyleRule) | 0;
             },
+            "__extjs_bbc99df876df69bfb6a4a8650c37c610a3e06e61": function($0, $1, $2, $3) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). replace (($2), ($3));})());
+            },
+            "__extjs_87b4e4c3d34c9f944cf0b8e8c1d62a587e5798be": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){try {let array = new Uint8Array (($1)); self.crypto.getRandomValues (array); HEAPU8.set (array , ($2)); return {success : true};}catch (err){return {success : false , error : err};}})());
+            },
+            "__extjs_c41297f1f679af47d6390b4b617d1a8375706933": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.error (($0));
+            },
+            "__extjs_74b1b0b6327c6d2bad2259c05a1887a099ec3014": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "decimal" , maximumFractionDigits : 2});})());
+            },
+            "__extjs_1eb4917b02a17cde3e29c67a46b0abf5e46dcd49": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return new RegExp (($1), ($2));})());
+            },
+            "__extjs_d307ae261eb254e327a31a3ea462bf3cd9d25c54": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return chrome.runtime.connect (null , {name : ($1)});})());
+            },
+            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
+                console.error( 'Encountered a panic!' );
+            },
             "__extjs_2034053b7b6771271a2dad3e5416b045a74488a1": function($0, $1, $2, $3) {
                 Module.STDWEB_PRIVATE.acquire_js_reference( $0 ).setTimeout( function() {Module.STDWEB_PRIVATE.dyncall( 'vi', $1, [$2] );}, $3 );
+            },
+            "__extjs_496ebd7b1bc0e6eebd7206e8bee7671ea3b8006f": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). querySelector (($2));})());
+            },
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            },
+            "__extjs_b00332decb7a1ee6b8ac41a46cf9fd095a78679e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var dropped = false ; function wrapper (){if (! dropped){callback ();}}var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){dropped = true ; callback.drop ();}; return nextTick ;})());
+            },
+            "__extjs_b99a06f7004f71b3f4e223fbd9f24cf2620b1047": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). message ;})());
+            },
+            "__extjs_fc416b864acc476ccab184eceaf9b1686f47e048": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var video = ($0); video.parentNode.removeChild (video);
+            },
+            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            },
+            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
+            },
+            "__extjs_1522b5ea59072f4360f8c07a28b1f8548cb70424": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){try {let bytes = require ("crypto"). randomBytes (($1)); HEAPU8.set (new Uint8Array (bytes), ($2)); return {success : true};}catch (err){return {success : false , error : err};}})());
+            },
+            "__extjs_be46bf3b533c47680df9c63c7d37279330d1bc2b": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return {type : "records:get-all"};})());
+            },
+            "__extjs_1b314661d7f229e657cf1110597325b26a0c54f2": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createTextNode ("");})());
+            },
+            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
+                Module.STDWEB_PRIVATE.increment_refcount( $0 );
+            },
+            "__extjs_c44823ca4ffecb1fc63ff99c8d1bd31834669f31": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). success})());
+            },
+            "__extjs_23afc1c374218c72ec11a37442c756ed5f471943": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var array = self.exec (($2)); self.lastIndex = 0 ; return array ;})());
+            },
+            "__extjs_0e00a15cc549aaefd3d6dd8046cb0f65b2fd527c": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Text) | 0;
+            },
+            "__extjs_573f78ddb74010fede405487d72f98e9ee4ed97f": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). ty})());
+            },
+            "__extjs_a0b7b9e5ff62e9d75889569ce62d2d2c2ed899e1": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof HTMLElement) | 0;
+            },
+            "__extjs_24e8536c1e28c29e7c058527c807c005521cd9b6": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return {type : "tabs:open-twitch-chat"};})());
+            },
+            "__extjs_ad52d59d80aecad398c056ccad20049bb2c45653": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var state = ($0); state.cancelled = true ; state.callback.drop ();
+            },
+            "__extjs_3ecdd6d868d80fde5f93aa618ffbd676701a4773": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof RegExp) | 0;
+            },
+            "__extjs_4e4313f9d787b8c358a8bda0b86d6901bafe73fb": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){chrome.runtime.sendMessage (null , ($1), null , function (x){if (chrome.runtime.lastError != null){console.log (chrome.runtime.lastError); reject (chrome.runtime.lastError);}else if (x.type ==="success"){resolve (x.value);}else {reject (new Error (x.error));}});});})());
+            },
+            "__extjs_dc10946714b9eb2c16751dfbc17d187a913866eb": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var chat = ($0); chat.style.display = "none" ;
+            },
+            "__extjs_cb392b71162553130760deeb3964fa828c078f74": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof HTMLInputElement) | 0;
+            },
+            "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
+            },
+            "__extjs_aea59b0d708077a11a2a3177816249c03c7dfc7a": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var callback = ($2); function listener (message){callback (message);}function stop (){self.onMessage.removeListener (listener); self.onDisconnect.removeListener (stop); callback.drop ();}self.onMessage.addListener (listener); self.onDisconnect.addListener (stop); return stop ;})());
+            },
+            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
+            },
+            "__extjs_9956e6129dd3eaf3b4d0afa5d110953f3e3e7285": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). data = ($1);
+            },
+            "__extjs_7a8d264960219d56eb855d4805d38340117514c6": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). style.getPropertyValue (($2));})());
             },
                 "__web_on_grow": __web_on_grow
             }

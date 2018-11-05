@@ -514,6 +514,7 @@ name = "salty_bet_bot"
 version = "0.1.0"
 dependencies = [
  "algorithm 0.1.0",
+ "discard 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "dominator 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-signals 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",

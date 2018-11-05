@@ -1,4 +1,5 @@
 #![recursion_limit="128"]
+#![feature(async_await, await_macro, futures_api)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -13,6 +14,7 @@ extern crate dominator;
 #[macro_use]
 extern crate futures_signals;
 
+use discard::DiscardOnDrop;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -20,7 +22,9 @@ use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, parse_name, Port
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
+use stdweb::{spawn_local, unwrap_future};
 use stdweb::web::{set_timeout, NodeList};
+use stdweb::web::error::Error;
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
 use dominator::Dom;
 
@@ -90,7 +94,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                             Bet::None
 
                         } else {
-                            let mut simulation = &mut state.simulation;
+                            let simulation = &mut state.simulation;
 
                             simulation.in_tournament = false;
                             simulation.sum = current_balance;
@@ -103,7 +107,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                     },
 
                     Mode::Tournament => {
-                        let mut simulation = &mut state.simulation;
+                        let simulation = &mut state.simulation;
 
                         simulation.in_tournament = true;
                         simulation.tournament_sum = current_balance;
@@ -250,14 +254,13 @@ fn reload_page() {
 
 
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
-// TODO refresh page when mode changes
 pub fn observe_changes(state: Rc<RefCell<State>>) {
     let mut old_closed: Option<WaifuBetsClosed> = None;
     let mut mode_switch: Option<f64> = None;
 
     let port = Port::new("saltybet");
 
-    std::mem::forget(port.listen(move |message| {
+    DiscardOnDrop::leak(port.listen(move |message| {
         let messages: Vec<WaifuMessage> = serde_json::from_str(&message).unwrap();
 
         for message in messages {
@@ -366,7 +369,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                                            duration <= MAX_MATCH_TIME_LIMIT {
 
                                             // TODO figure out a way to avoid the clone
-                                            let mut information = information.clone();
+                                            let information = information.clone();
 
                                             match information.bet {
                                                 Bet::Left(amount) => {
@@ -442,7 +445,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(&record);
 
-                        records_insert(&record, || {});
+                        spawn_local(unwrap_future(records_insert(&record)));
 
                         state.records.push(record);
                     }
@@ -459,7 +462,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
         }
     }));
 
-    std::mem::forget(port);
+    DiscardOnDrop::leak(port);
 }
 
 
@@ -717,6 +720,68 @@ impl InfoContainer {
 }*/
 
 
+async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
+    let records = await!(records_get_all())?;
+    //let matches = migrate_records(matches);
+
+    log!("Initialized {} records", records.len());
+
+    let mut simulation = Simulation::new();
+
+    /*let matchmaking_strategy: BetStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap();
+    let tournament_strategy: BetStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap();
+
+    simulation.matchmaking_strategy = Some(matchmaking_strategy);
+    simulation.tournament_strategy = Some(tournament_strategy);*/
+
+    simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
+    simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
+
+    for record in records.iter() {
+        if let Mode::Matchmaking = record.mode {
+            simulation.insert_sum(record.sum);
+        }
+
+        simulation.insert_record(record);
+    }
+
+    let state = Rc::new(RefCell::new(State {
+        did_bet: false,
+        open: None,
+        information: None,
+        simulation: simulation,
+        records: records,
+        info_container: container,
+    }));
+
+    observe_changes(state.clone());
+
+    fn loop_bet(state: Rc<RefCell<State>>) {
+        lookup_bet(&state);
+        set_timeout(|| loop_bet(state), 500);
+    }
+
+    fn loop_information(state: Rc<RefCell<State>>) {
+        lookup_information(&state);
+        set_timeout(|| loop_information(state), 10000);
+    }
+
+    loop_bet(state.clone());
+    loop_information(state);
+
+    Ok(())
+}
+
+
+async fn initialize_tab() -> Result<(), Error> {
+    await!(create_tab())?;
+
+    log!("Tab created");
+
+    Ok(())
+}
+
+
 fn main() {
     stdweb::initialize();
 
@@ -757,58 +822,9 @@ fn main() {
         log!("Bettors hidden");
     });*/
 
-    records_get_all(move |records| {
-        //let matches = migrate_records(matches);
+    spawn_local(unwrap_future(initialize_state(container)));
 
-        log!("Initialized {} records", records.len());
-
-        let mut simulation = Simulation::new();
-
-        /*let matchmaking_strategy: BetStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap();
-        let tournament_strategy: BetStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap();
-
-        simulation.matchmaking_strategy = Some(matchmaking_strategy);
-        simulation.tournament_strategy = Some(tournament_strategy);*/
-
-        simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
-        simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
-
-        for record in records.iter() {
-            if let Mode::Matchmaking = record.mode {
-                simulation.insert_sum(record.sum);
-            }
-
-            simulation.insert_record(record);
-        }
-
-        let state = Rc::new(RefCell::new(State {
-            did_bet: false,
-            open: None,
-            information: None,
-            simulation: simulation,
-            records: records,
-            info_container: container,
-        }));
-
-        observe_changes(state.clone());
-
-        fn loop_bet(state: Rc<RefCell<State>>) {
-            lookup_bet(&state);
-            set_timeout(|| loop_bet(state), 500);
-        }
-
-        fn loop_information(state: Rc<RefCell<State>>) {
-            lookup_information(&state);
-            set_timeout(|| loop_information(state), 10000);
-        }
-
-        loop_bet(state.clone());
-        loop_information(state);
-    });
-
-    create_tab(|| {
-        log!("Tab created");
-    });
+    spawn_local(unwrap_future(initialize_tab()));
 
     // Reloads the page every 24 hours, just in case something screwed up on saltybet.com
     // Normally this doesn't happen, because it reloads the page at the start of exhibitions

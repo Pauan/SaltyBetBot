@@ -1,4 +1,5 @@
 #![recursion_limit="128"]
+#![feature(async_await, await_macro, futures_api)]
 
 #[macro_use]
 extern crate stdweb;
@@ -18,9 +19,11 @@ use salty_bet_bot::{records_get_all, percentage, decimal, money, display_odds, L
 use algorithm::simulation::{Simulation, Simulator, Strategy, Bet};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
 use algorithm::record::{Record, Winner, Tier, Mode, Profit};
+use stdweb::{spawn_local, unwrap_future};
 use stdweb::unstable::TryInto;
 use stdweb::traits::*;
 use stdweb::web::document;
+use stdweb::web::error::Error;
 use stdweb::web::event::ClickEvent;
 use futures_signals::signal::{Mutable, SignalExt};
 use dominator::Dom;
@@ -684,9 +687,7 @@ fn display_records(records: Vec<Record>) -> Dom {
 }
 
 
-fn main() {
-    stdweb::initialize();
-
+async fn main_future() -> Result<(), Error> {
     log!("Initializing...");
 
     stylesheet!("*", {
@@ -711,11 +712,19 @@ fn main() {
 
     document().body().unwrap().append_child(loading.element());
 
-    records_get_all(move |records| {
-        dominator::append_dom(&dominator::body(), display_records(records));
+    let records = await!(records_get_all())?;
 
-        loading.hide();
-    });
+    dominator::append_dom(&dominator::body(), display_records(records));
+
+    loading.hide();
+
+    Ok(())
+}
+
+fn main() {
+    stdweb::initialize();
+
+    spawn_local(unwrap_future(main_future()));
 
     stdweb::event_loop();
 }

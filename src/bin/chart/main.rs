@@ -1,4 +1,5 @@
 #![recursion_limit="256"]
+#![feature(async_await, await_macro, futures_api)]
 
 #[macro_use]
 extern crate stdweb;
@@ -20,7 +21,9 @@ use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD, GENETIC_STRATEGY};
 use stdweb::traits::*;
+use stdweb::{spawn_local, unwrap_future};
 use stdweb::web::{document, set_timeout, Date};
+use stdweb::web::error::Error;
 use stdweb::web::html_element::SelectElement;
 use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
 use stdweb::unstable::TryInto;
@@ -1212,9 +1215,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 }
 
 
-fn main() {
-    stdweb::initialize();
-
+async fn main_future() -> Result<(), Error> {
     set_panic_hook();
 
     log!("Initializing...");
@@ -1231,13 +1232,21 @@ fn main() {
 
     document().body().unwrap().append_child(loading.element());
 
-    records_get_all(move |mut records| {
-        records.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
+    let mut records = await!(records_get_all())?;
 
-        dominator::append_dom(&dominator::body(), display_records(records, loading.clone()));
+    records.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
 
-        loading.hide();
-    });
+    dominator::append_dom(&dominator::body(), display_records(records, loading.clone()));
+
+    loading.hide();
+
+    Ok(())
+}
+
+fn main() {
+    stdweb::initialize();
+
+    spawn_local(unwrap_future(main_future()));
 
     stdweb::event_loop();
 }

@@ -1,4 +1,5 @@
 #![recursion_limit="256"]
+#![feature(async_await, await_macro, futures_api)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -6,6 +7,7 @@ extern crate lazy_static;
 extern crate stdweb;
 #[macro_use]
 extern crate stdweb_derive;
+extern crate discard;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -15,23 +17,20 @@ extern crate algorithm;
 pub mod regexp;
 mod macros;
 
+use std::future::Future;
+use discard::{Discard, DiscardOnDrop};
 use algorithm::record::{Tier, Mode, Winner, Record};
-use algorithm::types::BetStrategy;
-use stdweb::{Value, Once};
+use stdweb::{Value, PromiseFuture};
 use stdweb::web::{document, set_timeout, INode, Element, NodeList};
+use stdweb::web::error::Error;
 use stdweb::web::html_element::InputElement;
-use stdweb::unstable::{TryInto};
+use stdweb::unstable::{TryInto, TryFrom};
 use stdweb::traits::*;
 
 
 // 50 minutes
 // TODO is this high enough ?
 pub const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 50.0;
-
-
-pub fn matchmaking_strategy() -> BetStrategy {
-    serde_json::from_str(&include_str!("../strategies/2018-08-20T12.29.43 (matchmaking)")).unwrap()
-}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,70 +175,61 @@ pub fn query_all(input: &str) -> NodeList {
 }
 
 
-pub fn create_tab<A>(done: A)
-    where A: FnOnce() + 'static {
+#[inline]
+fn send_message<A>(message: Value) -> PromiseFuture<A>
+    where A: TryFrom<Value> + 'static,
+          A::Error: ::std::fmt::Debug {
+    js!(
+        return new Promise(function (resolve, reject) {
+            chrome.runtime.sendMessage(null, @{message}, null, function (x) {
+                if (chrome.runtime.lastError != null) {
+                    console.log(chrome.runtime.lastError);
+                    reject(chrome.runtime.lastError);
 
-    js! { @(no_return)
-        // TODO error handling
-        chrome.runtime.sendMessage(null, { type: "tabs:open-twitch-chat" }, null, function () {
-            @{Once(done)}();
-        });
-    }
-}
+                } else if (x.type === "success") {
+                    resolve(x.value);
 
-pub fn records_get_all<A>(done: A)
-    where A: FnOnce(Vec<Record>) + 'static {
-
-    let done = move |records: Vec<String>| done(records.into_iter().map(|x| Record::deserialize(&x)).collect());
-
-    js! { @(no_return)
-        // TODO error handling
-        chrome.runtime.sendMessage(null, { type: "records:get-all" }, null, function (value) {
-            @{Once(done)}(value);
-        });
-    }
-}
-
-pub fn records_insert<A>(record: &Record, done: A) where A: FnOnce() + 'static {
-    js! { @(no_return)
-        // TODO error handling
-        chrome.runtime.sendMessage(null, {
-            type: "records:insert",
-            value: [@{record.serialize()}]
-        }, null, function () {
-            @{Once(done)}();
-        });
-    }
-}
-
-pub fn records_insert_many<A>(records: &[Record], done: A) where A: FnOnce() + 'static {
-    // TODO more idiomatic check
-    if records.len() > 0 {
-        let records: Vec<String> = records.into_iter().map(Record::serialize).collect();
-
-        js! { @(no_return)
-            // TODO error handling
-            chrome.runtime.sendMessage(null, {
-                type: "records:insert",
-                value: @{records}
-            }, null, function () {
-                @{Once(done)}();
+                } else {
+                    reject(new Error(x.error));
+                }
             });
-        }
-
-    } else {
-        done();
-    }
-}
-
-pub fn records_delete_all<A>(done: A) where A: FnOnce() + 'static {
-    js! { @(no_return)
-        // TODO error handling
-        chrome.runtime.sendMessage(null, { type: "records:delete-all" }, null, function () {
-            @{Once(done)}();
         });
+    ).try_into().unwrap()
+}
+
+pub async fn create_tab() -> Result<(), Error> {
+    await!(send_message(js!( return { type: "tabs:open-twitch-chat" }; )))
+}
+
+pub async fn records_get_all() -> Result<Vec<Record>, Error> {
+    let records: Vec<String> = await!(send_message(js!( return { type: "records:get-all" }; )))?;
+    Ok(records.into_iter().map(|x| Record::deserialize(&x)).collect())
+}
+
+pub fn records_insert(record: &Record) -> impl Future<Output = Result<(), Error>> {
+    let record = record.serialize();
+    send_message(js!( return { type: "records:insert", value: [@{record}] }; ))
+}
+
+pub fn records_insert_many(records: &[Record]) -> impl Future<Output = Result<(), Error>> {
+    // TODO avoid doing anything if the len is 0 ?
+    let records: Vec<String> = records.into_iter().map(Record::serialize).collect();
+
+    async {
+        // TODO more idiomatic check
+        if records.len() > 0 {
+            await!(send_message(js!( return { type: "records:insert", value: @{records} }; )))
+
+        } else {
+            Ok(())
+        }
     }
 }
+
+pub async fn records_delete_all() -> Result<(), Error> {
+    await!(send_message(js!( return { type: "records:delete-all" }; )))
+}
+
 
 pub fn serialize_records(records: Vec<Record>) -> String {
     serde_json::to_string_pretty(&records).unwrap()
@@ -250,55 +240,25 @@ pub fn deserialize_records(records: &str) -> Vec<Record> {
 }
 
 
-#[must_use]
-pub struct Listener<'a> {
-    callback: Value,
+pub struct Listener {
     stop: Value,
-    phantom: std::marker::PhantomData<&'a Value>,
 }
 
-impl<'a> Drop for Listener<'a> {
+impl Listener {
     #[inline]
-    fn drop(&mut self) {
+    pub fn new(stop: Value) -> DiscardOnDrop<Self> {
+        DiscardOnDrop::new(Self { stop })
+    }
+}
+
+impl Discard for Listener {
+    #[inline]
+    fn discard(self) {
         js! { @(no_return)
             @{&self.stop}();
-            @{&self.callback}.drop();
         }
     }
 }
-
-
-/*pub fn get_storage<A>(key: &str, f: A)
-    where A: FnOnce(Option<String>) + 'static {
-    js! { @(no_return)
-        // TODO error handling
-        chrome.storage.local.get(@{key}, function (items) {
-            @{Once(f)}(items[@{key}]);
-        });
-    }
-}*/
-
-
-// TODO verify that this sets things in the correct order if called multiple times
-/*pub fn set_storage(key: &str, value: &str) {
-    js! { @(no_return)
-        var obj = {};
-        obj[@{key}] = @{value};
-        // TODO error handling
-        chrome.storage.local.set(obj);
-    }
-}*/
-
-
-/*pub fn delete_storage<A>(key: &str, f: A)
-    where A: FnOnce() + 'static {
-    js! { @(no_return)
-        // TODO error handling
-        chrome.storage.local.remove(@{key}, function () {
-            @{Once(f)}();
-        });
-    }
-}*/
 
 
 #[inline]
@@ -391,37 +351,41 @@ impl IndexedDB {
 
 pub struct Port(Value);
 
-// TODO handle onDisconnect
 impl Port {
     #[inline]
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str) -> DiscardOnDrop<Self> {
         // TODO error checking
-        Port(js! ( return chrome.runtime.connect(null, { name: @{name} }); ))
+        DiscardOnDrop::new(Port(js! ( return chrome.runtime.connect(null, { name: @{name} }); )))
     }
 
-    pub fn listen<'a, A>(&'a self, f: A) -> Listener<'a>
+    #[inline]
+    pub fn listen<A>(&self, f: A) -> DiscardOnDrop<Listener>
         where A: FnMut(String) + 'static {
 
-        let callback = js!( return @{f}; );
+        Listener::new(js!(
+            var self = @{&self.0};
+            var callback = @{f};
 
-        Listener {
-            stop: js! {
-                function listener(message) {
-                    @{&callback}(message);
-                }
+            function listener(message) {
+                callback(message);
+            }
 
-                // TODO error checking
-                @{&self.0}.onMessage.addListener(listener);
+            function stop() {
+                self.onMessage.removeListener(listener);
+                self.onDisconnect.removeListener(stop);
+                callback.drop();
+            }
 
-                return function () {
-                    @{&self.0}.onMessage.removeListener(listener);
-                };
-            },
-            callback: callback,
-            phantom: std::marker::PhantomData,
-        }
+            // TODO error checking
+            self.onMessage.addListener(listener);
+            // TODO reconnect when it is disconnected ?
+            self.onDisconnect.addListener(stop);
+
+            return stop;
+        ))
     }
 
+    // TODO handle onDisconnect ?
     #[inline]
     pub fn send_message(&self, message: &str) {
         js! { @(no_return)
@@ -430,9 +394,9 @@ impl Port {
     }
 }
 
-impl Drop for Port {
+impl Discard for Port {
     #[inline]
-    fn drop(&mut self) {
+    fn discard(self) {
         js! { @(no_return)
             @{&self.0}.disconnect();
         }

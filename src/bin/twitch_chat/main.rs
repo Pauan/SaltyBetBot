@@ -270,6 +270,7 @@ pub fn observe_changes() {
             attribute_filter: None,
         }).unwrap();
 
+        // TODO use observer.leak()
         std::mem::forget(observer);
 
         log!("Observer initialized");
