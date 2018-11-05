@@ -8,10 +8,11 @@ extern crate serde;
 extern crate serde_json;
 
 use algorithm::{genetic, types};
+use algorithm::genetic::{Creature, NeuralNetwork};
 use algorithm::types::FitnessResult;
 use algorithm::record::{Record, Mode};
 use algorithm::simulation::Strategy;
-use algorithm::strategy::{EarningsStrategy, AllInStrategy};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
 use algorithm::random::shuffle;
 
 use serde::Serialize;
@@ -243,7 +244,9 @@ fn shuffle_records(records: &[Record], mode: Mode) -> Vec<Record> {
     }
 }
 
-fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Record]) -> types::BetStrategy {
+fn simulate<A>(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Record]) -> FitnessResult<A>
+    where A: Creature + Clone + Send + Sync {
+
     let records = shuffle_records(records, mode);
 
     let settings = genetic::SimulationSettings {
@@ -251,7 +254,7 @@ fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Re
         records: &records,
     };
 
-    let mut population: genetic::Population<types::BetStrategy, genetic::SimulationSettings> = genetic::Population::new(POPULATION_SIZE, &settings);
+    let mut population: genetic::Population<A, _> = genetic::Population::new(POPULATION_SIZE, &settings);
 
     population.init();
     progress_bar.inc(1);
@@ -265,13 +268,13 @@ fn simulate(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Re
     population.best().clone()
 }
 
-fn test_strategy<A: Strategy + Clone>(mode: Mode, records: &mut [Record], strategy: A) -> f64 {
+fn test_strategy<A>(mode: Mode, records: &mut [Record], strategy: A) -> f64 where A: Strategy + Clone {
     let records = shuffle_records(records, mode);
     FitnessResult::new(&genetic::SimulationSettings { mode, records: &records }, strategy).fitness
 }
 
 
-fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
+/*fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
     let matchmaking_strategy: types::BetStrategy = read("../strategies/matchmaking_strategy")?;
     let tournament_strategy: types::BetStrategy = read("../strategies/tournament_strategy")?;
     println!("Matchmaking Old   -> {}   -> {}",
@@ -281,68 +284,56 @@ fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), s
         test_strategy(Mode::Tournament, left, tournament_strategy.clone()),
         test_strategy(Mode::Tournament, right, tournament_strategy));
     Ok(())
-}
+}*/
 
 
-fn run_strategy<A: Strategy + Copy>(name: &str, left: &mut [Record], right: &mut [Record], strategy: A) {
+fn run_strategy<A: Strategy + Clone>(name: &str, left: &mut [Record], right: &mut [Record], strategy: A) {
     println!("Matchmaking {}   -> {}   -> {}", name,
-        test_strategy(Mode::Matchmaking, left, strategy),
-        test_strategy(Mode::Matchmaking, right, strategy));
-    println!("Tournament {}   -> {}   -> {}\n", name,
-        test_strategy(Mode::Tournament, left, strategy),
-        test_strategy(Mode::Tournament, right, strategy));
+        test_strategy(Mode::Matchmaking, left, strategy.clone()),
+        test_strategy(Mode::Matchmaking, right, strategy.clone()));
+    /*println!("Tournament {}   -> {}   -> {}\n", name,
+        test_strategy(Mode::Tournament, left, strategy.clone()),
+        test_strategy(Mode::Tournament, right, strategy));*/
 }
 
 
-fn run_bet_strategy(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
+fn run_bet_strategy<A>(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error>
+    where A: Creature + Clone + Send + Sync + Serialize {
+
     let date = current_time();
 
-    let progress_bar = indicatif::ProgressBar::new((GENERATIONS + 1) * 2);
+    let progress_bar = indicatif::ProgressBar::new(GENERATIONS + 1);
 
-    let matchmaking = simulate(&progress_bar, Mode::Matchmaking, left);
-    let tournament = simulate(&progress_bar, Mode::Tournament, left);
+    let matchmaking = simulate::<A>(&progress_bar, Mode::Matchmaking, left);
+    //let tournament = simulate::<A>(&progress_bar, Mode::Tournament, left);
 
     progress_bar.finish_and_clear();
 
-    let matchmaking_test = test_strategy(Mode::Matchmaking, right, matchmaking.clone());
-    let tournament_test = test_strategy(Mode::Tournament, right, tournament.clone());
+    let matchmaking_test = test_strategy(Mode::Matchmaking, right, matchmaking.creature.clone());
+    //let tournament_test = test_strategy(Mode::Tournament, right, tournament.creature.clone());
 
     println!("Matchmaking Genetic  {} -> {}", matchmaking.fitness, matchmaking_test);
-    println!("Tournament Genetic  {} -> {}", tournament.fitness, tournament_test);
+    //println!("Tournament Genetic  {} -> {}", tournament.fitness, tournament_test);
 
     write(&format!("../strategies/{} (matchmaking)", date), &matchmaking)?;
-    write(&format!("../strategies/{} (tournament)", date), &tournament)?;
+    //write(&format!("../strategies/{} (tournament)", date), &tournament)?;
 
     Ok(())
 }
 
 
 fn run_simulation() -> Result<(), std::io::Error> {
-    let records: Vec<Record> = read("../records/SaltyBet Records (2018-08-20T10_33_48.574Z).json")?;
+    let records: Vec<Record> = read("../SaltyBet Records.json")?;
+
     println!("Read in {} records\n", records.len());
 
     let (mut left, mut right) = split_records(records);
 
-    run_strategy("Earnings", &mut left, &mut right, EarningsStrategy {
-        use_percentages: true,
-        expected_profit: true,
-        winrate: false,
-        bet_difference: false,
-        winrate_difference: false,
-    });
-
-    run_strategy("Winrate", &mut left, &mut right, EarningsStrategy {
-        use_percentages: true,
-        expected_profit: false,
-        winrate: true,
-        bet_difference: false,
-        winrate_difference: false,
-    });
-
-    run_strategy("AllIn", &mut left, &mut right, AllInStrategy);
+    run_strategy("Default (matchmaking)", &mut left, &mut right, MATCHMAKING_STRATEGY);
+    //run_strategy("Default (tournament)", &mut left, &mut right, TOURNAMENT_STRATEGY);
 
     //run_old_simulation(&mut left, &mut right)?;
-    run_bet_strategy(&mut left, &mut right)?;
+    run_bet_strategy::<NeuralNetwork>(&mut left, &mut right)?;
 
     Ok(())
 }

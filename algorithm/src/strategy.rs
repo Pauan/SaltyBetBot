@@ -1,5 +1,7 @@
 use random;
 use record::{Tier, Record};
+use genetic::NeuralNetwork;
+use types::FitnessResult;
 use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
@@ -22,6 +24,14 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
 };*/
 
 pub const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
+
+
+lazy_static! {
+    pub static ref GENETIC_STRATEGY: NeuralNetwork = {
+        let result: FitnessResult<NeuralNetwork> = serde_json::from_str(&include_str!("../../strategies/2018-11-04T17.18.57 (matchmaking)")).unwrap();
+        result.creature
+    };
+}
 
 
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
@@ -210,7 +220,7 @@ impl MoneyStrategy {
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum BetStrategy {
     ExpectedBetWinner,
     ExpectedBet,
@@ -228,10 +238,11 @@ pub enum BetStrategy {
     Left,
     Right,
     Random,
+    Genetic(NeuralNetwork),
 }
 
 impl BetStrategy {
-    fn bet_value<A: Simulator>(&self, simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64, average_sums: bool) -> (f64, f64) {
+    fn bet_value<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64, average_sums: bool) -> (f64, f64) {
         let current_money = MoneyStrategy::current_money(simulation, average_sums);
         let percentage = MoneyStrategy::bet_percentage(current_money);
 
@@ -256,12 +267,17 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
+            BetStrategy::Genetic(strategy) => match strategy.bet(simulation, tier, left, right) {
+                Bet::Left(_) => (1.0, 0.0),
+                Bet::Right(_) => (0.0, 1.0),
+                Bet::None => (0.0, 0.0),
+            },
         }
     }
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CustomStrategy {
     pub average_sums: bool,
     pub scale_by_matches: bool,
@@ -294,7 +310,7 @@ impl Strategy for CustomStrategy {
         assert_not_nan(right_bet);
 
         // TODO add in a bias so that it will prefer Left unless Right is much greater than Left
-        let (left_value, right_value) = self.bet.bet_value(simulation, left, right, left_bet, right_bet, self.average_sums);
+        let (left_value, right_value) = self.bet.bet_value(simulation, tier, left, right, left_bet, right_bet, self.average_sums);
 
         assert_not_nan(left_value);
         assert_not_nan(right_value);

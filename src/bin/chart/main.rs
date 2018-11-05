@@ -18,13 +18,13 @@ use std::rc::Rc;
 use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading, set_panic_hook};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
-use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD, GENETIC_STRATEGY};
 use stdweb::traits::*;
 use stdweb::web::{document, set_timeout, Date};
 use stdweb::web::html_element::SelectElement;
 use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
 use stdweb::unstable::TryInto;
-use futures_signals::signal::{Mutable, SignalExt, and, not};
+use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
 
 
@@ -689,6 +689,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             a => panic!("Invalid value {}", a),
                         },
                         bet: match simulation_type {
+                            // TODO avoid the clone somehow
+                            "Genetic" => BetStrategy::Genetic(GENETIC_STRATEGY.clone()),
                             "expected-bet-winner" => BetStrategy::ExpectedBetWinner,
                             "expected-bet" => BetStrategy::ExpectedBet,
                             "earnings" => BetStrategy::ExpectedProfit,
@@ -716,6 +718,10 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             };
 
             self.information.set(Rc::new(Information::new(&self.records, information, self.show_only_recent_data.get())));
+        }
+
+        fn show_options(&self) -> impl Signal<Item = bool> {
+            self.simulation_type.signal_cloned().map(|x| *x != "real-data")
         }
     }
 
@@ -1003,9 +1009,11 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_dropdown(mutable: Mutable<Rc<String>>, options: &[(&'static str, &'static str)]) -> Dom {
+    fn make_dropdown<S>(mutable: Mutable<Rc<String>>, enabled: S, options: &[(&'static str, &'static str)]) -> Dom where S: Signal<Item = bool> + 'static {
         html!("select" => SelectElement, {
             .class(&*WIDGET)
+
+            .property_signal("disabled", not(enabled))
 
             .with_element(|dom, element| {
                 dom.event(clone!(mutable => move |_: ChangeEvent| {
@@ -1027,7 +1035,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_checkbox(name: &str, value: Mutable<bool>) -> Dom {
+    fn make_checkbox<S>(name: &str, value: Mutable<bool>, enabled: S) -> Dom where S: Signal<Item = bool> + 'static {
         lazy_static! {
             static ref CLASS_LABEL: String = class! {
                 .style("color", "white")
@@ -1050,7 +1058,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     .class(&*CLASS_INPUT)
 
                     .attribute("type", "checkbox")
-
+                    .property_signal("disabled", not(enabled))
                     .property_signal("checked", value.signal())
 
                     .event(move |e: ChangeEvent| {
@@ -1066,9 +1074,13 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_button<F>(name: &str, mut on_click: F) -> Dom where F: FnMut() + 'static {
+    fn make_button<S, F>(name: &str, enabled: S, mut on_click: F) -> Dom
+        where S: Signal<Item = bool> + 'static,
+              F: FnMut() + 'static {
         html!("button", {
             .class(&*WIDGET)
+
+            .property_signal("disabled", not(enabled))
 
             .event(move |_: ClickEvent| {
                 on_click();
@@ -1120,7 +1132,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         .class(&*CLASS_ROOT)
 
         .children(&mut [
-            make_info_popup(state.clone()),
+            //make_info_popup(state.clone()),
 
             svg_root(state.clone()),
 
@@ -1144,8 +1156,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         .style("margin-right", "15px")
 
                         .children(&mut [
-                            make_dropdown(state.simulation_type.clone(), &[
+                            make_dropdown(state.simulation_type.clone(), always(true), &[
                                 ("RealData", "real-data"),
+                                ("Genetic", "Genetic"),
                                 ("ExpectedBetWinner", "expected-bet-winner"),
                                 ("ExpectedBet", "expected-bet"),
                                 ("WinnerBet", "winner-bet"),
@@ -1164,7 +1177,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 ("Random", "random"),
                             ]),
 
-                            make_dropdown(state.money_type.clone(), &[
+                            make_dropdown(state.money_type.clone(), state.show_options(), &[
                                 ("ExpectedBetWinner", "expected-bet-winner"),
                                 ("ExpectedBet", "expected-bet"),
                                 ("Percentage", "percentage"),
@@ -1173,13 +1186,13 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 ("AllIn", "all-in"),
                             ]),
 
-                            make_checkbox("Use average for current money", state.average_sums.clone()),
-                            make_checkbox("Show only recent data", state.show_only_recent_data.clone()),
-                            make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone()),
-                            make_checkbox("Reset money at regular intervals", state.reset_money.clone()),
-                            make_checkbox("Simulate extra data", state.extra_data.clone()),
+                            make_checkbox("Show only recent data", state.show_only_recent_data.clone(), always(true)),
+                            make_checkbox("Use average for current money", state.average_sums.clone(), state.show_options()),
+                            make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone(), state.show_options()),
+                            make_checkbox("Reset money at regular intervals", state.reset_money.clone(), state.show_options()),
+                            make_checkbox("Simulate extra data", state.extra_data.clone(), state.show_options()),
 
-                            make_button("Run simulation", clone!(state => move || {
+                            make_button("Run simulation", always(true), clone!(state => move || {
                                 loading.show();
 
                                 set_timeout(clone!(loading, state => move || {

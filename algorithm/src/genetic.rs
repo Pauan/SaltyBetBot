@@ -14,9 +14,14 @@ const MAX_RECURSION_DEPTH: u32 = 2; // 4 maximum nodes
 const INPUTS: usize = 6;
 const LAYERS: usize = 3;
 
+// https://en.wikipedia.org/wiki/Sigmoid_function
+fn sigmoid(x: f64) -> f64 {
+    1.0 / (1.0 + (-x).exp())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Node {
-    bias: Percentage,
+    bias: f64,
     weights: Vec<Percentage>,
 }
 
@@ -31,7 +36,7 @@ impl Node {
             },
         };
 
-        sum + self.bias.0
+        sigmoid(sum + self.bias)
     }
 }
 
@@ -71,6 +76,7 @@ impl Gene for Layer {
     }
 }
 
+// TODO regularization
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuralNetwork {
     hidden_layers: Vec<Layer>,
@@ -187,9 +193,11 @@ impl Gene for bool {
 impl Gene for f64 {
     // TODO verify that this is correct
     fn new() -> Self {
-        let Percentage(percent) = Gene::new();
+        random::gaussian()
 
-        MAX_BET_AMOUNT * ((percent * 2.0) - 1.0)
+        /*let Percentage(percent) = Gene::new();
+
+        MAX_BET_AMOUNT * ((percent * 2.0) - 1.0)*/
     }
 
     fn choose(&self, other: &Self) -> Self {

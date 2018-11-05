@@ -1,10 +1,10 @@
 #[macro_use]
 extern crate serde_derive;
-extern crate salty_bet_bot;
 extern crate serde;
 extern crate serde_json;
+extern crate algorithm;
 
-use salty_bet_bot::types;
+use algorithm::types;
 use std::io::{BufReader, BufWriter};
 use std::fs::File;
 
@@ -28,8 +28,8 @@ fn map_strategy<A, B, F>(filename: &str, f: F) -> Result<(), std::io::Error>
 
 
 mod epoch1 {
-    use salty_bet_bot::types;
-    use salty_bet_bot::types::{Percentage, CubicBezierSegment, Lookup};
+    use algorithm::types;
+    use algorithm::types::{Percentage, CubicBezierSegment, Lookup};
 
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -76,7 +76,7 @@ mod epoch1 {
                 NumericCalculator::Multiply(a, b) => types::NumericCalculator::Multiply(Box::new((*a).into()), Box::new((*b).into())),
                 NumericCalculator::Divide(a, b) => types::NumericCalculator::Divide(Box::new((*a).into()), Box::new((*b).into())),
                 NumericCalculator::IfThenElse(a, b, c) => types::NumericCalculator::IfThenElse(a.into(), Box::new((*b).into()), Box::new((*c).into())),
-                NumericCalculator::Tier { x, s, a, b, p } => types::NumericCalculator::Tier {
+                NumericCalculator::Tier { x, s, a, b, p } => panic!(), /*types::NumericCalculator::Tier {
                     // TODO better value for this
                     new: Box::new(types::NumericCalculator::Fixed(0.0)),
                     x: Box::new((*x).into()),
@@ -84,7 +84,7 @@ mod epoch1 {
                     a: Box::new((*a).into()),
                     b: Box::new((*b).into()),
                     p: Box::new((*p).into()),
-                },
+                },*/
             }
         }
     }
@@ -134,12 +134,6 @@ mod epoch1 {
     impl Into<types::BetStrategy> for BetStrategy {
         fn into(self) -> types::BetStrategy {
             types::BetStrategy {
-                fitness: self.fitness,
-                successes: self.successes,
-                failures: self.failures,
-                record_len: self.record_len,
-                characters_len: self.characters_len,
-                max_character_len: self.max_character_len,
                 bet_strategy: self.bet_strategy.into(),
                 prediction_strategy: self.prediction_strategy.into(),
                 money_strategy: self.money_strategy.into(),

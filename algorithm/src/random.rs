@@ -1,6 +1,7 @@
 use std;
 use rand;
 use rand::Rng;
+use rand::distributions::StandardNormal;
 
 
 const PERCENTAGE_MAX: f64 = 1.0 + std::f64::EPSILON;
@@ -17,6 +18,10 @@ pub fn bool() -> bool {
 
 pub fn shuffle<A>(slice: &mut [A]) {
     rand::thread_rng().shuffle(slice)
+}
+
+pub fn gaussian() -> f64 {
+    rand::thread_rng().sample(StandardNormal)
 }
 
 // TODO verify that this is correct
@@ -63,25 +68,58 @@ mod tests {
 
     impl<A: PartialEq> Eq for OrdWrap<A> {}
 
-    fn test_distribution<A: Debug + PartialOrd + PartialEq, F: FnMut() -> A>(name: &str, mut f: F) {
+    fn test_distribution<F>(name: &str, min: f64, max: f64, mut f: F)
+         where //A: ::std::fmt::Display + PartialOrd + PartialEq,
+               F: FnMut() -> f64 {
         let mut counts = BTreeMap::new();
 
         for _ in 0..1000000 {
             *counts.entry(OrdWrap(f())).or_insert(0) += 1;
         }
 
-        log!("{}:\n{:?}", name, counts);
+        const NUMBER_OF_BUCKETS: f64 = 20.0;
+
+        let step = (max - min) / NUMBER_OF_BUCKETS;
+
+        let mut threshold = min + step;
+        let mut sum = 0;
+
+        println!("{}:", name);
+
+        for (key, value) in counts {
+            let key = key.0;
+
+            assert!(key >= min && key < max, "{} is out of bounds ({} - {})", key, min, max);
+
+            while key > threshold {
+                println!("  {} - {}:\n    {}", threshold - step, threshold, sum);
+                threshold += step;
+                sum = 0;
+            }
+
+            // TODO is this the right spot for this ?
+            sum += value;
+        }
+
+        while threshold <= max {
+            println!("  {} - {}:\n    {}", threshold - step, threshold, 0);
+            threshold += step;
+        }
     }
 
 
-    #[test]
+    /*#[test]
     fn test_bool() {
         test_distribution("bool", || bool());
     }
 
     #[test]
     fn test_percentage() {
-        percentage();
-        //test_distribution("percentage", || percentage());
+        test_distribution("percentage", || percentage());
+    }*/
+
+    #[test]
+    fn test_gaussian() {
+        test_distribution("gaussian", -6.0, 6.0, || gaussian());
     }
 }

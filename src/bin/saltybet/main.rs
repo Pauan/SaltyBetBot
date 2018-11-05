@@ -496,8 +496,8 @@ impl State {
         self.info_container.right.needed_odds.set(Some(right_needed_odds));
 
         let (left_bet, right_bet) = match *mode {
-            Mode::Matchmaking => self.simulation.matchmaking_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
-            Mode::Tournament => self.simulation.tournament_strategy.unwrap().bet_amount(&self.simulation, tier, left, right),
+            Mode::Matchmaking => self.simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right),
+            Mode::Tournament => self.simulation.tournament_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right),
         };
 
         self.info_container.left.bet_amount.set(Some(left_bet));
