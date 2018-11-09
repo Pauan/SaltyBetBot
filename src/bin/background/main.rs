@@ -148,7 +148,7 @@ impl Db {
         }
     }
 
-    pub fn get_all_records(&self) -> PromiseFuture<Vec<String>> {
+    fn get_all_records_raw(&self) -> PromiseFuture<Vec<String>> {
         js!(
             return new Promise(function (resolve, reject) {
                 var request = @{self}.transaction("records", "readonly").objectStore("records").getAll();
@@ -165,7 +165,11 @@ impl Db {
         ).try_into().unwrap()
     }
 
-    pub fn insert_records(&self, values: &[String]) -> PromiseFuture<()> {
+    pub async fn get_all_records(&self) -> Result<Vec<Record>, Error> {
+        await!(self.get_all_records_raw()).map(|records| records.into_iter().map(|x| Record::deserialize(&x)).collect())
+    }
+
+    fn insert_records_raw(&self, records: Vec<String>) -> PromiseFuture<()> {
         js!(
             return new Promise(function (resolve, reject) {
                 var transaction = @{self}.transaction("records", "readwrite");
@@ -181,11 +185,25 @@ impl Db {
 
                 var store = transaction.objectStore("records");
 
-                @{values}.forEach(function (value) {
+                @{records}.forEach(function (value) {
                     store.add(value);
                 });
             });
         ).try_into().unwrap()
+    }
+
+    // TODO is this '_ correct ?
+    pub fn insert_records(&self, records: &[Record]) -> impl Future<Output = Result<(), Error>> + '_ {
+        // TODO avoid doing anything if the len is 0 ?
+        let records: Vec<String> = records.into_iter().map(Record::serialize).collect();
+
+        async move {
+            if records.len() > 0 {
+                await!(self.insert_records_raw(records))?;
+            }
+
+            Ok(())
+        }
     }
 
     pub fn delete_all_records(&self) -> PromiseFuture<()> {
@@ -246,12 +264,8 @@ async fn main_future() -> Result<(), Error> {
         let new_records = deserialize_records(&new_records);
 
         let old_records = await!(db.get_all_records())?;
-        // TODO hacky, remove later
-        let old_records: Vec<Record> = old_records.into_iter().map(|x| Record::deserialize(&x)).collect();
 
         let added_records = get_added_records(old_records, new_records);
-        // TODO hacky, remove later
-        let added_records: Vec<String> = added_records.iter().map(Record::serialize).collect();
 
         await!(db.insert_records(added_records.as_slice()))?;
 

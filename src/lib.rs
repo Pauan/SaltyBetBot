@@ -283,7 +283,7 @@ macro_rules! reply {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Message {
     GetAllRecords,
-    InsertRecords(Vec<String>),
+    InsertRecords(Vec<Record>),
     DeleteAllRecords,
     OpenTwitchChat,
 }
@@ -293,28 +293,16 @@ pub async fn create_tab() -> Result<(), Error> {
 }
 
 pub async fn records_get_all() -> Result<Vec<Record>, Error> {
-    let records: Vec<String> = await!(send_message_result(&Message::GetAllRecords))?;
-    Ok(records.into_iter().map(|x| Record::deserialize(&x)).collect())
+    await!(send_message_result(&Message::GetAllRecords))
 }
 
-pub fn records_insert(record: &Record) -> impl Future<Output = Result<(), Error>> {
-    let records = vec![record.serialize()];
+pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
+    // TODO more idiomatic check
+    if records.len() > 0 {
+        await!(send_message_result(&Message::InsertRecords(records)))
 
-    send_message_result(&Message::InsertRecords(records))
-}
-
-pub fn records_insert_many(records: &[Record]) -> impl Future<Output = Result<(), Error>> {
-    // TODO avoid doing anything if the len is 0 ?
-    let records: Vec<String> = records.into_iter().map(Record::serialize).collect();
-
-    async {
-        // TODO more idiomatic check
-        if records.len() > 0 {
-            await!(send_message_result(&Message::InsertRecords(records)))
-
-        } else {
-            Ok(())
-        }
+    } else {
+        Ok(())
     }
 }
 

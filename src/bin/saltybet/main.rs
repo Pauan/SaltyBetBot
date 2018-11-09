@@ -439,7 +439,8 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                         // TODO figure out a way to avoid this clone
                         state.simulation.insert_record(&record);
 
-                        spawn_local(unwrap_future(records_insert(&record)));
+                        // TODO figure out a way to avoid this clone
+                        spawn_local(unwrap_future(records_insert(vec![record.clone()])));
 
                         state.records.push(record);
                     }
