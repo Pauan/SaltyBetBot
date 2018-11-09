@@ -175,7 +175,7 @@ impl Db {
     pub fn delete_all_records(&self) -> PromiseFuture<()> {
         js!(
             return new Promise(function (resolve, reject) {
-                var transaction = db.transaction("records", "readwrite");
+                var transaction = @{self}.transaction("records", "readwrite");
 
                 transaction.oncomplete = function () {
                     resolve();

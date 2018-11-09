@@ -13,8 +13,8 @@ extern crate dominator;
 use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, Loading, MAX_MATCH_TIME_LIMIT, set_panic_hook};
 use algorithm::record::Record;
 use dominator::events::{ClickEvent, ChangeEvent};
-use stdweb::{Reference, Once, spawn_local, unwrap_future};
-use stdweb::web::{document, INode};
+use stdweb::{Reference, PromiseFuture, spawn_local, unwrap_future};
+use stdweb::web::{document, INode, Blob};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 
@@ -34,27 +34,26 @@ fn get_file(event: &ChangeEvent) -> Option<Reference> {
 }
 
 // TODO accept File
-fn read_file<P, D>(file: Reference, on_progress: P, on_done: D)
-    where P: FnMut(u32, u32) + 'static,
-          D: FnOnce(String) + 'static {
-    js! { @(no_return)
-        var on_progress = @{on_progress};
-        var on_done = @{Once(on_done)};
+fn read_file<P>(file: Reference, on_progress: P) -> PromiseFuture<String> where P: FnMut(u32, u32) + 'static {
+    js!(
+        return new Promise(function (resolve, reject) {
+            var on_progress = @{on_progress};
 
-        var reader = new FileReader();
+            var reader = new FileReader();
 
-        reader.onprogress = function (e) {
-            on_progress(e.loaded, e.total);
-        };
+            reader.onprogress = function (e) {
+                on_progress(e.loaded, e.total);
+            };
 
-        // TODO handle errors
-        reader.onload = function (e) {
-            on_progress.drop();
-            on_done(e.target.result);
-        };
+            // TODO handle errors
+            reader.onload = function (e) {
+                on_progress.drop();
+                resolve(e.target.result);
+            };
 
-        reader.readAsText(@{file});
-    }
+            reader.readAsText(@{file});
+        });
+    ).try_into().unwrap()
 }
 
 fn click(id: &str) {
@@ -71,23 +70,30 @@ fn current_date() -> String {
     js!( return new Date().toISOString().replace(new RegExp("\\:", "g"), "_"); ).try_into().unwrap()
 }
 
-fn download(filename: &str, contents: &str) {
-    js! { @(no_return)
-        var blob = new Blob([@{contents}], { type: "application/json" });
-        var url = URL.createObjectURL(blob);
-
-        // TODO error handling
-        chrome.downloads.download({
-            url: url,
-            filename: @{filename},
-            saveAs: true,
-            conflictAction: "prompt"
-        }, function () {
-            URL.revokeObjectURL(url);
-        });
-    }
+fn str_to_blob(contents: &str) -> Blob {
+    js!( return new Blob([@{contents}], { type: "application/json" }); ).try_into().unwrap()
 }
 
+fn download(filename: &str, blob: &Blob) -> PromiseFuture<()> {
+    js!(
+        return new Promise(function (resolve, reject) {
+            var url = URL.createObjectURL(@{blob});
+
+            // TODO error handling
+            chrome.downloads.download({
+                url: url,
+                filename: @{filename},
+                saveAs: true,
+                conflictAction: "prompt"
+            }, function () {
+                URL.revokeObjectURL(url);
+                resolve();
+            });
+        });
+    ).try_into().unwrap()
+}
+
+// TODO return PromiseFuture<()>
 fn open_tab(url: &str) {
     js! { @(no_return)
         // TODO error handling
@@ -179,32 +185,32 @@ fn main() {
                             .attribute("type", "file")
                             .style("display", "none")
                             .event(clone!(loading => move |e: ChangeEvent| {
-                                if let Some(file) = get_file(&e) {
-                                    log!("Loading file");
+                                async fn future(loading: Loading, e: ChangeEvent) -> Result<(), Error> {
+                                    if let Some(file) = get_file(&e) {
+                                        log!("Starting import");
 
-                                    loading.show();
+                                        loading.show();
 
-                                    let on_progress = |loaded, total| {
-                                        log!("Loaded {} / {}", loaded, total);
-                                    };
+                                        let on_progress = |loaded, total| {
+                                            log!("Loaded {} / {}", loaded, total);
+                                        };
 
-                                    let on_loaded = clone!(loading => move |new_records: String| {
-                                        async fn future(loading: Loading, new_records: String) -> Result<(), Error> {
-                                            log!("File loaded, deserializing records");
+                                        let new_records = time!("Loading file", { await!(read_file(file, on_progress))? });
 
-                                            let mut new_records = deserialize_records(&new_records);
+                                        let mut new_records = time!("Deserializing records", { deserialize_records(&new_records) });
 
-                                            log!("{} records deserialized, now retrieving current records", new_records.len());
+                                        log!("{} records deserialized", new_records.len());
 
-                                            let mut old_records = await!(records_get_all())?;
+                                        let mut old_records = time!("Retrieving current records", { await!(records_get_all())? });
 
-                                            log!("{} records retrieved, now sorting", old_records.len());
+                                        log!("{} records retrieved", old_records.len());
 
+                                        time!("Sorting records", {
                                             old_records.sort_by(Record::sort_date);
                                             new_records.sort_by(Record::sort_date);
+                                        });
 
-                                            log!("Sorting complete, now merging");
-
+                                        let added_records = time!("Merging records", {
                                             let mut added_records = vec![];
 
                                             // TODO this can be implemented more efficiently (linear rather than quadratic)
@@ -250,24 +256,22 @@ fn main() {
                                                 }
                                             }
 
-                                            log!("Merging complete, inserting new records");
+                                            added_records
+                                        });
 
-                                            let len = added_records.len();
+                                        let len = added_records.len();
 
-                                            await!(records_insert_many(&added_records))?;
+                                        time!("Inserting new records", { await!(records_insert_many(&added_records))? });
 
-                                            loading.hide();
+                                        loading.hide();
 
-                                            log!("Inserted {} new records", len);
+                                        log!("Inserted {} new records", len);
+                                    }
 
-                                            Ok(())
-                                        }
-
-                                        spawn_local(unwrap_future(future(loading, new_records)));
-                                    });
-
-                                    read_file(file, on_progress, on_loaded);
+                                    Ok(())
                                 }
+
+                                spawn_local(unwrap_future(future(loading.clone(), e)));
                             }))
                         }),
 
@@ -285,23 +289,21 @@ fn main() {
                             .text("Export")
                             .event(clone!(loading => move |_: ClickEvent| {
                                 async fn future(loading: Loading) -> Result<(), Error> {
-                                    log!("Getting records");
+                                    log!("Starting export");
 
                                     loading.show();
 
-                                    let records = await!(records_get_all())?;
+                                    let records = time!("Getting records", { await!(records_get_all())? });
 
-                                    log!("Got records, now serializing");
+                                    let records = time!("Serializing records", { serialize_records(records) });
 
-                                    let records = serialize_records(records);
+                                    let blob = time!("Converting into Blob", { str_to_blob(&records) });
 
-                                    log!("Serialization complete, now downloading");
-
-                                    download(&format!("SaltyBet Records ({}).json", current_date()), &records);
+                                    time!("Downloading", {
+                                        await!(download(&format!("SaltyBet Records ({}).json", current_date()), &blob))?;
+                                    });
 
                                     loading.hide();
-
-                                    log!("Download complete");
 
                                     Ok(())
                                 }
@@ -317,15 +319,13 @@ fn main() {
                             .event(clone!(loading => move |_: ClickEvent| {
                                 if confirm("This will PERMANENTLY delete ALL of the match records!\n\nYou should export the match records before doing this.\n\nAre you sure that you want to delete the match records?") {
                                     async fn future(loading: Loading) -> Result<(), Error> {
-                                        log!("Deleting match records");
+                                        log!("Starting deletion");
 
                                         loading.show();
 
-                                        await!(records_delete_all())?;
+                                        time!("Deleting all records", { await!(records_delete_all())? });
 
                                         loading.hide();
-
-                                        log!("Match records deleted");
 
                                         Ok(())
                                     }
