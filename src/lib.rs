@@ -237,7 +237,15 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
 
             // TODO make this more efficient ?
             js! { @(no_return)
-                @{reply}(@{result});
+                try {
+                    @{reply}(@{result});
+
+                } catch (e) {
+                    // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
+                    if (e.message !== "Attempting to use a disconnected port object") {
+                        throw e;
+                    }
+                }
             }
         });
     };

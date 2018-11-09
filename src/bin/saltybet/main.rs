@@ -252,7 +252,7 @@ fn reload_page() {
 
 
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
-pub fn observe_changes(state: Rc<RefCell<State>>) {
+pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
     let mut old_closed: Option<WaifuBetsClosed> = None;
     let mut mode_switch: Option<f64> = None;
 
@@ -458,7 +458,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
     };
 
     spawn_local(
-        Port::connect("saltybet").messages().for_each(move |messages| {
+        port.messages().for_each(move |messages| {
             process_messages(messages);
             async {}
         })
@@ -721,6 +721,8 @@ impl InfoContainer {
 
 
 async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
+    let port = Port::connect("saltybet");
+
     let records = await!(records_get_all())?;
     //let matches = migrate_records(matches);
 
@@ -754,7 +756,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
         info_container: container,
     }));
 
-    observe_changes(state.clone());
+    observe_changes(state.clone(), port);
 
     fn loop_bet(state: Rc<RefCell<State>>) {
         lookup_bet(&state);

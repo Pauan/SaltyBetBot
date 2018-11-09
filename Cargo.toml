@@ -19,7 +19,7 @@ futures-util-preview = "0.3.0-alpha.9"
 futures-channel-preview = "0.3.0-alpha.9"
 discard = "1.0.0"
 
-#[patch.crates-io]
-#stdweb = { path = "../stdweb" }
+[patch.crates-io]
+stdweb = { path = "../stdweb" }
 #dominator = { path = "../rust-dominator" }
 #futures-signals = { path = "../rust-signals" }

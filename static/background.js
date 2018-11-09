@@ -241,13 +241,8 @@ Module.STDWEB_PRIVATE.serialize_object = function serialize_object( address, val
     HEAPU32[ (address + 8) / 4 ] = key_array_pointer;
     for( var i = 0; i < length; ++i ) {
         var key = keys[ i ];
-        var key_length = Module.STDWEB_PRIVATE.utf8_len( key );
-        var key_pointer = Module.STDWEB_PRIVATE.alloc( key_length );
-        Module.STDWEB_PRIVATE.to_utf8( key, key_pointer );
-
         var key_address = key_array_pointer + i * 8;
-        HEAPU32[ key_address / 4 ] = key_pointer;
-        HEAPU32[ (key_address + 4) / 4 ] = key_length;
+        Module.STDWEB_PRIVATE.to_utf8_string( key_address, key );
 
         Module.STDWEB_PRIVATE.from_js( value_array_pointer + i * 16, value[ key ] );
     }
@@ -264,18 +259,43 @@ Module.STDWEB_PRIVATE.serialize_array = function serialize_array( address, value
     }
 };
 
-Module.STDWEB_PRIVATE.from_js = function from_js( address, value ) {
-    var kind = Object.prototype.toString.call( value );
-    if( kind === "[object String]" ) {
+if ( typeof TextEncoder === "function" ) {
+    var cachedEncoder = new TextEncoder( "utf-8" );
+
+    Module.STDWEB_PRIVATE.to_utf8_string = function to_utf8_string( address, value ) {
+        var buffer = cachedEncoder.encode( value );
+        var length = buffer.length;
+        var pointer = 0;
+
+        if ( length > 0 ) {
+            pointer = Module.STDWEB_PRIVATE.alloc( length );
+            HEAPU8.set( buffer, pointer );
+        }
+
+        HEAPU32[ address / 4 ] = pointer;
+        HEAPU32[ (address + 4) / 4 ] = length;
+    };
+
+} else {
+    Module.STDWEB_PRIVATE.to_utf8_string = function to_utf8_string( address, value ) {
         var length = Module.STDWEB_PRIVATE.utf8_len( value );
         var pointer = 0;
-        if( length > 0 ) {
+
+        if ( length > 0 ) {
             pointer = Module.STDWEB_PRIVATE.alloc( length );
             Module.STDWEB_PRIVATE.to_utf8( value, pointer );
         }
-        HEAPU8[ address + 12 ] = 4;
+
         HEAPU32[ address / 4 ] = pointer;
         HEAPU32[ (address + 4) / 4 ] = length;
+    };
+}
+
+Module.STDWEB_PRIVATE.from_js = function from_js( address, value ) {
+    var kind = Object.prototype.toString.call( value );
+    if( kind === "[object String]" ) {
+        HEAPU8[ address + 12 ] = 4;
+        Module.STDWEB_PRIVATE.to_utf8_string( address, value );
     } else if( kind === "[object Number]" ) {
         if( value === (value|0) ) {
             HEAPU8[ address + 12 ] = 2;
@@ -303,48 +323,57 @@ Module.STDWEB_PRIVATE.from_js = function from_js( address, value ) {
     }
 };
 
-// This is ported from Rust's stdlib; it's faster than
-// the string conversion from Emscripten.
-Module.STDWEB_PRIVATE.to_js_string = function to_js_string( index, length ) {
-    index = index|0;
-    length = length|0;
-    var end = (index|0) + (length|0);
-    var output = "";
-    while( index < end ) {
-        var x = HEAPU8[ index++ ];
-        if( x < 128 ) {
-            output += String.fromCharCode( x );
+if ( typeof TextDecoder === "function" ) {
+    var cachedDecoder = new TextDecoder( "utf-8" );
+
+    Module.STDWEB_PRIVATE.to_js_string = function to_js_string( index, length ) {
+        return cachedDecoder.decode( HEAPU8.subarray( index, index + length ) );
+    };
+
+} else {
+    // This is ported from Rust's stdlib; it's faster than
+    // the string conversion from Emscripten.
+    Module.STDWEB_PRIVATE.to_js_string = function to_js_string( index, length ) {
+        index = index|0;
+        length = length|0;
+        var end = (index|0) + (length|0);
+        var output = "";
+        while( index < end ) {
+            var x = HEAPU8[ index++ ];
+            if( x < 128 ) {
+                output += String.fromCharCode( x );
+                continue;
+            }
+            var init = (x & (0x7F >> 2));
+            var y = 0;
+            if( index < end ) {
+                y = HEAPU8[ index++ ];
+            }
+            var ch = (init << 6) | (y & 63);
+            if( x >= 0xE0 ) {
+                var z = 0;
+                if( index < end ) {
+                    z = HEAPU8[ index++ ];
+                }
+                var y_z = ((y & 63) << 6) | (z & 63);
+                ch = init << 12 | y_z;
+                if( x >= 0xF0 ) {
+                    var w = 0;
+                    if( index < end ) {
+                        w = HEAPU8[ index++ ];
+                    }
+                    ch = (init & 7) << 18 | ((y_z << 6) | (w & 63));
+
+                    output += String.fromCharCode( 0xD7C0 + (ch >> 10) );
+                    ch = 0xDC00 + (ch & 0x3FF);
+                }
+            }
+            output += String.fromCharCode( ch );
             continue;
         }
-        var init = (x & (0x7F >> 2));
-        var y = 0;
-        if( index < end ) {
-            y = HEAPU8[ index++ ];
-        }
-        var ch = (init << 6) | (y & 63);
-        if( x >= 0xE0 ) {
-            var z = 0;
-            if( index < end ) {
-                z = HEAPU8[ index++ ];
-            }
-            var y_z = ((y & 63) << 6) | (z & 63);
-            ch = init << 12 | y_z;
-            if( x >= 0xF0 ) {
-                var w = 0;
-                if( index < end ) {
-                    w = HEAPU8[ index++ ];
-                }
-                ch = (init & 7) << 18 | ((y_z << 6) | (w & 63));
-
-                output += String.fromCharCode( 0xD7C0 + (ch >> 10) );
-                ch = 0xDC00 + (ch & 0x3FF);
-            }
-        }
-        output += String.fromCharCode( ch );
-        continue;
-    }
-    return output;
-};
+        return output;
+    };
+}
 
 Module.STDWEB_PRIVATE.id_to_ref_map = {};
 Module.STDWEB_PRIVATE.id_to_refcount_map = {};
@@ -499,83 +528,53 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
+                "__extjs_235955a949210882dab939c76fe7c33103940deb": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return fetch (chrome.runtime.getURL (($1)), {credentials : "same-origin" , mode : "same-origin"}). then (function (response){return response.text ();});})());
             },
             "__extjs_ad52d59d80aecad398c056ccad20049bb2c45653": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);var state = ($0); state.cancelled = true ; state.callback.drop ();
             },
-            "__extjs_564c2e4da2b413702d80d2fcaf5092dffdfbaaeb": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). postMessage (($1));
+            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
             },
-            "__extjs_c41297f1f679af47d6390b4b617d1a8375706933": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.error (($0));
+            "__extjs_b00332decb7a1ee6b8ac41a46cf9fd095a78679e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var dropped = false ; function wrapper (){if (! dropped){callback ();}}var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){dropped = true ; callback.drop ();}; return nextTick ;})());
             },
             "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
                 Module.STDWEB_PRIVATE.decrement_refcount( $0 );
             },
-            "__extjs_52e1cf66a242cb73d38abbcc4fd80b29aa492aa6": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0)(($1));
-            },
-            "__extjs_c7517059977e36d1f093395afdd661ef658c2ac3": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Object) | 0;
-            },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
-            },
-            "__extjs_ef025abfb05cc46a6bde75f875a88bcbdf51fe29": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){var request = ($1). transaction ("records" , "readonly"). objectStore ("records"). getAll (); request.onsuccess = function (event){resolve (event.target.result);}; request.onerror = function (event){reject (event);};});})());
-            },
-            "__extjs_4e2f81d3d5dcdc9461d9f5f14d71d76b3b86b8c1": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). sender.tab ;})());
-            },
-            "__extjs_8033dcc9dc65bb401a910a569df4f24fbb5aa9b7": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof IDBDatabase) | 0;
-            },
-            "__extjs_830b87c3546e72d3ea3889b12a9226d1e0938cb1": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){chrome.tabs.create ({url : "https://www.twitch.tv/embed/saltybet/chat?darkpopout" , active : false}, function (tab){if (chrome.runtime.lastError != null){console.log (chrome.runtime.lastError); reject (chrome.runtime.lastError);}else {resolve ();}});});})());
-            },
-            "__extjs_8c32019649bb581b1b742eeedfc410e2bedd56a6": function($0, $1) {
-                var array = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );Module.STDWEB_PRIVATE.serialize_array( $1, array );
-            },
-            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
-            },
-            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
-                Module.STDWEB_PRIVATE.increment_refcount( $0 );
-            },
-            "__extjs_1cb44bb6b396d9ca7255ccfcd9f49e0e41d23530": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); chrome.runtime.onConnect.addListener (callback); return function (){chrome.runtime.onConnect.removeListener (callback); callback.drop ();};})());
-            },
-            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
-            },
-            "__extjs_4ab99a523d870bbcd86a46ae611ca5f18c56cc2e": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){var transaction = db.transaction ("records" , "readwrite"); transaction.oncomplete = function (){resolve ();}; transaction.onerror = function (event){reject (event);}; var store = transaction.objectStore ("records"); store.clear ();});})());
-            },
-            "__extjs_adc588d6b6a24eac396fc7005a2d2deab62205c0": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var callback = ($2); self.onDisconnect.addListener (callback); return function (){self.onDisconnect.removeListener (callback); callback.drop ();};})());
-            },
-            "__extjs_8e58259110540e5448a6fe40a28dc94acd78c8a1": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var state = {cancelled : false , callback : callback}; ($2). then (function (value){if (! state.cancelled){callback (value , true);}}, function (value){if (! state.cancelled){callback (value , false);}}); return state ;})());
-            },
             "__extjs_2e6bf47ec7f31b4cb119a8d2793bacfcfe38b112": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Error) | 0;
             },
-            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
-                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
-            },
-            "__extjs_b6903441694bafdf99145758b3992c6c28f3ec9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). createObjectStore ("records" , {autoIncrement : true});
+            "__extjs_87da8cd76d84d07684a6ec1346c397acf39695cd": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){var transaction = ($1). transaction ("records" , "readwrite"); transaction.oncomplete = function (){resolve ();}; transaction.onerror = function (event){reject (event);}; var store = transaction.objectStore ("records"); store.clear ();});})());
             },
             "__extjs_b99a06f7004f71b3f4e223fbd9f24cf2620b1047": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). message ;})());
             },
-            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
-                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
+            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
+            },
+            "__extjs_1cb44bb6b396d9ca7255ccfcd9f49e0e41d23530": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); chrome.runtime.onConnect.addListener (callback); return function (){chrome.runtime.onConnect.removeListener (callback); callback.drop ();};})());
             },
             "__extjs_7a6027d4ced528c61e9597e225c3b8e4e5c22b0e": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Promise) | 0;
+            },
+            "__extjs_8c32019649bb581b1b742eeedfc410e2bedd56a6": function($0, $1) {
+                var array = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );Module.STDWEB_PRIVATE.serialize_array( $1, array );
+            },
+            "__extjs_eb2b107fdf8d88b7ace5aa651b8675d7aee62333": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); function listener (message , _sender , reply){callback (message , reply); return true ;}chrome.runtime.onMessage.addListener (listener); return function (){chrome.runtime.onMessage.removeListener (listener); callback.drop ();};})());
+            },
+            "__extjs_ef025abfb05cc46a6bde75f875a88bcbdf51fe29": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){var request = ($1). transaction ("records" , "readonly"). objectStore ("records"). getAll (); request.onsuccess = function (event){resolve (event.target.result);}; request.onerror = function (event){reject (event);};});})());
+            },
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            },
+            "__extjs_c7517059977e36d1f093395afdd661ef658c2ac3": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Object) | 0;
             },
             "__extjs_274dd87b8b64a067fbdf42fe12b102a571070ae4": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). name ;})());
@@ -583,32 +582,68 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_285aac3fba72d67cb459d37d4d21aa4fb62598ba": function($0) {
                 Module.STDWEB_PRIVATE.arena = $0;
             },
-            "__extjs_9056a47db34349f5589ec2cae1e6525feb70c1d7": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var upgrade_needed = ($1); return new Promise (function (resolve , reject){var request = indexedDB.open ("" , ($2)); request.onupgradeneeded = function (event){upgrade_needed (event.target.result , event.oldVersion , event.newVersion);}; request.onsuccess = function (event){upgrade_needed.drop (); resolve (event.target.result);}; request.onblocked = function (){upgrade_needed.drop (); reject (new Error ("Database is blocked"));}; request.onerror = function (event){upgrade_needed.drop (); reject (event);};});})());
-            },
-            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
+            "__extjs_8033dcc9dc65bb401a910a569df4f24fbb5aa9b7": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof IDBDatabase) | 0;
             },
             "__extjs_10f5aa3985855124ab83b21d4e9f7297eb496508": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Array) | 0;
             },
-            "__extjs_eb2b107fdf8d88b7ace5aa651b8675d7aee62333": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); function listener (message , _sender , reply){callback (message , reply); return true ;}chrome.runtime.onMessage.addListener (listener); return function (){chrome.runtime.onMessage.removeListener (listener); callback.drop ();};})());
+            "__extjs_c41297f1f679af47d6390b4b617d1a8375706933": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.error (($0));
             },
-            "__extjs_b00332decb7a1ee6b8ac41a46cf9fd095a78679e": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var dropped = false ; function wrapper (){if (! dropped){callback ();}}var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){dropped = true ; callback.drop ();}; return nextTick ;})());
+            "__extjs_9056a47db34349f5589ec2cae1e6525feb70c1d7": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var upgrade_needed = ($1); return new Promise (function (resolve , reject){var request = indexedDB.open ("" , ($2)); request.onupgradeneeded = function (event){upgrade_needed (event.target.result , event.oldVersion , event.newVersion);}; request.onsuccess = function (event){upgrade_needed.drop (); resolve (event.target.result);}; request.onblocked = function (){upgrade_needed.drop (); reject (new Error ("Database is blocked"));}; request.onerror = function (event){upgrade_needed.drop (); reject (event);};});})());
             },
-            "__extjs_7d554d532523626870df7d2835973c2795eb19c0": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){var transaction = ($1). transaction ("records" , "readwrite"); transaction.oncomplete = function (){resolve ();}; transaction.onerror = function (event){reject (event);}; var store = transaction.objectStore ("records"); ($2). forEach (function (value){store.add (value);});});})());
+            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
+                console.error( 'Encountered a panic!' );
+            },
+            "__extjs_8e58259110540e5448a6fe40a28dc94acd78c8a1": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var state = {cancelled : false , callback : callback}; ($2). then (function (value){if (! state.cancelled){callback (value , true);}}, function (value){if (! state.cancelled){callback (value , false);}}); return state ;})());
+            },
+            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            },
+            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
             },
             "__extjs_ec3d7a4ba2881dba4bd6d0550c3740e87dfbb5d9": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var ids = ($1). map (function (tab){return tab.id ;}); return new Promise (function (resolve , reject){chrome.tabs.remove (ids , function (){if (chrome.runtime.lastError != null){console.log (chrome.runtime.lastError); reject (chrome.runtime.lastError);}else {resolve ();}});});})());
             },
+            "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
+                console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
+            },
+            "__extjs_b6903441694bafdf99145758b3992c6c28f3ec9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). createObjectStore ("records" , {autoIncrement : true});
+            },
+            "__extjs_7d554d532523626870df7d2835973c2795eb19c0": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){var transaction = ($1). transaction ("records" , "readwrite"); transaction.oncomplete = function (){resolve ();}; transaction.onerror = function (event){reject (event);}; var store = transaction.objectStore ("records"); ($2). forEach (function (value){store.add (value);});});})());
+            },
+            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
+                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
+            },
+            "__extjs_564c2e4da2b413702d80d2fcaf5092dffdfbaaeb": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). postMessage (($1));
+            },
+            "__extjs_d09c2e8402df6f933f0e2ccfc08532abd5d9c1d2": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return performance.now ();})());
+            },
+            "__extjs_830b87c3546e72d3ea3889b12a9226d1e0938cb1": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){chrome.tabs.create ({url : "https://www.twitch.tv/embed/saltybet/chat?darkpopout" , active : false}, function (tab){if (chrome.runtime.lastError != null){console.log (chrome.runtime.lastError); reject (chrome.runtime.lastError);}else {resolve ();}});});})());
+            },
+            "__extjs_adc588d6b6a24eac396fc7005a2d2deab62205c0": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var callback = ($2); self.onDisconnect.addListener (callback); return function (){self.onDisconnect.removeListener (callback); callback.drop ();};})());
+            },
+            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
+                Module.STDWEB_PRIVATE.increment_refcount( $0 );
+            },
             "__extjs_4ec816bc522d98b70d461e458a9f79d762e738fc": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var self = ($1); var callback = ($2); function stop (){self.onMessage.removeListener (callback); self.onDisconnect.removeListener (stop); callback.drop ();}self.onMessage.addListener (callback); self.onDisconnect.addListener (stop); return stop ;})());
             },
-            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
-                console.error( 'Encountered a panic!' );
+            "__extjs_0f83fef10ad7b0a50ad379842d01fe04c07a7b04": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);try {($0)(($1));}catch (e){if (e.message !=="Attempting to use a disconnected port object"){throw e ;}}
+            },
+            "__extjs_4e2f81d3d5dcdc9461d9f5f14d71d76b3b86b8c1": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). sender.tab ;})());
             },
                 "__web_on_grow": __web_on_grow
             }

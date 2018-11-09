@@ -24,7 +24,7 @@
     "js": [
       "saltybet.js"
     ],
-    "run_at": "document_end",
+    "run_at": "document_start",
     "all_frames": false
   }, {
     "matches": [
@@ -33,7 +33,7 @@
     "js": [
       "twitch_chat.js"
     ],
-    "run_at": "document_end",
+    "run_at": "document_start",
     "all_frames": false
   }],
   "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",

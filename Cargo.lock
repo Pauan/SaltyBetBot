@@ -146,7 +146,7 @@ dependencies = [
  "futures-util-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-utils 0.1.0-alpha.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "stdweb 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stdweb 0.4.10",
  "stdweb-derive 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -405,7 +405,7 @@ dependencies = [
  "fuchsia-zircon 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand_core 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "stdweb 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stdweb 0.4.10",
  "winapi 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -524,7 +524,7 @@ dependencies = [
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.32 (registry+https://github.com/rust-lang/crates.io-index)",
- "stdweb 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stdweb 0.4.10",
  "stdweb-derive 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -592,7 +592,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "stdweb"
 version = "0.4.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "discard 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-channel-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -602,9 +601,20 @@ dependencies = [
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.32 (registry+https://github.com/rust-lang/crates.io-index)",
- "stdweb-derive 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "stdweb-internal-macros 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "stdweb-internal-runtime 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stdweb-derive 0.5.1",
+ "stdweb-internal-macros 0.2.2",
+ "stdweb-internal-runtime 0.1.2",
+]
+
+[[package]]
+name = "stdweb-derive"
+version = "0.5.1"
+dependencies = [
+ "proc-macro2 0.4.20 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.15.13 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -622,7 +632,6 @@ dependencies = [
 [[package]]
 name = "stdweb-internal-macros"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "base-x 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 0.4.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -637,7 +646,6 @@ dependencies = [
 [[package]]
 name = "stdweb-internal-runtime"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "syn"
@@ -820,10 +828,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum slab 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5f9776d6b986f77b35c6cf846c11ad986ff128fe0b2b63a3628e3755e8d3102d"
 "checksum smallvec 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)" = "153ffa32fd170e9944f7e0838edf824a754ec4c1fc64746fcc9fe1f8fa602e5d"
 "checksum stable_deref_trait 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
-"checksum stdweb 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)" = "22203527a18dc1c5c83bbd247fb005f5877d040783b6626571d6b7ed7a6f5e75"
 "checksum stdweb-derive 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0e21ebd9179de08f2300a65454268a17ea3de204627458588c84319c4def3930"
-"checksum stdweb-internal-macros 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "bcbc9155af9606d44c740197d7d6672b49c4ee93a176c7cecde8b49322677604"
-"checksum stdweb-internal-runtime 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b74fe9de4c0d07e91987f4d798b95f27f3cb7769fbc222fa951fa386908297b5"
 "checksum syn 0.15.13 (registry+https://github.com/rust-lang/crates.io-index)" = "7b4439ee8325b4e4b57e59309c3724c9a4478eaeb4eb094b6f3fac180a3b2876"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
 "checksum termios 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "72b620c5ea021d75a735c943269bb07d30c9b77d6ac6b236bc8b5c496ef05625"

@@ -229,9 +229,13 @@ impl Db {
 }
 
 
-fn remove_value<A>(vec: &mut Vec<A>, value: A) where A: PartialEq {
+fn remove_value<A>(vec: &mut Vec<A>, value: A) -> bool where A: PartialEq {
     if let Some(index) = vec.iter().position(|x| *x == value) {
         vec.swap_remove(index);
+        true
+
+    } else {
+        false
     }
 }
 
@@ -322,10 +326,10 @@ async fn main_future() -> Result<(), Error> {
                 DiscardOnDrop::leak(port.on_disconnect(move |port| {
                     let mut lock = state.borrow_mut();
 
-                    remove_value(&mut lock.salty_bet_ports, port);
-
-                    if lock.salty_bet_ports.len() == 0 {
-                        spawn_local(unwrap_future(remove_ports(&mut lock.twitch_chat_ports)));
+                    if remove_value(&mut lock.salty_bet_ports, port) {
+                        if lock.salty_bet_ports.len() == 0 {
+                            spawn_local(unwrap_future(remove_ports(&mut lock.twitch_chat_ports)));
+                        }
                     }
                 }));
 
