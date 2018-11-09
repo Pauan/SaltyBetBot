@@ -56,6 +56,7 @@ fn run() -> Result<()> {
         panic!("Command failed");
     }
 
+    bin("background")?;
     bin("saltybet")?;
     bin("twitch_chat")?;
     bin("chart")?;

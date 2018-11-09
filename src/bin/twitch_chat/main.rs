@@ -24,13 +24,11 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate serde_json;
 #[macro_use]
 extern crate stdweb;
-extern crate algorithm;
 
 use std::iter::Iterator;
-use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp};
+use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook};
 use algorithm::record::{Tier, Mode, Winner};
 use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode};
 use stdweb::unstable::TryInto;
@@ -229,9 +227,11 @@ pub fn get_waifu_messages() -> Vec<WaifuMessage> {
 
 
 pub fn observe_changes() {
+    set_panic_hook();
+
     log!("Initializing...");
 
-    let port = Port::new("twitch_chat");
+    let port = Port::connect("twitch_chat");
 
     let observer = MutationObserver::new(move |records, _| {
         let now: f64 = Date::now();
@@ -247,7 +247,7 @@ pub fn observe_changes() {
         }).flat_map(|x| x).collect();
 
         if messages.len() != 0 {
-            port.send_message(&serde_json::to_string(&messages).unwrap());
+            port.send_message(&messages);
         }
     });
 

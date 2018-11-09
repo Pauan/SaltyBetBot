@@ -3,10 +3,8 @@
 
 #[macro_use]
 extern crate stdweb;
-extern crate serde_json;
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate algorithm;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

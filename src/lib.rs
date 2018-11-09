@@ -1,5 +1,5 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro, futures_api)]
+#![feature(async_await, await_macro, futures_api, pin, arbitrary_self_types)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -7,24 +7,27 @@ extern crate lazy_static;
 extern crate stdweb;
 #[macro_use]
 extern crate stdweb_derive;
-extern crate discard;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
-extern crate algorithm;
 
 pub mod regexp;
 mod macros;
 
+use std::pin::Pin;
+use std::task::{Poll, LocalWaker};
 use std::future::Future;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use discard::{Discard, DiscardOnDrop};
 use algorithm::record::{Tier, Mode, Winner, Record};
-use stdweb::{Value, PromiseFuture};
+use futures_core::stream::Stream;
+use futures_util::stream::StreamExt;
+use futures_channel::mpsc::{UnboundedReceiver, unbounded};
+use stdweb::{Reference, Value, Once, PromiseFuture, spawn_local};
 use stdweb::web::{document, set_timeout, INode, Element, NodeList};
 use stdweb::web::error::Error;
 use stdweb::web::html_element::InputElement;
-use stdweb::unstable::{TryInto, TryFrom};
+use stdweb::unstable::TryInto;
 use stdweb::traits::*;
 
 
@@ -176,9 +179,7 @@ pub fn query_all(input: &str) -> NodeList {
 
 
 #[inline]
-fn send_message<A>(message: Value) -> PromiseFuture<A>
-    where A: TryFrom<Value> + 'static,
-          A::Error: ::std::fmt::Debug {
+fn send_message_raw(message: &str) -> PromiseFuture<String> {
     js!(
         return new Promise(function (resolve, reject) {
             chrome.runtime.sendMessage(null, @{message}, null, function (x) {
@@ -186,29 +187,120 @@ fn send_message<A>(message: Value) -> PromiseFuture<A>
                     console.log(chrome.runtime.lastError);
                     reject(chrome.runtime.lastError);
 
-                } else if (x.type === "success") {
-                    resolve(x.value);
-
                 } else {
-                    reject(new Error(x.error));
+                    resolve(x);
                 }
             });
         });
     ).try_into().unwrap()
 }
 
+pub fn send_message<A, B>(message: &A) -> impl Future<Output = Result<B, Error>>
+    where A: Serialize,
+          B: DeserializeOwned {
+
+    let message: String = serde_json::to_string(message).unwrap();
+
+    async move {
+        let reply: String = await!(send_message_raw(&message))?;
+
+        Ok(serde_json::from_str(&reply).unwrap())
+    }
+}
+
+pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, Error>>
+    where A: Serialize,
+          Result<B, String>: DeserializeOwned {
+
+    let future = send_message(message);
+
+    async move {
+        let reply: Result<B, String> = await!(future)?;
+
+        reply.map_err(|e| {
+            // TODO replace with stdweb
+            js!( return new Error(@{e}); ).try_into().unwrap()
+        })
+    }
+}
+
+pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
+    where A: DeserializeOwned,
+          B: Future<Output = String> + 'static,
+          F: FnMut(A) -> B + 'static {
+
+    let callback = move |message: String, reply: Reference| {
+        let future = f(serde_json::from_str(&message).unwrap());
+
+        spawn_local(async {
+            let result = await!(future);
+
+            // TODO make this more efficient ?
+            js! { @(no_return)
+                @{reply}(@{result});
+            }
+        });
+    };
+
+    Listener::new(js!(
+        var callback = @{callback};
+
+        function listener(message, _sender, reply) {
+            callback(message, reply);
+            // TODO somehow only return true when needed ?
+            return true;
+        }
+
+        // TODO handle errors
+        chrome.runtime.onMessage.addListener(listener);
+
+        return function () {
+            chrome.runtime.onMessage.removeListener(listener);
+            callback.drop();
+        };
+    ))
+}
+
+#[inline]
+pub fn serialize_result<A>(value: Result<A, Error>) -> String where A: Serialize {
+    let value: Result<A, String> = value.map_err(|err| {
+        console!(error, &err);
+        // TODO use stdweb method
+        js!( return @{err}.message; ).try_into().unwrap()
+    });
+
+    serde_json::to_string(&value).unwrap()
+}
+
+#[macro_export]
+macro_rules! reply {
+    ($value:block) => {{
+        $crate::serialize_result(try { $value })
+    }}
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Message {
+    GetAllRecords,
+    InsertRecords(Vec<String>),
+    DeleteAllRecords,
+    OpenTwitchChat,
+}
+
 pub async fn create_tab() -> Result<(), Error> {
-    await!(send_message(js!( return { type: "tabs:open-twitch-chat" }; )))
+    await!(send_message_result(&Message::OpenTwitchChat))
 }
 
 pub async fn records_get_all() -> Result<Vec<Record>, Error> {
-    let records: Vec<String> = await!(send_message(js!( return { type: "records:get-all" }; )))?;
+    let records: Vec<String> = await!(send_message_result(&Message::GetAllRecords))?;
     Ok(records.into_iter().map(|x| Record::deserialize(&x)).collect())
 }
 
 pub fn records_insert(record: &Record) -> impl Future<Output = Result<(), Error>> {
-    let record = record.serialize();
-    send_message(js!( return { type: "records:insert", value: [@{record}] }; ))
+    let records = vec![record.serialize()];
+
+    send_message_result(&Message::InsertRecords(records))
 }
 
 pub fn records_insert_many(records: &[Record]) -> impl Future<Output = Result<(), Error>> {
@@ -218,7 +310,7 @@ pub fn records_insert_many(records: &[Record]) -> impl Future<Output = Result<()
     async {
         // TODO more idiomatic check
         if records.len() > 0 {
-            await!(send_message(js!( return { type: "records:insert", value: @{records} }; )))
+            await!(send_message_result(&Message::InsertRecords(records)))
 
         } else {
             Ok(())
@@ -227,7 +319,7 @@ pub fn records_insert_many(records: &[Record]) -> impl Future<Output = Result<()
 }
 
 pub async fn records_delete_all() -> Result<(), Error> {
-    await!(send_message(js!( return { type: "records:delete-all" }; )))
+    await!(send_message_result(&Message::DeleteAllRecords))
 }
 
 
@@ -349,57 +441,139 @@ impl IndexedDB {
 }*/
 
 
-pub struct Port(Value);
+#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
+#[reference(instance_of = "Object")]
+pub struct Tab(Reference);
 
-impl Port {
+/*impl Tab {
+    // TODO is i32 correct ?
     #[inline]
-    pub fn new(name: &str) -> DiscardOnDrop<Self> {
+    pub fn id(&self) -> i32 {
+        js!( return @{self}.id; ).try_into().unwrap()
+    }
+}*/
+
+
+#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
+#[reference(instance_of = "Object")]
+pub struct Port(Reference);
+
+// TODO disconnect(&self) but it needs to remove the listeners
+impl Port {
+    // TODO return DiscardOnDrop<Self> which calls self.disconnect()
+    #[inline]
+    pub fn connect(name: &str) -> Self {
         // TODO error checking
-        DiscardOnDrop::new(Port(js! ( return chrome.runtime.connect(null, { name: @{name} }); )))
+        js!( return chrome.runtime.connect(null, { name: @{name} }); ).try_into().unwrap()
     }
 
     #[inline]
-    pub fn listen<A>(&self, f: A) -> DiscardOnDrop<Listener>
-        where A: FnMut(String) + 'static {
-
+    pub fn on_connect<F>(f: F) -> DiscardOnDrop<Listener> where F: FnMut(Self) + 'static {
         Listener::new(js!(
-            var self = @{&self.0};
             var callback = @{f};
 
-            function listener(message) {
-                callback(message);
+            chrome.runtime.onConnect.addListener(callback);
+
+            return function () {
+                chrome.runtime.onConnect.removeListener(callback);
+                callback.drop();
+            };
+        ))
+    }
+
+    // TODO maybe return Option<String> ?
+    #[inline]
+    pub fn name(&self) -> String {
+        js!( return @{self}.name; ).try_into().unwrap()
+    }
+
+    // TODO make new MessageSender type ?
+    #[inline]
+    pub fn tab(&self) -> Option<Tab> {
+        js!( return @{self}.sender.tab; ).try_into().unwrap()
+    }
+
+    // TODO lazy initialization ?
+    // TODO verify that dropping/cleanup/disconnect is handled correctly
+    pub fn messages<A>(&self) -> impl Stream<Item = A> where A: DeserializeOwned + 'static {
+        struct PortMessages<A> {
+            receiver: UnboundedReceiver<A>,
+            _listener: DiscardOnDrop<Listener>,
+        }
+
+        impl<A> Stream for PortMessages<A> {
+            type Item = A;
+
+            #[inline]
+            fn poll_next(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
+                self.receiver.poll_next_unpin(lw)
             }
+        }
+
+        let (sender, receiver) = unbounded();
+
+        PortMessages {
+            receiver,
+            _listener: self.on_message(move |message, _port| {
+                sender.unbounded_send(serde_json::from_str(&message).unwrap()).unwrap();
+            }),
+        }
+    }
+
+    #[inline]
+    fn on_message<A>(&self, f: A) -> DiscardOnDrop<Listener>
+        where A: FnMut(String, Self) + 'static {
+
+        Listener::new(js!(
+            var self = @{self};
+            var callback = @{f};
 
             function stop() {
-                self.onMessage.removeListener(listener);
+                self.onMessage.removeListener(callback);
                 self.onDisconnect.removeListener(stop);
                 callback.drop();
             }
 
             // TODO error checking
-            self.onMessage.addListener(listener);
+            self.onMessage.addListener(callback);
             // TODO reconnect when it is disconnected ?
+            // TODO should this use onDisconnect ?
             self.onDisconnect.addListener(stop);
 
             return stop;
         ))
     }
 
-    // TODO handle onDisconnect ?
     #[inline]
-    pub fn send_message(&self, message: &str) {
+    pub fn on_disconnect<A>(&self, f: A) -> DiscardOnDrop<Listener>
+        where A: FnOnce(Self) + 'static {
+
+        Listener::new(js!(
+            var self = @{self};
+            var callback = @{Once(f)};
+
+            // TODO error checking
+            self.onDisconnect.addListener(callback);
+
+            return function () {
+                self.onDisconnect.removeListener(callback);
+                callback.drop();
+            };
+        ))
+    }
+
+    // TODO handle onDisconnect ?
+    // TODO handle errors ?
+    #[inline]
+    fn send_message_raw(&self, message: &str) {
         js! { @(no_return)
-            @{&self.0}.postMessage(@{message});
+            @{self}.postMessage(@{message});
         }
     }
-}
 
-impl Discard for Port {
     #[inline]
-    fn discard(self) {
-        js! { @(no_return)
-            @{&self.0}.disconnect();
-        }
+    pub fn send_message<A>(&self, message: &A) where A: Serialize {
+        self.send_message_raw(&serde_json::to_string(message).unwrap());
     }
 }
 

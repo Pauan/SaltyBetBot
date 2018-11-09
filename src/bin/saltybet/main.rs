@@ -5,26 +5,24 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate stdweb;
-extern crate serde_json;
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate algorithm;
 #[macro_use]
 extern crate dominator;
 #[macro_use]
 extern crate futures_signals;
 
-use discard::DiscardOnDrop;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT};
+use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
 use stdweb::{spawn_local, unwrap_future};
 use stdweb::web::{set_timeout, NodeList};
 use stdweb::web::error::Error;
+use futures_util::stream::StreamExt;
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
 use dominator::Dom;
 
@@ -258,11 +256,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
     let mut old_closed: Option<WaifuBetsClosed> = None;
     let mut mode_switch: Option<f64> = None;
 
-    let port = Port::new("saltybet");
-
-    DiscardOnDrop::leak(port.listen(move |message| {
-        let messages: Vec<WaifuMessage> = serde_json::from_str(&message).unwrap();
-
+    let mut process_messages = move |messages: Vec<WaifuMessage>| {
         for message in messages {
             match message {
                 WaifuMessage::BetsOpen(open) => {
@@ -460,9 +454,14 @@ pub fn observe_changes(state: Rc<RefCell<State>>) {
                 },
             }
         }
-    }));
+    };
 
-    DiscardOnDrop::leak(port);
+    spawn_local(
+        Port::connect("saltybet").messages().for_each(move |messages| {
+            process_messages(messages);
+            async {}
+        })
+    );
 }
 
 
@@ -784,6 +783,8 @@ async fn initialize_tab() -> Result<(), Error> {
 
 fn main() {
     stdweb::initialize();
+
+    set_panic_hook();
 
     log!("Initializing...");
 

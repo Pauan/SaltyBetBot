@@ -39,7 +39,6 @@
   "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",
   "web_accessible_resources": [
     "saltybet.wasm",
-    "twitch_chat.wasm",
-    "chart.wasm"
+    "twitch_chat.wasm"
   ]
 }

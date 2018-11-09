@@ -3,19 +3,16 @@
 
 #[macro_use]
 extern crate stdweb;
-extern crate serde_json;
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate algorithm;
 #[macro_use]
 extern crate dominator;
-extern crate futures_signals;
 #[macro_use]
 extern crate lazy_static;
 
 use std::rc::Rc;
 use std::cmp::Ordering;
-use salty_bet_bot::{records_get_all, percentage, decimal, money, display_odds, Loading};
+use salty_bet_bot::{records_get_all, percentage, decimal, money, display_odds, Loading, set_panic_hook};
 use algorithm::simulation::{Simulation, Simulator, Strategy, Bet};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
 use algorithm::record::{Record, Winner, Tier, Mode, Profit};
@@ -688,6 +685,8 @@ fn display_records(records: Vec<Record>) -> Dom {
 
 
 async fn main_future() -> Result<(), Error> {
+    set_panic_hook();
+
     log!("Initializing...");
 
     stylesheet!("*", {

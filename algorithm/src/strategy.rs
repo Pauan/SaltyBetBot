@@ -39,6 +39,7 @@ const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it 
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 40.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
 const MAXIMUM_BET_PERCENTAGE: f64 = 0.015;      // maximum percentage that it will bet (of current money)
+const MINIMUM_BET_AMOUNT: f64 = 50_000.0;       // minimum amount before it will bet
 //const MAXIMUM_BET_AMOUNT: f64 = 350000.0;       // maximum amount it will bet
 const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet
 
@@ -107,7 +108,7 @@ fn bet_amount<A: Simulator>(simulation: &A, left: &str, right: &str, bet_amount:
         // When at low money, bet high. When at high money, bet at most MAXIMUM_BET_PERCENTAGE of current money
         // TODO maybe tweak this
         let bet_amount = if current_money < PERCENTAGE_THRESHOLD {
-            current_money * (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE)
+            return current_money * (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE);
 
         } else {
             // TODO verify that this is correct
@@ -128,7 +129,14 @@ fn bet_amount<A: Simulator>(simulation: &A, left: &str, right: &str, bet_amount:
         };
 
         // TODO is this necessary ?
-        bet_amount.min(current_money * MAXIMUM_BET_PERCENTAGE)
+        let bet_amount = bet_amount.min(current_money * MAXIMUM_BET_PERCENTAGE);
+
+        /*if current_money > MINIMUM_BET_AMOUNT / MAXIMUM_BET_PERCENTAGE && bet_amount < MINIMUM_BET_AMOUNT {
+            0.0
+
+        } else {*/
+            bet_amount
+        //}
     }
 }
 

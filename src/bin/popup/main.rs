@@ -7,11 +7,10 @@ extern crate lazy_static;
 extern crate stdweb;
 #[macro_use]
 extern crate salty_bet_bot;
-extern crate algorithm;
 #[macro_use]
 extern crate dominator;
 
-use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, Loading, MAX_MATCH_TIME_LIMIT};
+use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, Loading, MAX_MATCH_TIME_LIMIT, set_panic_hook};
 use algorithm::record::Record;
 use dominator::events::{ClickEvent, ChangeEvent};
 use stdweb::{Reference, Once, spawn_local, unwrap_future};
@@ -100,6 +99,8 @@ fn open_tab(url: &str) {
 
 fn main() {
     stdweb::initialize();
+
+    set_panic_hook();
 
     let loading = Loading::new();
 
