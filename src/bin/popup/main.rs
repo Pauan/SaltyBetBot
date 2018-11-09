@@ -10,8 +10,7 @@ extern crate salty_bet_bot;
 #[macro_use]
 extern crate dominator;
 
-use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, Loading, MAX_MATCH_TIME_LIMIT, set_panic_hook};
-use algorithm::record::Record;
+use salty_bet_bot::{records_get_all, records_insert_many, records_delete_all, deserialize_records, serialize_records, get_added_records, Loading, set_panic_hook};
 use dominator::events::{ClickEvent, ChangeEvent};
 use stdweb::{Reference, PromiseFuture, spawn_local, unwrap_future};
 use stdweb::web::{document, INode, Blob};
@@ -197,67 +196,15 @@ fn main() {
 
                                         let new_records = time!("Loading file", { await!(read_file(file, on_progress))? });
 
-                                        let mut new_records = time!("Deserializing records", { deserialize_records(&new_records) });
+                                        let new_records = time!("Deserializing records", { deserialize_records(&new_records) });
 
                                         log!("{} records deserialized", new_records.len());
 
-                                        let mut old_records = time!("Retrieving current records", { await!(records_get_all())? });
+                                        let old_records = time!("Retrieving current records", { await!(records_get_all())? });
 
                                         log!("{} records retrieved", old_records.len());
 
-                                        time!("Sorting records", {
-                                            old_records.sort_by(Record::sort_date);
-                                            new_records.sort_by(Record::sort_date);
-                                        });
-
-                                        let added_records = time!("Merging records", {
-                                            let mut added_records = vec![];
-
-                                            // TODO this can be implemented more efficiently (linear rather than quadratic)
-                                            for new_record in new_records {
-                                                let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
-                                                let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
-
-                                                let index = match old_records.binary_search_by(|x| x.date.partial_cmp(&start_date).unwrap()) {
-                                                    Ok(a) => a,
-                                                    Err(a) => a,
-                                                };
-
-                                                let mut found = false;
-
-                                                for old_record in &old_records[index..] {
-                                                    if old_record.date > end_date {
-                                                        break;
-                                                    }
-
-                                                    // TODO are the bet_amount, illuminati_bettors, and normal_bettors reliable enough to be used ?
-                                                    // TODO compare left and right directly, rather than using the fields ?
-                                                    // TODO move this into Record ?
-                                                    if old_record.left.name                == new_record.left.name &&
-                                                       old_record.left.bet_amount          == new_record.left.bet_amount &&
-                                                       old_record.left.win_streak          == new_record.left.win_streak &&
-                                                       old_record.left.illuminati_bettors  == new_record.left.illuminati_bettors &&
-                                                       old_record.left.normal_bettors      == new_record.left.normal_bettors &&
-                                                       old_record.right.name               == new_record.right.name &&
-                                                       old_record.right.bet_amount         == new_record.right.bet_amount &&
-                                                       old_record.right.win_streak         == new_record.right.win_streak &&
-                                                       old_record.right.illuminati_bettors == new_record.right.illuminati_bettors &&
-                                                       old_record.right.normal_bettors     == new_record.right.normal_bettors &&
-                                                       old_record.winner                   == new_record.winner &&
-                                                       old_record.tier                     == new_record.tier &&
-                                                       old_record.mode                     == new_record.mode {
-                                                        found = true;
-                                                        break;
-                                                    }
-                                                }
-
-                                                if !found {
-                                                    added_records.push(new_record);
-                                                }
-                                            }
-
-                                            added_records
-                                        });
+                                        let added_records = time!("Merging records", { get_added_records(old_records, new_records) });
 
                                         let len = added_records.len();
 

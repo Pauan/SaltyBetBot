@@ -10,17 +10,33 @@ extern crate salty_bet_bot;
 #[macro_use]
 extern crate dominator;
 
+use algorithm::record::Record;
 use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{set_panic_hook, Message, Tab, Port, on_message, WaifuMessage};
+use salty_bet_bot::{set_panic_hook, deserialize_records, get_added_records, Message, Tab, Port, on_message, WaifuMessage};
 use stdweb::{spawn_local, unwrap_future, PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 use futures_util::try_join;
 use futures_util::stream::StreamExt;
 
+
+// TODO cancellation
+fn fetch(url: &str) -> PromiseFuture<String> {
+    js!(
+        // TODO cache ?
+        // TODO integrity ?
+        return fetch(chrome.runtime.getURL(@{url}), {
+            credentials: "same-origin",
+            mode: "same-origin"
+        // TODO check HTTP status codes ?
+        }).then(function (response) {
+            return response.text();
+        });
+    ).try_into().unwrap()
+}
 
 fn create_twitch_tab() -> PromiseFuture<()> {
     js!(
@@ -219,9 +235,28 @@ async fn main_future() -> Result<(), Error> {
 
     log!("Initializing...");
 
-    let db = await!(Db::new(2, |db, _old, _new| {
-        db.migrate();
-    }))?;
+    let db = time!("Initializing database", {
+        await!(Db::new(2, |db, _old, _new| {
+            db.migrate();
+        }))?
+    });
+
+    time!("Inserting default records", {
+        let new_records = await!(fetch("SaltyBet Records.json"))?;
+        let new_records = deserialize_records(&new_records);
+
+        let old_records = await!(db.get_all_records())?;
+        // TODO hacky, remove later
+        let old_records: Vec<Record> = old_records.into_iter().map(|x| Record::deserialize(&x)).collect();
+
+        let added_records = get_added_records(old_records, new_records);
+        // TODO hacky, remove later
+        let added_records: Vec<String> = added_records.iter().map(Record::serialize).collect();
+
+        await!(db.insert_records(added_records.as_slice()))?;
+
+        log!("Inserted {} records", added_records.len());
+    });
 
     // This is necessary because Chrome doesn't allow content scripts to use the tabs API
     DiscardOnDrop::leak(on_message(move |message| {
