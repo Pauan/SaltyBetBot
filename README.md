@@ -5,7 +5,7 @@ Disclaimer: I accept no responsibility if you lose salt from running this bot.
 
 Before you install this extension, make sure that you have [Git](https://git-scm.com/downloads) installed.
 
-1. Use `git clone https://github.com/Pauan/SaltyBetBot.git SaltyBetBot-master`
+1. In a console, do `git clone https://github.com/Pauan/SaltyBetBot.git SaltyBetBot-master`
 
 2. In Chrome, go to the [`chrome://extensions/`](chrome://extensions/) URL.
 
@@ -15,13 +15,9 @@ Before you install this extension, make sure that you have [Git](https://git-scm
 
 5. If everything was done correctly, the extension should now be loaded in Chrome, congratulations!
 
-6. In the upper-right corner there is a new square "S" button. Click on it. This will cause a popup to appear. Click on the "Import" button.
+6. You can now go to [saltybet.com](http://www.saltybet.com/) and it will start to bet automatically.
 
-7. Find the `SaltyBetBot-master` folder, then select the `SaltyBet Records.json` file and click OK. This will take several seconds, wait for it to finish loading!
-
-8. Everything is now setup, you can simply go to [saltybet.com](http://www.saltybet.com/) and it will start to bet automatically.
-
-9. It will automatically open up a second twitch.tv tab, keep it open! It is necessary for *both* tabs to be open in order for the extension to work.
+7. It will automatically open up a second twitch.tv tab, keep it open! It is necessary for *both* tabs to be open in order for the extension to work.
 
    If you accidentally close the twitch.tv tab, just refresh the saltybet.com tab and it will re-open it.
 
@@ -30,17 +26,15 @@ How to upgrade
 
 1. Make sure that all of the SaltyBet and Twitch.tv tabs are closed.
 
-2. Export your match records (just in case something goes wrong with the upgrade process).
+2. Click on the square "S" button in the upper-right corner, and then Export your match records (just in case something goes wrong with the upgrade process).
 
-3. Go into the `SaltyBetBot-master` folder and then do `git pull`.
+3. In a console, go into the `SaltyBetBot-master` folder and then do `git pull`.
 
 4. In Chrome, go to the [`chrome://extensions/`](chrome://extensions/) URL.
 
 5. Find "Salty Bet Bot" in the extensions list, and then click the reload button (it looks like a circular arrow).
 
-6. Import the `SaltyBetBot-master/SaltyBet Records.json` file again, just like in step 7 of ["How to use"](#how-to-use) (this will merge the new data with your existing data).
-
-7. Re-open the [saltybet.com](http://www.saltybet.com/) website.
+6. Re-open the [saltybet.com](http://www.saltybet.com/) website.
 
 How to build (for programmers only)
 ===================================
