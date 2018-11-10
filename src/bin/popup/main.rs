@@ -32,6 +32,12 @@ fn get_file(event: &ChangeEvent) -> Option<Reference> {
     ).try_into().unwrap()
 }
 
+fn reset_input(event: &ChangeEvent) {
+    js! { @(no_return)
+        @{event}.target.value = "";
+    }
+}
+
 // TODO accept File
 fn read_file<P>(file: Reference, on_progress: P) -> PromiseFuture<String> where P: FnMut(u32, u32) + 'static {
     js!(
@@ -186,6 +192,8 @@ fn main() {
                             .event(clone!(loading => move |e: ChangeEvent| {
                                 async fn future(loading: Loading, e: ChangeEvent) -> Result<(), Error> {
                                     if let Some(file) = get_file(&e) {
+                                        reset_input(&e);
+
                                         log!("Starting import");
 
                                         loading.show();
