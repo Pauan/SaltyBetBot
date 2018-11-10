@@ -91,7 +91,7 @@ impl RecordInformation {
 
         let mut simulation = Simulation::new();
 
-        simulation.sum = PERCENTAGE_THRESHOLD;
+        //simulation.sum = PERCENTAGE_THRESHOLD;
 
         match mode {
             ChartMode::SimulateTournament(strategy) => {
@@ -247,7 +247,7 @@ impl RecordInformation {
             },
 
             ChartMode::RealData { days } => {
-                simulation.sum = SALT_MINE_AMOUNT;
+                //simulation.sum = SALT_MINE_AMOUNT;
 
                 // TODO
                 let days: Option<f64> = days.map(|days| subtract_days(Date::now(), days));
@@ -763,21 +763,32 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 let mut d_gains = vec![];
                 let mut d_losses = vec![];
                 let mut d_money = vec!["M0,100".to_owned()];
+                let mut d_smooth_1 = vec![];
+                let mut d_smooth_2 = vec![];
+                let mut d_smooth_3 = vec![];
+                let mut d_smooth_4 = vec![];
+                let mut d_smooth_5 = vec![];
+                let mut d_smooth_6 = vec![];
+                let mut d_smooth_7 = vec![];
                 let mut d_bets = vec![];
                 let mut d_match_len = vec![];
                 //let mut d_winner_profit = vec![];
                 let mut d_tournaments = vec![];
 
-                //let len = information.record_information.len() as f64;
+                //let len = information.record_information.len();
 
                 let y = (statistics.max_gain / (statistics.max_gain + statistics.max_loss)) * 100.0;
                 //let y = (statistics.max_odds_gain / (statistics.max_odds_gain + statistics.max_odds_loss)) * 100.0;
 
                 let mut first = true;
 
+                let mut smooth_sums = vec![];
+
                 for (_index, record) in information.record_information.iter().enumerate() {
+                    let date = record.date();
+
                     //let x = normalize(index as f64, 0.0, len) * 100.0;
-                    let x = normalize(record.date(), statistics.lowest_date, statistics.highest_date) * 100.0;
+                    let x = normalize(date, statistics.lowest_date, statistics.highest_date) * 100.0;
 
                     let (old_sum, new_sum) = match record {
                         RecordInformation::TournamentFinal { profit, old_sum, new_sum, .. } => {
@@ -830,12 +841,54 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         },
                     };
 
+                    smooth_sums.push((x, date, new_sum));
+
                     if first {
                         first = false;
                         d_money.push(format!("M{},{}", x, normalize(old_sum, statistics.max_money, statistics.min_money) * 100.0));
                     }
 
                     d_money.push(format!("L{},{}", x, normalize(new_sum, statistics.max_money, statistics.min_money) * 100.0));
+                }
+
+                fn smooth(x: f64, statistics: &Statistics, d_smooth: &mut Vec<String>, smooth_sums: &mut Vec<(f64, f64)>, date_range: f64, date: f64, new_sum: f64) {
+                    let date_cutoff = date - date_range;
+
+                    smooth_sums.retain(|(old_date, _)| {
+                        *old_date >= date_cutoff &&
+                        *old_date <= date
+                    });
+
+                    smooth_sums.push((date, new_sum));
+
+                    let smooth_sum = smooth_sums.iter().map(|(_, sum)| sum).sum::<f64>() / (smooth_sums.len() as f64);
+
+                    if d_smooth.len() == 0 {
+                        d_smooth.push(format!("M{},{}", x, normalize(smooth_sum, statistics.max_money, statistics.min_money) * 100.0));
+
+                    } else {
+                        d_smooth.push(format!("L{},{}", x, normalize(smooth_sum, statistics.max_money, statistics.min_money) * 100.0));
+                    }
+                }
+
+                const ONE_DAY: f64 = 1000.0 * 60.0 * 60.0 * 24.0;
+
+                let mut smooth_sums_1 = vec![];
+                let mut smooth_sums_2 = vec![];
+                let mut smooth_sums_3 = vec![];
+                let mut smooth_sums_4 = vec![];
+                let mut smooth_sums_5 = vec![];
+                let mut smooth_sums_6 = vec![];
+                let mut smooth_sums_7 = vec![];
+
+                for (x, date, new_sum) in smooth_sums {
+                    smooth(x, &statistics, &mut d_smooth_1, &mut smooth_sums_1, ONE_DAY * 1.0, date, new_sum);
+                    smooth(x, &statistics, &mut d_smooth_2, &mut smooth_sums_2, ONE_DAY * 2.0, date, new_sum);
+                    smooth(x, &statistics, &mut d_smooth_3, &mut smooth_sums_3, ONE_DAY * 3.0, date, new_sum);
+                    smooth(x, &statistics, &mut d_smooth_4, &mut smooth_sums_4, ONE_DAY * 4.0, date, new_sum);
+                    smooth(x, &statistics, &mut d_smooth_5, &mut smooth_sums_5, ONE_DAY * 5.0, date, new_sum);
+                    smooth(x, &statistics, &mut d_smooth_6, &mut smooth_sums_6, ONE_DAY * 6.0, date, new_sum);
+                    smooth(x, &statistics, &mut d_smooth_7, &mut smooth_sums_7, ONE_DAY * 7.0, date, new_sum);
                 }
 
                 fn make_line(d: Vec<String>, color: &str) -> Dom {
@@ -851,6 +904,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     })
                 }
 
+                const COLOR_DIFFERENCE: f64 = 25.0 / 7.0;
+
                 vec![
                     make_line(d_match_len, "black"),
                     make_line(d_gains, "hsla(120, 75%, 50%, 1)"),
@@ -859,7 +914,14 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     make_line(d_losses, "hsla(0, 75%, 50%, 1)"),
                     //make_line(d_winner_profit, "hsla(120, 75%, 50%, 1)"),
                     make_line(d_tournaments, "hsl(240, 100%, 75%)"),
-                    make_line(d_money, "white"),
+                    make_line(d_money, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 0.0))),
+                    make_line(d_smooth_1, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 1.0))),
+                    make_line(d_smooth_2, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 2.0))),
+                    make_line(d_smooth_3, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 3.0))),
+                    make_line(d_smooth_4, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 4.0))),
+                    make_line(d_smooth_5, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 5.0))),
+                    make_line(d_smooth_6, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 6.0))),
+                    make_line(d_smooth_7, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 7.0))),
                 ]
             }).to_signal_vec())
         })
