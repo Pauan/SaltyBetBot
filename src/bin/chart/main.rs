@@ -851,44 +851,44 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     d_money.push(format!("L{},{}", x, normalize(new_sum, statistics.max_money, statistics.min_money) * 100.0));
                 }
 
-                fn smooth(x: f64, statistics: &Statistics, d_smooth: &mut Vec<String>, smooth_sums: &mut Vec<(f64, f64)>, date_range: f64, date: f64, new_sum: f64) {
-                    let date_cutoff = date - date_range;
+                fn smooth(x: f64, statistics: &Statistics, d_smooth: &mut Vec<String>, smooth_sums: &[(f64, f64, f64)], date_range: f64, date: f64) {
+                    let half_range = date_range / 2.0;
 
-                    smooth_sums.retain(|(old_date, _)| {
-                        *old_date >= date_cutoff &&
-                        *old_date <= date
-                    });
+                    let date_start = date - half_range;
+                    let date_end = date + half_range;
 
-                    smooth_sums.push((date, new_sum));
+                    let mut sum = 0.0;
+                    let mut len = 0.0;
 
-                    let smooth_sum = smooth_sums.iter().map(|(_, sum)| sum).sum::<f64>() / (smooth_sums.len() as f64);
+                    // TODO make this more efficient
+                    for (_, date, new_sum) in smooth_sums {
+                        if *date >= date_start &&
+                           *date <= date_end {
+                            sum += new_sum;
+                            len += 1.0;
+                        }
+                    }
+
+                    let average = sum / len;
 
                     if d_smooth.len() == 0 {
-                        d_smooth.push(format!("M{},{}", x, normalize(smooth_sum, statistics.max_money, statistics.min_money) * 100.0));
+                        d_smooth.push(format!("M{},{}", x, normalize(average, statistics.max_money, statistics.min_money) * 100.0));
 
                     } else {
-                        d_smooth.push(format!("L{},{}", x, normalize(smooth_sum, statistics.max_money, statistics.min_money) * 100.0));
+                        d_smooth.push(format!("L{},{}", x, normalize(average, statistics.max_money, statistics.min_money) * 100.0));
                     }
                 }
 
                 const ONE_DAY: f64 = 1000.0 * 60.0 * 60.0 * 24.0;
 
-                let mut smooth_sums_1 = vec![];
-                let mut smooth_sums_2 = vec![];
-                let mut smooth_sums_3 = vec![];
-                let mut smooth_sums_4 = vec![];
-                let mut smooth_sums_5 = vec![];
-                let mut smooth_sums_6 = vec![];
-                let mut smooth_sums_7 = vec![];
-
-                for (x, date, new_sum) in smooth_sums {
-                    smooth(x, &statistics, &mut d_smooth_1, &mut smooth_sums_1, ONE_DAY * 1.0, date, new_sum);
-                    smooth(x, &statistics, &mut d_smooth_2, &mut smooth_sums_2, ONE_DAY * 2.0, date, new_sum);
-                    smooth(x, &statistics, &mut d_smooth_3, &mut smooth_sums_3, ONE_DAY * 3.0, date, new_sum);
-                    smooth(x, &statistics, &mut d_smooth_4, &mut smooth_sums_4, ONE_DAY * 4.0, date, new_sum);
-                    smooth(x, &statistics, &mut d_smooth_5, &mut smooth_sums_5, ONE_DAY * 5.0, date, new_sum);
-                    smooth(x, &statistics, &mut d_smooth_6, &mut smooth_sums_6, ONE_DAY * 6.0, date, new_sum);
-                    smooth(x, &statistics, &mut d_smooth_7, &mut smooth_sums_7, ONE_DAY * 7.0, date, new_sum);
+                for (x, date, _) in smooth_sums.iter() {
+                    smooth(*x, &statistics, &mut d_smooth_1, &smooth_sums, ONE_DAY * 1.0, *date);
+                    smooth(*x, &statistics, &mut d_smooth_2, &smooth_sums, ONE_DAY * 2.0, *date);
+                    smooth(*x, &statistics, &mut d_smooth_3, &smooth_sums, ONE_DAY * 3.0, *date);
+                    smooth(*x, &statistics, &mut d_smooth_4, &smooth_sums, ONE_DAY * 4.0, *date);
+                    smooth(*x, &statistics, &mut d_smooth_5, &smooth_sums, ONE_DAY * 5.0, *date);
+                    smooth(*x, &statistics, &mut d_smooth_6, &smooth_sums, ONE_DAY * 6.0, *date);
+                    smooth(*x, &statistics, &mut d_smooth_7, &smooth_sums, ONE_DAY * 7.0, *date);
                 }
 
                 fn make_line(d: Vec<String>, color: &str) -> Dom {
@@ -904,7 +904,11 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     })
                 }
 
-                const COLOR_DIFFERENCE: f64 = 25.0 / 7.0;
+                const HUE_START: f64 = 360.0;
+                const HUE_END: f64 = 180.0;
+
+                const LIGHT_START: f64 = 99.9;
+                const LIGHT_END: f64 = 80.0;
 
                 vec![
                     make_line(d_match_len, "black"),
@@ -914,14 +918,14 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     make_line(d_losses, "hsla(0, 75%, 50%, 1)"),
                     //make_line(d_winner_profit, "hsla(120, 75%, 50%, 1)"),
                     make_line(d_tournaments, "hsl(240, 100%, 75%)"),
-                    make_line(d_money, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 0.0))),
-                    make_line(d_smooth_1, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 1.0))),
-                    make_line(d_smooth_2, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 2.0))),
-                    make_line(d_smooth_3, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 3.0))),
-                    make_line(d_smooth_4, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 4.0))),
-                    make_line(d_smooth_5, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 5.0))),
-                    make_line(d_smooth_6, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 6.0))),
-                    make_line(d_smooth_7, &format!("hsl(197, 100%, {}%)", 98.0 - (COLOR_DIFFERENCE * 7.0))),
+                    make_line(d_smooth_7, &format!("hsl({}, 100%, {}%)", range_inclusive(7.0 / 7.0, HUE_START, HUE_END), range_inclusive(7.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_smooth_6, &format!("hsl({}, 100%, {}%)", range_inclusive(6.0 / 7.0, HUE_START, HUE_END), range_inclusive(6.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_smooth_5, &format!("hsl({}, 100%, {}%)", range_inclusive(5.0 / 7.0, HUE_START, HUE_END), range_inclusive(5.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_smooth_4, &format!("hsl({}, 100%, {}%)", range_inclusive(4.0 / 7.0, HUE_START, HUE_END), range_inclusive(4.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_smooth_3, &format!("hsl({}, 100%, {}%)", range_inclusive(3.0 / 7.0, HUE_START, HUE_END), range_inclusive(3.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_smooth_2, &format!("hsl({}, 100%, {}%)", range_inclusive(2.0 / 7.0, HUE_START, HUE_END), range_inclusive(2.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_smooth_1, &format!("hsl({}, 100%, {}%)", range_inclusive(1.0 / 7.0, HUE_START, HUE_END), range_inclusive(1.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    make_line(d_money,    &format!("hsl({}, 100%, {}%)", range_inclusive(0.0 / 7.0, HUE_START, HUE_END), range_inclusive(0.0 / 7.0, LIGHT_START, LIGHT_END))),
                 ]
             }).to_signal_vec())
         })
