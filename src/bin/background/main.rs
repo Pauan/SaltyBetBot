@@ -280,19 +280,22 @@ async fn main_future() -> Result<(), Error> {
     DiscardOnDrop::leak(on_message(move |message| {
         clone!(db => async move {
             match message {
-                Message::GetAllRecords => reply!({
+                Message::GetAllRecords => reply_result!({
                     await!(db.get_all_records())?
                 }),
-                Message::InsertRecords(records) => reply!({
+                Message::InsertRecords(records) => reply_result!({
                     await!(db.insert_records(records.as_slice()))?;
                 }),
-                Message::DeleteAllRecords => reply!({
+                Message::DeleteAllRecords => reply_result!({
                     await!(db.delete_all_records())?;
                 }),
-                Message::OpenTwitchChat => reply!({
+                Message::OpenTwitchChat => reply_result!({
                     // TODO maybe this is okay ?
                     //await!(remove_twitch_tabs())?;
                     await!(create_twitch_tab())?;
+                }),
+                Message::ServerLog(message) => reply!({
+                    console!(log, message);
                 }),
             }
         })

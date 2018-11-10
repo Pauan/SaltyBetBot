@@ -2,7 +2,7 @@
 macro_rules! log {
     ($($args:tt)*) => {
         js! { @(no_return)
-            console.log(@{format!($($args)*)});
+            console.log(@{format!("{} [{}:{}] {}", $crate::current_date_pretty(), file!(), line!(), format!($($args)*))});
         }
     };
 }
@@ -17,4 +17,12 @@ macro_rules! time {
         log!("{} took {}ms", $name, new - old);
         value
     }}
+}
+
+
+#[macro_export]
+macro_rules! server_log {
+    ($($args:tt)*) => {
+        $crate::server_log(format!("{} [{}:{}] {}", $crate::current_date_pretty(), file!(), line!(), format!($($args)*)))
+    }
 }

@@ -23,7 +23,7 @@ use algorithm::record::{Tier, Mode, Winner, Record};
 use futures_core::stream::Stream;
 use futures_util::stream::StreamExt;
 use futures_channel::mpsc::{UnboundedReceiver, unbounded};
-use stdweb::{Reference, Value, Once, PromiseFuture, spawn_local};
+use stdweb::{Reference, Value, Once, PromiseFuture, spawn_local, unwrap_future};
 use stdweb::web::{document, set_timeout, INode, Element, NodeList};
 use stdweb::web::error::Error;
 use stdweb::web::html_element::InputElement;
@@ -270,21 +270,26 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
 }
 
 #[inline]
-pub fn serialize_result<A>(value: Result<A, Error>) -> String where A: Serialize {
-    let value: Result<A, String> = value.map_err(|err| {
+pub fn serialize_result<A>(value: Result<A, Error>) -> Result<A, String> {
+    value.map_err(|err| {
         console!(error, &err);
         // TODO use stdweb method
         js!( return @{err}.message; ).try_into().unwrap()
-    });
+    })
+}
 
-    serde_json::to_string(&value).unwrap()
+#[macro_export]
+macro_rules! reply_result {
+    ($value:block) => {{
+        $crate::reply!({ $crate::serialize_result(try { $value }) })
+    }}
 }
 
 #[macro_export]
 macro_rules! reply {
-    ($value:block) => {{
-        $crate::serialize_result(try { $value })
-    }}
+    ($value:block) => {
+        serde_json::to_string(&$value).unwrap()
+    }
 }
 
 
@@ -294,6 +299,7 @@ pub enum Message {
     InsertRecords(Vec<Record>),
     DeleteAllRecords,
     OpenTwitchChat,
+    ServerLog(String),
 }
 
 pub async fn create_tab() -> Result<(), Error> {
@@ -316,6 +322,10 @@ pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
 
 pub async fn records_delete_all() -> Result<(), Error> {
     await!(send_message_result(&Message::DeleteAllRecords))
+}
+
+pub fn server_log(message: String) {
+    spawn_local(unwrap_future(send_message(&Message::ServerLog(message))))
 }
 
 
@@ -412,6 +422,12 @@ pub fn set_panic_hook() {
     std::panic::set_hook(Box::new(move |info| {
         stdweb::print_error_panic(info.to_string());
     }));
+}
+
+
+#[inline]
+pub fn current_date_pretty() -> String {
+    js!( return new Date().toISOString(); ).try_into().unwrap()
 }
 
 

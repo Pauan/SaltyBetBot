@@ -140,7 +140,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                 }
             }
 
-            log!("Invalid state: {:#?} {:#?} {:#?} {:#?} {:#?}", current_balance, open, left_name, right_name, in_tournament);
+            server_log!("Invalid state: {:#?} {:#?} {:#?} {:#?} {:#?}", current_balance, open, left_name, right_name, in_tournament);
         }}}}}
     }
 }
@@ -234,20 +234,20 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                 });
 
             }  else {
-                log!("Invalid name");
+                server_log!("Unknown name");
             }
 
         }  else {
-            log!("Invalid current balance");
+            server_log!("Unknown current balance");
         }
     }
 }
 
 
 fn reload_page() {
-    /*js! { @(no_return)
+    js! { @(no_return)
         location.reload();
-    }*/
+    }
 }
 
 
@@ -290,7 +290,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
                                 continue;
 
                             } else {
-                                log!("Invalid messages: {:#?} {:#?}", open, closed);
+                                server_log!("Invalid messages: {:#?} {:#?}", open, closed);
                             }
                         },
                         None => {},
@@ -322,11 +322,11 @@ pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
                                     continue;
 
                                 } else {
-                                    log!("Invalid messages: {:#?} {:#?} {:#?}", open, mode_switch, message);
+                                    server_log!("Invalid messages: {:#?} {:#?} {:#?}", open, mode_switch, message);
                                 }
                             },
                             None => {
-                                log!("Invalid messages: {:#?} {:#?}", open, message);
+                                server_log!("Invalid messages: {:#?} {:#?}", open, message);
                             },
                         },
                         None => {},
@@ -406,22 +406,22 @@ pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
                                                 })
 
                                             } else {
-                                                log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                                server_log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
                                                 None
                                             }
 
                                         } else {
-                                            log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                            server_log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
                                             None
                                         }
                                     },
                                     None => {
-                                        log!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
+                                        server_log!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
                                         None
                                     },
                                 },
                                 None => {
-                                    log!("Invalid messages: {:#?} {:#?}", open, winner);
+                                    server_log!("Invalid messages: {:#?} {:#?}", open, winner);
                                     None
                                 },
                             },
