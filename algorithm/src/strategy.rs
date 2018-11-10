@@ -12,7 +12,7 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: true,
     bet: BetStrategy::Odds,
-    money: MoneyStrategy::ExpectedBetWinner,
+    money: MoneyStrategy::Fixed,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -28,8 +28,8 @@ pub const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
 
 lazy_static! {
     pub static ref GENETIC_STRATEGY: NeuralNetwork = {
-        let result: FitnessResult<NeuralNetwork> = serde_json::from_str(&include_str!("../../strategies/2018-11-04T17.18.57 (matchmaking)")).unwrap();
-        result.creature
+        let result: FitnessResult<CustomStrategy> = serde_json::from_str(&include_str!("../../strategies/2018-11-10T22.51.42 (matchmaking)")).unwrap();
+        result.creature.bet.unwrap_genetic().clone()
     };
 }
 
@@ -179,7 +179,7 @@ pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, left_bet: f6
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum MoneyStrategy {
     ExpectedBetWinner,
     ExpectedBet,
@@ -228,7 +228,7 @@ impl MoneyStrategy {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BetStrategy {
     ExpectedBetWinner,
     ExpectedBet,
@@ -275,17 +275,20 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
-            BetStrategy::Genetic(strategy) => match strategy.bet(simulation, tier, left, right) {
-                Bet::Left(_) => (1.0, 0.0),
-                Bet::Right(_) => (0.0, 1.0),
-                Bet::None => (0.0, 0.0),
-            },
+            BetStrategy::Genetic(strategy) => strategy.choose(simulation, tier, left, right, left_bet, right_bet),
+        }
+    }
+
+    pub fn unwrap_genetic(&self) -> &NeuralNetwork {
+        match self {
+            BetStrategy::Genetic(strategy) => strategy,
+            _ => unreachable!(),
         }
     }
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomStrategy {
     pub average_sums: bool,
     pub scale_by_matches: bool,

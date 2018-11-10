@@ -98,7 +98,7 @@ pub struct FitnessResult<A> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BetStrategy {
+pub struct FormulaStrategy {
     // Genes
     pub bet_strategy: BooleanCalculator<NumericCalculator<Lookup, f64>>,
     pub prediction_strategy: NumericCalculator<Lookup, f64>,

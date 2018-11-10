@@ -1,28 +1,44 @@
 use std;
 use random;
 use record::{Record, Mode, Tier};
+use arrayvec::ArrayVec;
 use rayon::prelude::*;
-use simulation::{Simulation, Strategy, Bet, Calculate, Simulator, SALT_MINE_AMOUNT, lookup};
-use types::{FitnessResult, BooleanCalculator, BetStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
+use simulation::{Simulation, Strategy, Bet, Calculate, Simulator, lookup};
+use strategy::{CustomStrategy, BetStrategy, MATCHMAKING_STRATEGY};
+use types::{FitnessResult, BooleanCalculator, FormulaStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
 
 
-const MAX_BET_AMOUNT: f64 = 1000000.0;
+//const MAX_BET_AMOUNT: f64 = 1000000.0;
 pub const MUTATION_RATE: Percentage = Percentage(0.10);
 const MAX_RECURSION_DEPTH: u32 = 2; // 4 maximum nodes
+
+
+macro_rules! choose_vec {
+    ($left:expr, $right:expr) => {
+        $left.into_iter().zip($right.into_iter()).map(|(x, y)| x.choose(&y)).collect()
+    }
+}
+
+/*fn choose_vec<A>(left: &[A], right: &[A]) -> Vec<A> where A: Gene {
+    left.into_iter().zip(right.into_iter()).map(|(x, y)| x.choose(&y)).collect()
+}*/
 
 
 const INPUTS: usize = 6;
 const LAYERS: usize = 3;
 
 // https://en.wikipedia.org/wiki/Sigmoid_function
+#[inline]
 fn sigmoid(x: f64) -> f64 {
-    1.0 / (1.0 + (-x).exp())
+    x
+    //(0.5 * (x / (1.0 + x.abs()))) + 0.5
+    //1.0 / (1.0 + (-x).exp())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Node {
     bias: f64,
-    weights: Vec<Percentage>,
+    weights: ArrayVec<[Percentage; INPUTS]>,
 }
 
 impl Node {
@@ -51,7 +67,7 @@ impl Gene for Node {
     fn choose(&self, other: &Self) -> Self {
         Self {
             bias: self.bias.choose(&other.bias),
-            weights: choose_vec(&self.weights, &other.weights),
+            weights: choose_vec!(&self.weights, &other.weights),
         }
     }
 }
@@ -59,7 +75,7 @@ impl Gene for Node {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Layer {
-    nodes: Vec<Node>,
+    nodes: ArrayVec<[Node; INPUTS]>,
 }
 
 impl Gene for Layer {
@@ -71,7 +87,7 @@ impl Gene for Layer {
 
     fn choose(&self, other: &Self) -> Self {
         Self {
-            nodes: choose_vec(&self.nodes, &other.nodes),
+            nodes: choose_vec!(&self.nodes, &other.nodes),
         }
     }
 }
@@ -79,24 +95,30 @@ impl Gene for Layer {
 // TODO regularization
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuralNetwork {
-    hidden_layers: Vec<Layer>,
+    hidden_layers: ArrayVec<[Layer; LAYERS]>,
     output_layer: Node,
 }
 
 impl NeuralNetwork {
+    fn new() -> Self {
+        Self {
+            hidden_layers: (0..LAYERS).map(|_| Gene::new()).collect(),
+            output_layer: Gene::new(),
+        }
+    }
+
+    fn breed(&self, other: &Self) -> Self {
+        Self {
+            hidden_layers: choose_vec!(&self.hidden_layers, &other.hidden_layers),
+            output_layer: self.output_layer.choose(&other.output_layer),
+        }
+    }
+
     fn calculate(&self, input: &[f64]) -> f64 {
         self.output_layer.calculate(&self.hidden_layers, input)
     }
-}
 
-impl Strategy for NeuralNetwork {
-    fn bet_amount<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
-        (SALT_MINE_AMOUNT, SALT_MINE_AMOUNT)
-    }
-
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
-        let (left_bet, right_bet) = self.bet_amount(simulation, tier, left, right);
-
+    pub fn choose<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) {
         let left_matches = simulation.lookup_character(left);
         let right_matches = simulation.lookup_character(right);
 
@@ -124,6 +146,19 @@ impl Strategy for NeuralNetwork {
             right_matches.len() as f64,
         ]);
 
+        (left_value, right_value)
+    }
+}
+
+/*impl Strategy for NeuralNetwork {
+    fn bet_amount<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
+        (SALT_MINE_AMOUNT, SALT_MINE_AMOUNT)
+    }
+
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+        let (left_bet, right_bet) = self.bet_amount(simulation, tier, left, right);
+        let (left_value, right_value) = self.choose(simulation, tier, left, right, left_bet, right_bet);
+
         if left_value > right_value {
             Bet::Left(left_bet)
 
@@ -135,21 +170,23 @@ impl Strategy for NeuralNetwork {
             Bet::None
         }
     }
-}
+}*/
 
-impl Creature for NeuralNetwork {
+
+impl Creature for CustomStrategy {
     fn new() -> Self {
-        Self {
-            hidden_layers: (0..LAYERS).map(|_| Gene::new()).collect(),
-            output_layer: Gene::new(),
-        }
+        let mut this = MATCHMAKING_STRATEGY.clone();
+        this.bet = BetStrategy::Genetic(NeuralNetwork::new());
+        this
     }
 
     fn breed(&self, other: &Self) -> Self {
-        Self {
-            hidden_layers: choose_vec(&self.hidden_layers, &other.hidden_layers),
-            output_layer: self.output_layer.choose(&other.output_layer),
-        }
+        let mut this = MATCHMAKING_STRATEGY.clone();
+
+        // TODO super hacky
+        this.bet = BetStrategy::Genetic(self.bet.unwrap_genetic().breed(other.bet.unwrap_genetic()));
+
+        this
     }
 }
 
@@ -165,11 +202,6 @@ pub trait Gene {
     fn new() -> Self;
 
     fn choose(&self, other: &Self) -> Self;
-}
-
-
-fn choose_vec<A>(left: &[A], right: &[A]) -> Vec<A> where A: Gene {
-    left.into_iter().zip(right.into_iter()).map(|(x, y)| x.choose(&y)).collect()
 }
 
 
@@ -987,7 +1019,7 @@ impl<A> Gene for BooleanCalculator<A> where A: Calculate<f64> + Gene + Clone + P
 }
 
 
-impl Creature for BetStrategy {
+impl Creature for FormulaStrategy {
     fn new() -> Self {
         Self {
             bet_strategy: Gene::new(),
@@ -1005,7 +1037,7 @@ impl Creature for BetStrategy {
     }
 }
 
-impl Strategy for BetStrategy {
+impl Strategy for FormulaStrategy {
     fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> (f64, f64) {
         (
             self.money_strategy.calculate(simulation, tier, left, right),
@@ -1115,7 +1147,9 @@ impl<A> Eq for FitnessResult<A> {}
 pub struct Population<'a, A, B> where A: Creature, B: 'a {
     data: &'a B,
     size: usize,
-    pub populace: Vec<FitnessResult<A>>,
+    // TODO is it faster to use a Box ?
+    // TODO use ArrayVec ?
+    pub populace: Vec<Box<FitnessResult<A>>>,
 }
 
 impl<'a, A, B> Population<'a, A, B> where A: Creature, B: 'a {
@@ -1130,14 +1164,14 @@ impl<'a, A, B> Population<'a, A, B> where A: Creature, B: 'a {
 
 impl<'a, A> Population<'a, A, SimulationSettings<'a>> where A: Creature + Clone + Send + Sync {
     fn insert_creature(&mut self, result: FitnessResult<A>) {
-        let index = self.populace.binary_search(&result);
+        let index = self.populace.binary_search_by(|value| (**value).cmp(&result));
 
         let index = match index {
             Ok(index) => index,
             Err(index) => index,
         };
 
-        self.populace.insert(index, result);
+        self.populace.insert(index, Box::new(result));
     }
 
     fn kill_populace(&mut self) {

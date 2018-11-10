@@ -119,7 +119,7 @@ mod epoch1 {
 
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct BetStrategy {
+    pub struct FormulaStrategy {
         fitness: f64,
         successes: f64,
         failures: f64,
@@ -131,9 +131,9 @@ mod epoch1 {
         money_strategy: NumericCalculator<Lookup, f64>,
     }
 
-    impl Into<types::BetStrategy> for BetStrategy {
-        fn into(self) -> types::BetStrategy {
-            types::BetStrategy {
+    impl Into<types::FormulaStrategy> for FormulaStrategy {
+        fn into(self) -> types::FormulaStrategy {
+            types::FormulaStrategy {
                 bet_strategy: self.bet_strategy.into(),
                 prediction_strategy: self.prediction_strategy.into(),
                 money_strategy: self.money_strategy.into(),
@@ -144,7 +144,7 @@ mod epoch1 {
 
 
 fn main() {
-    fn migrate(from: epoch1::BetStrategy) -> types::BetStrategy {
+    fn migrate(from: epoch1::FormulaStrategy) -> types::FormulaStrategy {
         from.into()
     }
 

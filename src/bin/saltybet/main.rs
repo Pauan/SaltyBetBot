@@ -730,8 +730,8 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
 
     let mut simulation = Simulation::new();
 
-    /*let matchmaking_strategy: BetStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap();
-    let tournament_strategy: BetStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap();
+    /*let matchmaking_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap();
+    let tournament_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap();
 
     simulation.matchmaking_strategy = Some(matchmaking_strategy);
     simulation.tournament_strategy = Some(tournament_strategy);*/

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Pauan <pcxunlimited@gmail.com>"]
 
 [dependencies]
+arrayvec = { version = "0.4.7", features = ["serde-1"] }
 lazy_static = "1.0.0"
 rand = { version = "0.5.5", features = ["stdweb"] }
 #csv = "1.0.0-beta.5"

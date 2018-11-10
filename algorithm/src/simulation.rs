@@ -386,10 +386,11 @@ pub mod lookup {
         }).unwrap_or(0.0)
     }
 
-    // TODO use the arithmetic mean ?
+
+    // TODO use iterate_geometric ?
     pub fn odds<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
         where A: IntoIterator<Item = &'a Record> {
-        iterate_geometric(iter, |record| {
+        iterate_average(iter, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             if record.left.name == name {

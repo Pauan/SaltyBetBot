@@ -7,12 +7,12 @@ extern crate chrono;
 extern crate serde;
 extern crate serde_json;
 
-use algorithm::{genetic, types};
-use algorithm::genetic::{Creature, NeuralNetwork};
+use algorithm::genetic;
+use algorithm::genetic::Creature;
 use algorithm::types::FitnessResult;
 use algorithm::record::{Record, Mode};
 use algorithm::simulation::Strategy;
-use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
+use algorithm::strategy::{CustomStrategy, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
 use algorithm::random::shuffle;
 
 use serde::Serialize;
@@ -49,7 +49,7 @@ const GENERATIONS: u64 = 200;
         records: &records,
     };
 
-    let mut population: genetic::Population<genetic::BetStrategy, genetic::SimulationSettings> = genetic::Population::new(1000, &settings);
+    let mut population: genetic::Population<genetic::FormulaStrategy, genetic::SimulationSettings> = genetic::Population::new(1000, &settings);
 
     log!("Initializing...");
 
@@ -83,7 +83,7 @@ const GENERATIONS: u64 = 200;
 }*/
 
 
-/*fn read_strategy(filename: &str) -> Result<genetic::BetStrategy, std::io::Error> {
+/*fn read_strategy(filename: &str) -> Result<genetic::FormulaStrategy, std::io::Error> {
     let buffer = BufReader::new(File::open(filename)?);
     Ok(serde_json::from_reader(buffer)?)
 }
@@ -275,8 +275,8 @@ fn test_strategy<A>(mode: Mode, records: &mut [Record], strategy: A) -> f64 wher
 
 
 /*fn run_old_simulation(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error> {
-    let matchmaking_strategy: types::BetStrategy = read("../strategies/matchmaking_strategy")?;
-    let tournament_strategy: types::BetStrategy = read("../strategies/tournament_strategy")?;
+    let matchmaking_strategy: types::FormulaStrategy = read("../strategies/matchmaking_strategy")?;
+    let tournament_strategy: types::FormulaStrategy = read("../strategies/tournament_strategy")?;
     println!("Matchmaking Old   -> {}   -> {}",
         test_strategy(Mode::Matchmaking, left, matchmaking_strategy.clone()),
         test_strategy(Mode::Matchmaking, right, matchmaking_strategy));
@@ -323,7 +323,7 @@ fn run_bet_strategy<A>(left: &mut [Record], right: &mut [Record]) -> Result<(), 
 
 
 fn run_simulation() -> Result<(), std::io::Error> {
-    let records: Vec<Record> = read("../SaltyBet Records.json")?;
+    let records: Vec<Record> = read("../static/SaltyBet Records.json")?;
 
     println!("Read in {} records\n", records.len());
 
@@ -333,7 +333,7 @@ fn run_simulation() -> Result<(), std::io::Error> {
     //run_strategy("Default (tournament)", &mut left, &mut right, TOURNAMENT_STRATEGY);
 
     //run_old_simulation(&mut left, &mut right)?;
-    run_bet_strategy::<NeuralNetwork>(&mut left, &mut right)?;
+    run_bet_strategy::<CustomStrategy>(&mut left, &mut right)?;
 
     Ok(())
 }

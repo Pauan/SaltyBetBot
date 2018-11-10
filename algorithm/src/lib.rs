@@ -7,6 +7,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate lazy_static;
+extern crate arrayvec;
 
 pub mod random;
 pub mod genetic;

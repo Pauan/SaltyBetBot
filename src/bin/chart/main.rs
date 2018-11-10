@@ -14,10 +14,10 @@ extern crate futures_signals;
 
 use std::f64::INFINITY;
 use std::rc::Rc;
-use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading, set_panic_hook};
+use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
 use algorithm::record::{Record, Profit, Mode};
-use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, SALT_MINE_AMOUNT};
-use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, PERCENTAGE_THRESHOLD, GENETIC_STRATEGY};
+use algorithm::simulation::{Bet, Simulation, Strategy, Simulator};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, GENETIC_STRATEGY};
 use stdweb::traits::*;
 use stdweb::{spawn_local, unwrap_future};
 use stdweb::web::{document, set_timeout, Date};
@@ -639,6 +639,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         average_sums: Mutable<bool>,
         show_only_recent_data: Mutable<bool>,
         round_to_magnitude: Mutable<bool>,
+        scale_by_matches: Mutable<bool>,
         extra_data: Mutable<bool>,
         reset_money: Mutable<bool>,
         information: Mutable<Rc<Information>>,
@@ -658,6 +659,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 average_sums: Mutable::new(false),
                 show_only_recent_data: Mutable::new(true),
                 round_to_magnitude: Mutable::new(false),
+                scale_by_matches: Mutable::new(true),
                 extra_data: Mutable::new(false),
                 reset_money: Mutable::new(true),
                 information: Mutable::new(Rc::new(information)),
@@ -678,7 +680,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     reset_money: self.reset_money.get(),
                     strategy: CustomStrategy {
                         average_sums: self.average_sums.get(),
-                        scale_by_matches: true,
+                        scale_by_matches: self.scale_by_matches.get(),
                         round_to_magnitude: self.round_to_magnitude.get(),
                         money: match self.money_type.lock_ref().as_str() {
                             "expected-bet-winner" => MoneyStrategy::ExpectedBetWinner,
@@ -857,15 +859,20 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     let date_start = date - half_range;
                     let date_end = date + half_range;
 
+                    let index = find_starting_index(smooth_sums, |(_, date, _)| date.partial_cmp(&date_start).unwrap());
+
                     let mut sum = 0.0;
                     let mut len = 0.0;
 
-                    // TODO make this more efficient
-                    for (_, date, new_sum) in smooth_sums {
-                        if *date >= date_start &&
-                           *date <= date_end {
+                    for (_, date, new_sum) in &smooth_sums[index..] {
+                        assert!(*date >= date_start);
+
+                        if *date <= date_end {
                             sum += new_sum;
                             len += 1.0;
+
+                        } else {
+                            break;
                         }
                     }
 
@@ -1256,6 +1263,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             make_checkbox("Show only recent data", state.show_only_recent_data.clone(), always(true)),
                             make_checkbox("Use average for current money", state.average_sums.clone(), state.show_options()),
                             make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone(), state.show_options()),
+                            make_checkbox("Scale by match length", state.scale_by_matches.clone(), state.show_options()),
                             make_checkbox("Reset money at regular intervals", state.reset_money.clone(), state.show_options()),
                             make_checkbox("Simulate extra data", state.extra_data.clone(), state.show_options()),
 
