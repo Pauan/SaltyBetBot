@@ -35,7 +35,7 @@ fn sigmoid(x: f64) -> f64 {
     //1.0 / (1.0 + (-x).exp())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Node {
     bias: f64,
     weights: ArrayVec<[Percentage; INPUTS]>,
@@ -73,7 +73,7 @@ impl Gene for Node {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Layer {
     nodes: ArrayVec<[Node; INPUTS]>,
 }
@@ -93,7 +93,7 @@ impl Gene for Layer {
 }
 
 // TODO regularization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NeuralNetwork {
     hidden_layers: ArrayVec<[Layer; LAYERS]>,
     output_layer: Node,
@@ -176,7 +176,7 @@ impl NeuralNetwork {
 impl Creature for CustomStrategy {
     fn new() -> Self {
         let mut this = MATCHMAKING_STRATEGY.clone();
-        this.bet = BetStrategy::Genetic(NeuralNetwork::new());
+        this.bet = BetStrategy::Genetic(Box::new(NeuralNetwork::new()));
         this
     }
 
@@ -184,7 +184,7 @@ impl Creature for CustomStrategy {
         let mut this = MATCHMAKING_STRATEGY.clone();
 
         // TODO super hacky
-        this.bet = BetStrategy::Genetic(self.bet.unwrap_genetic().breed(other.bet.unwrap_genetic()));
+        this.bet = BetStrategy::Genetic(Box::new(self.bet.unwrap_genetic().breed(other.bet.unwrap_genetic())));
 
         this
     }

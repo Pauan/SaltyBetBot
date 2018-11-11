@@ -17,7 +17,7 @@ use std::rc::Rc;
 use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator};
-use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, GENETIC_STRATEGY};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, GENETIC_STRATEGY, MATCHMAKING_STRATEGY};
 use stdweb::traits::*;
 use stdweb::{spawn_local, unwrap_future};
 use stdweb::web::{document, set_timeout, Date};
@@ -631,9 +631,15 @@ lazy_static! {
 
 
 fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
+    #[derive(Debug, PartialEq)]
+    enum SimulationType {
+        RealData,
+        BetStrategy(BetStrategy),
+    }
+
     struct State {
-        simulation_type: Mutable<Rc<String>>,
-        money_type: Mutable<Rc<String>>,
+        simulation_type: Mutable<Rc<SimulationType>>,
+        money_type: Mutable<MoneyStrategy>,
         hover_info: Mutable<bool>,
         hover_percentage: Mutable<Option<f64>>,
         average_sums: Mutable<bool>,
@@ -652,8 +658,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             let information = Information::new(&records, Self::real_data(&records), true);
 
             Self {
-                simulation_type: Mutable::new(Rc::new("real-data".to_string())),
-                money_type: Mutable::new(Rc::new("expected-bet-winner".to_string())),
+                simulation_type: Mutable::new(Rc::new(SimulationType::RealData)),
+                money_type: Mutable::new(MATCHMAKING_STRATEGY.money),
                 hover_info: Mutable::new(false),
                 hover_percentage: Mutable::new(None),
                 average_sums: Mutable::new(false),
@@ -673,45 +679,18 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         }
 
         fn update(&self) {
-            let information = match self.simulation_type.lock_ref().as_str() {
-                "real-data" => Self::real_data(&self.records),
+            let information = match **self.simulation_type.lock_ref() {
+                SimulationType::RealData => Self::real_data(&self.records),
 
-                simulation_type => RecordInformation::calculate(&self.records, ChartMode::SimulateMatchmaking {
+                SimulationType::BetStrategy(ref bet_strategy) => RecordInformation::calculate(&self.records, ChartMode::SimulateMatchmaking {
                     reset_money: self.reset_money.get(),
                     strategy: CustomStrategy {
                         average_sums: self.average_sums.get(),
                         scale_by_matches: self.scale_by_matches.get(),
                         round_to_magnitude: self.round_to_magnitude.get(),
-                        money: match self.money_type.lock_ref().as_str() {
-                            "expected-bet-winner" => MoneyStrategy::ExpectedBetWinner,
-                            "expected-bet" => MoneyStrategy::ExpectedBet,
-                            "winner-bet" => MoneyStrategy::WinnerBet,
-                            "percentage" => MoneyStrategy::Percentage,
-                            "all-in" => MoneyStrategy::AllIn,
-                            "fixed" => MoneyStrategy::Fixed,
-                            a => panic!("Invalid value {}", a),
-                        },
-                        bet: match simulation_type {
-                            // TODO avoid the clone somehow
-                            "Genetic" => BetStrategy::Genetic(GENETIC_STRATEGY.clone()),
-                            "expected-bet-winner" => BetStrategy::ExpectedBetWinner,
-                            "expected-bet" => BetStrategy::ExpectedBet,
-                            "earnings" => BetStrategy::ExpectedProfit,
-                            "winner-bet" => BetStrategy::WinnerBet,
-                            "upset-percentage" => BetStrategy::Upsets,
-                            "upset-odds" => BetStrategy::Odds,
-                            "upset-odds-difference" => BetStrategy::OddsDifference,
-                            "upset-odds-winner" => BetStrategy::WinnerOdds,
-                            "Bettors" => BetStrategy::Bettors,
-                            "IlluminatiBettors" => BetStrategy::IlluminatiBettors,
-                            "NormalBettors" => BetStrategy::NormalBettors,
-                            "winrate-high" => BetStrategy::Wins,
-                            "winrate-low" => BetStrategy::Losses,
-                            "random-left" => BetStrategy::Left,
-                            "random-right" => BetStrategy::Right,
-                            "random" => BetStrategy::Random,
-                            a => panic!("Invalid value {}", a),
-                        },
+                        money: self.money_type.get(),
+                        // TODO figure out a way to avoid this clone ?
+                        bet: bet_strategy.clone(),
                     }
                 }, self.extra_data.get()),
             //ChartMode::RealData { days: Some(7), matches: None }
@@ -724,7 +703,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         }
 
         fn show_options(&self) -> impl Signal<Item = bool> {
-            self.simulation_type.signal_cloned().map(|x| *x != "real-data")
+            self.simulation_type.signal_cloned().map(|x| *x != SimulationType::RealData)
         }
     }
 
@@ -1083,28 +1062,30 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_dropdown<S>(mutable: Mutable<Rc<String>>, enabled: S, options: &[(&'static str, &'static str)]) -> Dom where S: Signal<Item = bool> + 'static {
+    fn make_dropdown<A, S, F>(mutable: Mutable<A>, enabled: S, options: &[&'static str], mut f: F) -> Dom
+        where A: Clone + PartialEq + 'static,
+              S: Signal<Item = bool> + 'static,
+              F: FnMut(String) -> A + 'static {
         html!("select" => SelectElement, {
             .class(&*WIDGET)
 
             .property_signal("disabled", not(enabled))
 
-            .with_element(|dom, element| {
-                dom.event(clone!(mutable => move |_: ChangeEvent| {
-                    if let Some(new_value) = element.value() {
-                        mutable.set_neq(Rc::new(new_value));
-                    }
-                }))
-            })
-
-            .children(&mut options.into_iter().map(|(name, value)| {
-                let value = *value;
+            .children(&mut options.into_iter().map(|name| {
+                let value = f(name.to_string());
                 html!("option", {
-                    .attribute("value", value)
-                    .property_signal("selected", mutable.signal_cloned().map(move |x| &*x == value))
+                    .property_signal("selected", mutable.signal_cloned().map(move |x| x == value))
                     .text(name)
                 })
             }).collect::<Vec<Dom>>())
+
+            .with_element(|dom, element| {
+                dom.event(clone!(mutable => move |_: ChangeEvent| {
+                    if let Some(new_value) = element.value() {
+                        mutable.set_neq(f(new_value));
+                    }
+                }))
+            })
         })
     }
 
@@ -1231,34 +1212,69 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                         .children(&mut [
                             make_dropdown(state.simulation_type.clone(), always(true), &[
-                                ("RealData", "real-data"),
-                                ("Genetic", "Genetic"),
-                                ("ExpectedBetWinner", "expected-bet-winner"),
-                                ("ExpectedBet", "expected-bet"),
-                                ("WinnerBet", "winner-bet"),
-                                ("ExpectedProfit", "earnings"),
-                                ("Upsets", "upset-percentage"),
-                                ("Odds", "upset-odds"),
-                                ("OddsDifference", "upset-odds-difference"),
-                                ("WinnerOdds", "upset-odds-winner"),
-                                ("Bettors", "Bettors"),
-                                ("IlluminatiBettors", "IlluminatiBettors"),
-                                ("NormalBettors", "NormalBettors"),
-                                ("Wins", "winrate-high"),
-                                ("Losses", "winrate-low"),
-                                ("Left", "random-left"),
-                                ("Right", "random-right"),
-                                ("Random", "random"),
-                            ]),
+                                "RealData",
+                                "Genetic",
+                                "ExpectedBetWinner",
+                                "ExpectedBet",
+                                "WinnerBet",
+                                "ExpectedProfit",
+                                "Upsets",
+                                "Odds",
+                                "OddsDifference",
+                                "WinnerOdds",
+                                "Bettors",
+                                "IlluminatiBettors",
+                                "NormalBettors",
+                                "Wins",
+                                "Losses",
+                                "Left",
+                                "Right",
+                                "Random",
+                            ], |value| {
+                                Rc::new(match value.as_str() {
+                                    "RealData" => SimulationType::RealData,
+                                    a => SimulationType::BetStrategy(match a {
+                                        // TODO avoid the clone somehow
+                                        "Genetic" => BetStrategy::Genetic(GENETIC_STRATEGY.clone()),
+                                        "ExpectedBetWinner" => BetStrategy::ExpectedBetWinner,
+                                        "ExpectedBet" => BetStrategy::ExpectedBet,
+                                        "WinnerBet" => BetStrategy::WinnerBet,
+                                        "ExpectedProfit" => BetStrategy::ExpectedProfit,
+                                        "Upsets" => BetStrategy::Upsets,
+                                        "Odds" => BetStrategy::Odds,
+                                        "OddsDifference" => BetStrategy::OddsDifference,
+                                        "WinnerOdds" => BetStrategy::WinnerOdds,
+                                        "Bettors" => BetStrategy::Bettors,
+                                        "IlluminatiBettors" => BetStrategy::IlluminatiBettors,
+                                        "NormalBettors" => BetStrategy::NormalBettors,
+                                        "Wins" => BetStrategy::Wins,
+                                        "Losses" => BetStrategy::Losses,
+                                        "Left" => BetStrategy::Left,
+                                        "Right" => BetStrategy::Right,
+                                        "Random" => BetStrategy::Random,
+                                        a => panic!("Invalid value {}", a),
+                                    }),
+                                })
+                            }),
 
                             make_dropdown(state.money_type.clone(), state.show_options(), &[
-                                ("ExpectedBetWinner", "expected-bet-winner"),
-                                ("ExpectedBet", "expected-bet"),
-                                ("Percentage", "percentage"),
-                                ("WinnerBet", "winner-bet"),
-                                ("Fixed", "fixed"),
-                                ("AllIn", "all-in"),
-                            ]),
+                                "ExpectedBetWinner",
+                                "ExpectedBet",
+                                "Percentage",
+                                "WinnerBet",
+                                "Fixed",
+                                "AllIn",
+                            ], |value| {
+                                match value.as_str() {
+                                    "ExpectedBetWinner" => MoneyStrategy::ExpectedBetWinner,
+                                    "ExpectedBet" => MoneyStrategy::ExpectedBet,
+                                    "Percentage" => MoneyStrategy::Percentage,
+                                    "WinnerBet" => MoneyStrategy::WinnerBet,
+                                    "Fixed" => MoneyStrategy::Fixed,
+                                    "AllIn" => MoneyStrategy::AllIn,
+                                    a => panic!("Invalid value {}", a),
+                                }
+                            }),
 
                             make_checkbox("Show only recent data", state.show_only_recent_data.clone(), always(true)),
                             make_checkbox("Use average for current money", state.average_sums.clone(), state.show_options()),

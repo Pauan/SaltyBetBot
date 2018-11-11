@@ -27,9 +27,9 @@ pub const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
 
 
 lazy_static! {
-    pub static ref GENETIC_STRATEGY: NeuralNetwork = {
+    pub static ref GENETIC_STRATEGY: Box<NeuralNetwork> = {
         let result: FitnessResult<CustomStrategy> = serde_json::from_str(&include_str!("../../strategies/2018-11-10T22.51.42 (matchmaking)")).unwrap();
-        result.creature.bet.unwrap_genetic().clone()
+        Box::new(result.creature.bet.unwrap_genetic().clone())
     };
 }
 
@@ -179,7 +179,7 @@ pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, left_bet: f6
 }
 
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MoneyStrategy {
     ExpectedBetWinner,
     ExpectedBet,
@@ -228,7 +228,7 @@ impl MoneyStrategy {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BetStrategy {
     ExpectedBetWinner,
     ExpectedBet,
@@ -246,7 +246,7 @@ pub enum BetStrategy {
     Left,
     Right,
     Random,
-    Genetic(NeuralNetwork),
+    Genetic(Box<NeuralNetwork>),
 }
 
 impl BetStrategy {
