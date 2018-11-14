@@ -660,17 +660,14 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         scale_by_matches: Mutable<bool>,
         extra_data: Mutable<bool>,
         reset_money: Mutable<bool>,
-        information: Mutable<Rc<Information>>,
+        information: Mutable<Option<Rc<Information>>>,
         records: Vec<Record>,
     }
 
     impl State {
         fn new(records: Vec<Record>) -> Self {
-            // TODO this should be based on the defaults
-            let information = Information::new(&records, Self::real_data(&records), true);
-
             Self {
-                simulation_type: Mutable::new(Rc::new(SimulationType::RealData)),
+                simulation_type: Mutable::new(Rc::new(SimulationType::BetStrategy(MATCHMAKING_STRATEGY.bet))),
                 money_type: Mutable::new(MATCHMAKING_STRATEGY.money),
                 hover_info: Mutable::new(false),
                 hover_percentage: Mutable::new(None),
@@ -680,14 +677,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 scale_by_matches: Mutable::new(true),
                 extra_data: Mutable::new(false),
                 reset_money: Mutable::new(true),
-                information: Mutable::new(Rc::new(information)),
+                information: Mutable::new(None),
                 records,
             }
-        }
-
-        fn real_data(records: &[Record]) -> Vec<RecordInformation> {
-            let real: ChartMode<()> = ChartMode::RealData { days: None };
-            RecordInformation::calculate(Simulation::new(), records, real, true)
         }
 
         async fn find_best(&self) {
@@ -758,7 +750,10 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
         fn update(&self) {
             let information = match **self.simulation_type.lock_ref() {
-                SimulationType::RealData => Self::real_data(&self.records),
+                SimulationType::RealData => {
+                    let real: ChartMode<()> = ChartMode::RealData { days: None };
+                    RecordInformation::calculate(Simulation::new(), &self.records, real, false)
+                },
 
                 SimulationType::BetStrategy(ref bet_strategy) => RecordInformation::calculate(Simulation::new(), &self.records, ChartMode::SimulateMatchmaking {
                     reset_money: self.reset_money.get(),
@@ -777,7 +772,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             //ChartMode::SimulateMatchmaking(matchmaking_strategy())
             };
 
-            self.information.set(Rc::new(Information::new(&self.records, information, self.show_only_recent_data.get())));
+            self.information.set(Some(Rc::new(Information::new(&self.records, information, self.show_only_recent_data.get()))));
         }
 
         fn show_options(&self) -> impl Signal<Item = bool> {
@@ -817,180 +812,185 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             })
 
             .children_signal_vec(state.information.signal_cloned().map(|information| {
-                let statistics = &information.recent_statistics;
+                if let Some(information) = information {
+                    let statistics = &information.recent_statistics;
 
-                let mut d_gains = vec![];
-                let mut d_losses = vec![];
-                let mut d_money = vec!["M0,100".to_owned()];
-                let mut d_smooth_1 = vec![];
-                let mut d_smooth_2 = vec![];
-                let mut d_smooth_3 = vec![];
-                let mut d_smooth_4 = vec![];
-                let mut d_smooth_5 = vec![];
-                let mut d_smooth_6 = vec![];
-                let mut d_smooth_7 = vec![];
-                let mut d_bets = vec![];
-                let mut d_match_len = vec![];
-                //let mut d_winner_profit = vec![];
-                let mut d_tournaments = vec![];
+                    let mut d_gains = vec![];
+                    let mut d_losses = vec![];
+                    let mut d_money = vec!["M0,100".to_owned()];
+                    let mut d_smooth_1 = vec![];
+                    let mut d_smooth_2 = vec![];
+                    let mut d_smooth_3 = vec![];
+                    let mut d_smooth_4 = vec![];
+                    let mut d_smooth_5 = vec![];
+                    let mut d_smooth_6 = vec![];
+                    let mut d_smooth_7 = vec![];
+                    let mut d_bets = vec![];
+                    let mut d_match_len = vec![];
+                    //let mut d_winner_profit = vec![];
+                    let mut d_tournaments = vec![];
 
-                //let len = information.record_information.len();
+                    //let len = information.record_information.len();
 
-                let y = (statistics.max_gain / (statistics.max_gain + statistics.max_loss)) * 100.0;
-                //let y = (statistics.max_odds_gain / (statistics.max_odds_gain + statistics.max_odds_loss)) * 100.0;
+                    let y = (statistics.max_gain / (statistics.max_gain + statistics.max_loss)) * 100.0;
+                    //let y = (statistics.max_odds_gain / (statistics.max_odds_gain + statistics.max_odds_loss)) * 100.0;
 
-                let mut first = true;
+                    let mut first = true;
 
-                let mut smooth_sums = vec![];
+                    let mut smooth_sums = vec![];
 
-                for (_index, record) in information.record_information.iter().enumerate() {
-                    let date = record.date();
+                    for (_index, record) in information.record_information.iter().enumerate() {
+                        let date = record.date();
 
-                    //let x = normalize(index as f64, 0.0, len) * 100.0;
-                    let x = normalize(date, statistics.lowest_date, statistics.highest_date) * 100.0;
+                        //let x = normalize(index as f64, 0.0, len) * 100.0;
+                        let x = normalize(date, statistics.lowest_date, statistics.highest_date) * 100.0;
 
-                    let (old_sum, new_sum) = match record {
-                        RecordInformation::TournamentFinal { profit, old_sum, new_sum, .. } => {
-                            // TODO code duplication with the Statistics
-                            d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, statistics.max_gain), y, 0.0), x, y));
-                            (*old_sum, *new_sum)
-                        },
-                        RecordInformation::Match { profit, bet, old_sum, new_sum, mode, match_len, .. } => {
-                            if let Mode::Matchmaking = mode {
-                                d_match_len.push(format!("M{},{}L{},{}",
-                                    x,
-                                    100.0,
-                                    x,
-                                    normalize(*match_len, statistics.max_match_len, 0.0) * 100.0));
+                        let (old_sum, new_sum) = match record {
+                            RecordInformation::TournamentFinal { profit, old_sum, new_sum, .. } => {
+                                // TODO code duplication with the Statistics
+                                d_tournaments.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*profit, 0.0, statistics.max_gain), y, 0.0), x, y));
+                                (*old_sum, *new_sum)
+                            },
+                            RecordInformation::Match { profit, bet, old_sum, new_sum, mode, match_len, .. } => {
+                                if let Mode::Matchmaking = mode {
+                                    d_match_len.push(format!("M{},{}L{},{}",
+                                        x,
+                                        100.0,
+                                        x,
+                                        normalize(*match_len, statistics.max_match_len, 0.0) * 100.0));
 
-                                /*match odds {
-                                    Ok(amount) => {
-                                        d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*amount, 0.0, statistics.odds_max_gain), y, 0.0), x, y));
+                                    /*match odds {
+                                        Ok(amount) => {
+                                            d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(*amount, 0.0, statistics.odds_max_gain), y, 0.0), x, y));
 
-                                        let y = range_inclusive(normalize(1.0, 0.0, statistics.odds_max_gain), y, 0.0);
-                                        d_bets.push(format!("M{},{}L{},{}", x, y, x, y + 0.3));
-                                    },
-
-                                    Err(amount) => {
-                                        d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(1.0, 0.0, statistics.max_odds_loss), y, 100.0)));
-
-                                        let y = range_inclusive(normalize(*amount, 0.0, statistics.max_odds_loss), y, 100.0);
-                                        d_winner_profit.push(format!("M{},{}L{},{}", x, y - 0.3, x, y));
-                                    },
-                                }*/
-
-                                match *profit {
-                                    Profit::Gain(amount) => {
-                                        d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(amount, 0.0, statistics.max_gain), y, 0.0), x, y));
-
-                                        if let Some(amount) = bet.amount() {
-                                            let y = range_inclusive(normalize(amount, 0.0, statistics.max_gain), y, 0.0);
+                                            let y = range_inclusive(normalize(1.0, 0.0, statistics.odds_max_gain), y, 0.0);
                                             d_bets.push(format!("M{},{}L{},{}", x, y, x, y + 0.3));
-                                            //format!("M{},100L{},{}", x, x, normalize(amount, information.max_bet, information.min_bet) * 100.0)
-                                        }
-                                    },
-                                    Profit::Loss(amount) => {
-                                        d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(amount, 0.0, statistics.max_loss), y, 100.0)));
-                                    },
-                                    Profit::None => {},
+                                        },
+
+                                        Err(amount) => {
+                                            d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(1.0, 0.0, statistics.max_odds_loss), y, 100.0)));
+
+                                            let y = range_inclusive(normalize(*amount, 0.0, statistics.max_odds_loss), y, 100.0);
+                                            d_winner_profit.push(format!("M{},{}L{},{}", x, y - 0.3, x, y));
+                                        },
+                                    }*/
+
+                                    match *profit {
+                                        Profit::Gain(amount) => {
+                                            d_gains.push(format!("M{},{}L{},{}", x, range_inclusive(normalize(amount, 0.0, statistics.max_gain), y, 0.0), x, y));
+
+                                            if let Some(amount) = bet.amount() {
+                                                let y = range_inclusive(normalize(amount, 0.0, statistics.max_gain), y, 0.0);
+                                                d_bets.push(format!("M{},{}L{},{}", x, y, x, y + 0.3));
+                                                //format!("M{},100L{},{}", x, x, normalize(amount, information.max_bet, information.min_bet) * 100.0)
+                                            }
+                                        },
+                                        Profit::Loss(amount) => {
+                                            d_losses.push(format!("M{},{}L{},{}", x, y, x, range_inclusive(normalize(amount, 0.0, statistics.max_loss), y, 100.0)));
+                                        },
+                                        Profit::None => {},
+                                    }
                                 }
-                            }
 
-                            (*old_sum, *new_sum)
-                        },
-                    };
+                                (*old_sum, *new_sum)
+                            },
+                        };
 
-                    smooth_sums.push((x, date, new_sum));
+                        smooth_sums.push((x, date, new_sum));
 
-                    if first {
-                        first = false;
-                        d_money.push(format!("M{},{}", x, normalize(old_sum, statistics.max_money, statistics.min_money) * 100.0));
+                        if first {
+                            first = false;
+                            d_money.push(format!("M{},{}", x, normalize(old_sum, statistics.max_money, statistics.min_money) * 100.0));
+                        }
+
+                        d_money.push(format!("L{},{}", x, normalize(new_sum, statistics.max_money, statistics.min_money) * 100.0));
                     }
 
-                    d_money.push(format!("L{},{}", x, normalize(new_sum, statistics.max_money, statistics.min_money) * 100.0));
-                }
+                    fn smooth(x: f64, statistics: &Statistics, d_smooth: &mut Vec<String>, smooth_sums: &[(f64, f64, f64)], date_range: f64, date: f64) {
+                        let half_range = date_range / 2.0;
 
-                fn smooth(x: f64, statistics: &Statistics, d_smooth: &mut Vec<String>, smooth_sums: &[(f64, f64, f64)], date_range: f64, date: f64) {
-                    let half_range = date_range / 2.0;
+                        let date_start = date - half_range;
+                        let date_end = date + half_range;
 
-                    let date_start = date - half_range;
-                    let date_end = date + half_range;
+                        let index = find_starting_index(smooth_sums, |(_, date, _)| date.partial_cmp(&date_start).unwrap());
 
-                    let index = find_starting_index(smooth_sums, |(_, date, _)| date.partial_cmp(&date_start).unwrap());
+                        let mut sum = 0.0;
+                        let mut len = 0.0;
 
-                    let mut sum = 0.0;
-                    let mut len = 0.0;
+                        for (_, date, new_sum) in &smooth_sums[index..] {
+                            assert!(*date >= date_start);
 
-                    for (_, date, new_sum) in &smooth_sums[index..] {
-                        assert!(*date >= date_start);
+                            if *date <= date_end {
+                                sum += new_sum;
+                                len += 1.0;
 
-                        if *date <= date_end {
-                            sum += new_sum;
-                            len += 1.0;
+                            } else {
+                                break;
+                            }
+                        }
+
+                        let average = sum / len;
+
+                        if d_smooth.len() == 0 {
+                            d_smooth.push(format!("M{},{}", x, normalize(average, statistics.max_money, statistics.min_money) * 100.0));
 
                         } else {
-                            break;
+                            d_smooth.push(format!("L{},{}", x, normalize(average, statistics.max_money, statistics.min_money) * 100.0));
                         }
                     }
 
-                    let average = sum / len;
+                    const ONE_DAY: f64 = 1000.0 * 60.0 * 60.0 * 24.0;
 
-                    if d_smooth.len() == 0 {
-                        d_smooth.push(format!("M{},{}", x, normalize(average, statistics.max_money, statistics.min_money) * 100.0));
-
-                    } else {
-                        d_smooth.push(format!("L{},{}", x, normalize(average, statistics.max_money, statistics.min_money) * 100.0));
+                    for (x, date, _) in smooth_sums.iter() {
+                        smooth(*x, &statistics, &mut d_smooth_1, &smooth_sums, ONE_DAY * 1.0, *date);
+                        smooth(*x, &statistics, &mut d_smooth_2, &smooth_sums, ONE_DAY * 2.0, *date);
+                        smooth(*x, &statistics, &mut d_smooth_3, &smooth_sums, ONE_DAY * 3.0, *date);
+                        smooth(*x, &statistics, &mut d_smooth_4, &smooth_sums, ONE_DAY * 4.0, *date);
+                        smooth(*x, &statistics, &mut d_smooth_5, &smooth_sums, ONE_DAY * 5.0, *date);
+                        smooth(*x, &statistics, &mut d_smooth_6, &smooth_sums, ONE_DAY * 6.0, *date);
+                        smooth(*x, &statistics, &mut d_smooth_7, &smooth_sums, ONE_DAY * 7.0, *date);
                     }
+
+                    fn make_line(d: Vec<String>, color: &str) -> Dom {
+                        let d: String = d.iter().flat_map(|x| x.chars()).collect();
+
+                        svg!("path", {
+                            .attribute("stroke", color)
+                            .attribute("stroke-width", "1px")
+                            .attribute("stroke-opacity", "1")
+                            .attribute("fill-opacity", "0")
+                            .attribute("vector-effect", "non-scaling-stroke")
+                            .attribute("d", &d)
+                        })
+                    }
+
+                    const HUE_START: f64 = 360.0;
+                    const HUE_END: f64 = 180.0;
+
+                    const LIGHT_START: f64 = 99.9;
+                    const LIGHT_END: f64 = 80.0;
+
+                    vec![
+                        make_line(d_match_len, "black"),
+                        make_line(d_gains, "hsla(120, 75%, 50%, 1)"),
+                        // #6441a5
+                        make_line(d_bets, "hsla(0, 100%, 50%, 1)"),
+                        make_line(d_losses, "hsla(0, 75%, 50%, 1)"),
+                        //make_line(d_winner_profit, "hsla(120, 75%, 50%, 1)"),
+                        make_line(d_tournaments, "hsl(240, 100%, 75%)"),
+                        make_line(d_smooth_7, &format!("hsl({}, 100%, {}%)", range_inclusive(7.0 / 7.0, HUE_START, HUE_END), range_inclusive(7.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_smooth_6, &format!("hsl({}, 100%, {}%)", range_inclusive(6.0 / 7.0, HUE_START, HUE_END), range_inclusive(6.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_smooth_5, &format!("hsl({}, 100%, {}%)", range_inclusive(5.0 / 7.0, HUE_START, HUE_END), range_inclusive(5.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_smooth_4, &format!("hsl({}, 100%, {}%)", range_inclusive(4.0 / 7.0, HUE_START, HUE_END), range_inclusive(4.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_smooth_3, &format!("hsl({}, 100%, {}%)", range_inclusive(3.0 / 7.0, HUE_START, HUE_END), range_inclusive(3.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_smooth_2, &format!("hsl({}, 100%, {}%)", range_inclusive(2.0 / 7.0, HUE_START, HUE_END), range_inclusive(2.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_smooth_1, &format!("hsl({}, 100%, {}%)", range_inclusive(1.0 / 7.0, HUE_START, HUE_END), range_inclusive(1.0 / 7.0, LIGHT_START, LIGHT_END))),
+                        make_line(d_money,    &format!("hsl({}, 100%, {}%)", range_inclusive(0.0 / 7.0, HUE_START, HUE_END), range_inclusive(0.0 / 7.0, LIGHT_START, LIGHT_END))),
+                    ]
+
+                } else {
+                    vec![]
                 }
-
-                const ONE_DAY: f64 = 1000.0 * 60.0 * 60.0 * 24.0;
-
-                for (x, date, _) in smooth_sums.iter() {
-                    smooth(*x, &statistics, &mut d_smooth_1, &smooth_sums, ONE_DAY * 1.0, *date);
-                    smooth(*x, &statistics, &mut d_smooth_2, &smooth_sums, ONE_DAY * 2.0, *date);
-                    smooth(*x, &statistics, &mut d_smooth_3, &smooth_sums, ONE_DAY * 3.0, *date);
-                    smooth(*x, &statistics, &mut d_smooth_4, &smooth_sums, ONE_DAY * 4.0, *date);
-                    smooth(*x, &statistics, &mut d_smooth_5, &smooth_sums, ONE_DAY * 5.0, *date);
-                    smooth(*x, &statistics, &mut d_smooth_6, &smooth_sums, ONE_DAY * 6.0, *date);
-                    smooth(*x, &statistics, &mut d_smooth_7, &smooth_sums, ONE_DAY * 7.0, *date);
-                }
-
-                fn make_line(d: Vec<String>, color: &str) -> Dom {
-                    let d: String = d.iter().flat_map(|x| x.chars()).collect();
-
-                    svg!("path", {
-                        .attribute("stroke", color)
-                        .attribute("stroke-width", "1px")
-                        .attribute("stroke-opacity", "1")
-                        .attribute("fill-opacity", "0")
-                        .attribute("vector-effect", "non-scaling-stroke")
-                        .attribute("d", &d)
-                    })
-                }
-
-                const HUE_START: f64 = 360.0;
-                const HUE_END: f64 = 180.0;
-
-                const LIGHT_START: f64 = 99.9;
-                const LIGHT_END: f64 = 80.0;
-
-                vec![
-                    make_line(d_match_len, "black"),
-                    make_line(d_gains, "hsla(120, 75%, 50%, 1)"),
-                    // #6441a5
-                    make_line(d_bets, "hsla(0, 100%, 50%, 1)"),
-                    make_line(d_losses, "hsla(0, 75%, 50%, 1)"),
-                    //make_line(d_winner_profit, "hsla(120, 75%, 50%, 1)"),
-                    make_line(d_tournaments, "hsl(240, 100%, 75%)"),
-                    make_line(d_smooth_7, &format!("hsl({}, 100%, {}%)", range_inclusive(7.0 / 7.0, HUE_START, HUE_END), range_inclusive(7.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_smooth_6, &format!("hsl({}, 100%, {}%)", range_inclusive(6.0 / 7.0, HUE_START, HUE_END), range_inclusive(6.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_smooth_5, &format!("hsl({}, 100%, {}%)", range_inclusive(5.0 / 7.0, HUE_START, HUE_END), range_inclusive(5.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_smooth_4, &format!("hsl({}, 100%, {}%)", range_inclusive(4.0 / 7.0, HUE_START, HUE_END), range_inclusive(4.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_smooth_3, &format!("hsl({}, 100%, {}%)", range_inclusive(3.0 / 7.0, HUE_START, HUE_END), range_inclusive(3.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_smooth_2, &format!("hsl({}, 100%, {}%)", range_inclusive(2.0 / 7.0, HUE_START, HUE_END), range_inclusive(2.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_smooth_1, &format!("hsl({}, 100%, {}%)", range_inclusive(1.0 / 7.0, HUE_START, HUE_END), range_inclusive(1.0 / 7.0, LIGHT_START, LIGHT_END))),
-                    make_line(d_money,    &format!("hsl({}, 100%, {}%)", range_inclusive(0.0 / 7.0, HUE_START, HUE_END), range_inclusive(0.0 / 7.0, LIGHT_START, LIGHT_END))),
-                ]
             }).to_signal_vec())
         })
     }
@@ -1065,30 +1065,35 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         let percentage = state.hover_percentage.signal(),
                         let information = state.information.signal_cloned() => {
                             if let Some(percentage) = percentage {
-                                let first_date = information.record_information.first().map(|x| x.date()).unwrap_or(0.0);
-                                let last_date = information.record_information.last().map(|x| x.date()).unwrap_or(0.0);
+                                if let Some(information) = information {
+                                    let first_date = information.record_information.first().map(|x| x.date()).unwrap_or(0.0);
+                                    let last_date = information.record_information.last().map(|x| x.date()).unwrap_or(0.0);
 
-                                let date = range_inclusive(*percentage, first_date, last_date);
+                                    let date = range_inclusive(*percentage, first_date, last_date);
 
-                                let mut index = 0;
-                                let mut difference = INFINITY;
+                                    let mut index = 0;
+                                    let mut difference = INFINITY;
 
-                                // TODO rewrite this with combinators ?
-                                // TODO make this more efficient
-                                for (i, record) in information.record_information.iter().enumerate() {
-                                    let diff = (record.date() - date).abs();
+                                    // TODO rewrite this with combinators ?
+                                    // TODO make this more efficient
+                                    for (i, record) in information.record_information.iter().enumerate() {
+                                        let diff = (record.date() - date).abs();
 
-                                    if diff < difference {
-                                        difference = diff;
-                                        index = i;
+                                        if diff < difference {
+                                            difference = diff;
+                                            index = i;
+                                        }
                                     }
+
+                                    //let index = information.record_information.binary_search_by(|a| a.date().partial_cmp(&date).unwrap());
+
+                                    let record = &information.record_information[index];
+                                    format!("{}\n{:#?}", index, record)
+                                    //format!("{}\n{:#?}\n{:#?}\n{:#?}\n{:#?}\n{:#?}", information.record_information.len(), first_date, date, percentage, index, difference)
+
+                                } else {
+                                    "".to_string()
                                 }
-
-                                //let index = information.record_information.binary_search_by(|a| a.date().partial_cmp(&date).unwrap());
-
-                                let record = &information.record_information[index];
-                                format!("{}\n{:#?}", index, record)
-                                //format!("{}\n{:#?}\n{:#?}\n{:#?}\n{:#?}\n{:#?}", information.record_information.len(), first_date, date, percentage, index, difference)
 
                             } else {
                                 "".to_string()
@@ -1116,25 +1121,30 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             .class(&*CLASS)
 
             .text_signal(state.information.signal_cloned().map(|information| {
-                let statistics = &information.recent_statistics;
-                let starting_money = Information::starting_money(&information.record_information);
-                let final_money = Information::final_money(&information.record_information);
+                if let Some(information) = information {
+                    let statistics = &information.recent_statistics;
+                    let starting_money = Information::starting_money(&information.record_information);
+                    let final_money = Information::final_money(&information.record_information);
 
-                let total_gains = final_money - starting_money;
-                let average_gains = total_gains / statistics.len;
+                    let total_gains = final_money - starting_money;
+                    let average_gains = total_gains / statistics.len;
 
-                format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%",
-                    salty_bet_bot::money(statistics.min_money),
-                    salty_bet_bot::money(statistics.max_money),
-                    salty_bet_bot::money(starting_money),
-                    salty_bet_bot::money(final_money),
-                    salty_bet_bot::money(total_gains),
-                    salty_bet_bot::money(average_gains),
-                    decimal(statistics.len),
-                    decimal(information.total_statistics.len),
-                    statistics.average_odds,
-                    salty_bet_bot::money(statistics.average_bet),
-                    (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)
+                    format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%",
+                        salty_bet_bot::money(statistics.min_money),
+                        salty_bet_bot::money(statistics.max_money),
+                        salty_bet_bot::money(starting_money),
+                        salty_bet_bot::money(final_money),
+                        salty_bet_bot::money(total_gains),
+                        salty_bet_bot::money(average_gains),
+                        decimal(statistics.len),
+                        decimal(information.total_statistics.len),
+                        statistics.average_odds,
+                        salty_bet_bot::money(statistics.average_bet),
+                        (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)
+
+                } else {
+                    "".to_string()
+                }
             }))
         })
     }
@@ -1225,6 +1235,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
 
     let state = Rc::new(State::new(records));
+
+    state.update();
 
     js! { @(no_return)
         window.find_best = @{clone!(state, loading => move || {
