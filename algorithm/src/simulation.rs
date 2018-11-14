@@ -285,6 +285,7 @@ pub mod lookup {
         }).unwrap_or(0.0)
     }
 
+    // TODO bet_amount_winner ?
     pub fn bet_amount<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         iterate_average(iter, |record| {
@@ -348,16 +349,16 @@ pub mod lookup {
         iterate_percentage(iter, |record| !record.is_winner(name)).unwrap_or(0.0)
     }
 
-    pub fn bet<'a, A>(iter: A, name: &str) -> f64
+    pub fn bet<'a, A>(iter: A, name: &str, max_bet: f64) -> f64
         where A: IntoIterator<Item = &'a Record> {
         iterate_average(iter, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             if record.left.name == name {
-                record.right.bet_amount - record.left.bet_amount
+                (record.right.bet_amount - record.left.bet_amount).max(0.0).min(max_bet)
 
             } else {
-                record.left.bet_amount - record.right.bet_amount
+                (record.left.bet_amount - record.right.bet_amount).max(0.0).min(max_bet)
             }
         }).unwrap_or(0.0)
     }
@@ -657,7 +658,7 @@ impl Gene for Lookup {
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub matchmaking_strategy: Option<A>,
     pub tournament_strategy: Option<B>,
@@ -847,7 +848,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn simulate(&mut self, records: Vec<Record>) {
+    pub fn simulate(&mut self, records: Vec<Record>, insert_records: bool) {
         for record in records.into_iter() {
             // TODO make this more efficient
             let record = record.shuffle();
@@ -856,7 +857,9 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
 
             self.calculate(&record, &bet);
 
-            self.insert_record(&record);
+            if insert_records {
+                self.insert_record(&record);
+            }
         }
 
         // TODO code duplication

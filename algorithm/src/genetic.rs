@@ -1077,19 +1077,50 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
     // TODO figure out a way to avoid the clone and to_vec
     pub fn new<'a>(settings: &SimulationSettings<'a>, creature: A) -> Self {
         let (sum, successes, failures, record_len, characters_len, max_character_len) = {
-            let mut simulation = Simulation::new();
+            let mut simulation = Simulation::<(), ()>::new();
 
-            match settings.mode {
+            // TODO is this correct ?
+            simulation.sum = 10_000_000.0;
+
+            /*match settings.mode {
                 Mode::Matchmaking => simulation.matchmaking_strategy = Some(creature.clone()),
                 Mode::Tournament => simulation.tournament_strategy = Some(creature.clone()),
+            }*/
+
+            // TODO is this correct ?
+            for record in settings.records {
+                simulation.insert_record(record);
             }
 
-            simulation.simulate(settings.records.to_vec());
+            let mut successes = 0.0;
+            let mut failures = 0.0;
+
+            let mut len = 0.0;
+            let mut sum = 0.0;
+
+            for record in settings.records {
+                if let Some(odds) = record.odds(&simulation.pick_winner(&creature, &record.tier, &record.left.name, &record.right.name)) {
+                    len += 1.0;
+
+                    match odds {
+                        Ok(odds) => {
+                            successes += 1.0;
+                            sum += odds;
+                        },
+                        Err(_) => {
+                            failures += 1.0;
+                            sum -= 1.0;
+                        },
+                    }
+                }
+            }
+
+            //simulation.simulate(settings.records.to_vec(), false);
 
             (
-                simulation.sum,
-                simulation.successes,
-                simulation.failures,
+                if len == 0.0 { 0.0 } else { sum / len }, // simulation.sum,
+                successes,
+                failures,
                 simulation.record_len,
                 simulation.characters.len(),
                 simulation.max_character_len,

@@ -15,8 +15,8 @@ use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{set_panic_hook, deserialize_records, get_added_records, Message, Tab, Port, on_message, WaifuMessage};
-use stdweb::{spawn_local, unwrap_future, PromiseFuture, Reference, Once};
+use salty_bet_bot::{set_panic_hook, spawn, deserialize_records, get_added_records, Message, Tab, Port, on_message, WaifuMessage};
+use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 use futures_util::try_join;
@@ -315,7 +315,7 @@ async fn main_future() -> Result<(), Error> {
     // TODO auto-reload the tabs if they haven't sent a message in a while
     DiscardOnDrop::leak(Port::on_connect(move |port| {
         match port.name().as_str() {
-            "saltybet" => spawn_local(unwrap_future(clone!(state => async move {
+            "saltybet" => spawn(clone!(state => async move {
                 let a = {
                     let mut lock = state.borrow_mut();
 
@@ -331,15 +331,15 @@ async fn main_future() -> Result<(), Error> {
 
                     if remove_value(&mut lock.salty_bet_ports, port) {
                         if lock.salty_bet_ports.len() == 0 {
-                            spawn_local(unwrap_future(remove_ports(&mut lock.twitch_chat_ports)));
+                            spawn(remove_ports(&mut lock.twitch_chat_ports));
                         }
                     }
                 }));
 
                 await!(a)
-            }))),
+            })),
 
-            "twitch_chat" => spawn_local(unwrap_future(clone!(state => async move {
+            "twitch_chat" => spawn(clone!(state => async move {
                 let a = {
                     let mut lock = state.borrow_mut();
 
@@ -373,7 +373,7 @@ async fn main_future() -> Result<(), Error> {
                 };
 
                 try_join!(a, b).map(|_| {})
-            }))),
+            })),
 
             name => {
                 panic!("Invalid port name: {}", name);
@@ -389,7 +389,7 @@ async fn main_future() -> Result<(), Error> {
 fn main() {
     stdweb::initialize();
 
-    spawn_local(unwrap_future(main_future()));
+    spawn(main_future());
 
     stdweb::event_loop();
 }

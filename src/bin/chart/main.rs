@@ -14,13 +14,13 @@ extern crate futures_signals;
 
 use std::f64::INFINITY;
 use std::rc::Rc;
-use salty_bet_bot::{records_get_all, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
+use salty_bet_bot::{records_get_all, spawn, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator};
-use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, GENETIC_STRATEGY, MATCHMAKING_STRATEGY};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, GENETIC_STRATEGY, MATCHMAKING_STRATEGY};
 use stdweb::traits::*;
-use stdweb::{spawn_local, unwrap_future};
-use stdweb::web::{document, set_timeout, Date};
+use stdweb::spawn_local;
+use stdweb::web::{document, set_timeout, Date, wait};
 use stdweb::web::error::Error;
 use stdweb::web::html_element::SelectElement;
 use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
@@ -86,10 +86,8 @@ enum RecordInformation {
 }
 
 impl RecordInformation {
-    fn calculate<A: Strategy>(records: &[Record], mode: ChartMode<A>, extra_data: bool) -> Vec<Self> {
+    fn calculate<A: Strategy>(mut simulation: Simulation<A, A>, records: &[Record], mode: ChartMode<A>, extra_data: bool) -> Vec<Self> {
         let mut output: Vec<RecordInformation> = vec![];
-
-        let mut simulation = Simulation::new();
 
         //simulation.sum = PERCENTAGE_THRESHOLD;
 
@@ -508,6 +506,7 @@ impl Statistics {
 }
 
 
+#[derive(Debug)]
 struct Information {
     record_information: Vec<RecordInformation>,
     recent_statistics: Statistics,
@@ -515,37 +514,50 @@ struct Information {
 }
 
 impl Information {
+    fn recent_information(mut record_information: Vec<RecordInformation>) -> Vec<RecordInformation> {
+        let cutoff_date = *STARTING_DATE;
+
+        // TODO is this faster than using filter ?
+        record_information.retain(|x| {
+            x.date() >= cutoff_date
+        });
+
+        record_information
+    }
+
     fn new(records: &[Record], record_information: Vec<RecordInformation>, show_only_recent_data: bool) -> Self {
         // TODO is this `false` correct ?
         let total_statistics = Statistics::new(records, &record_information, false);
 
-        let cutoff_date = if show_only_recent_data {
-            Some(*STARTING_DATE)
-            //Some(1000)
+        if show_only_recent_data {
+            let record_information = Self::recent_information(record_information);
+            let recent_statistics = Statistics::new(records, &record_information, true);
+
+            Self {
+                record_information,
+                recent_statistics,
+                total_statistics
+            }
 
         } else {
-            None
-        };
-
-        match cutoff_date {
-            Some(date) => {
-                let record_information: Vec<RecordInformation> = record_information.into_iter().filter(|x| x.date() >= date).collect();
-                let recent_statistics = Statistics::new(records, &record_information, cutoff_date.is_some());
-
-                Self {
-                    record_information,
-                    recent_statistics,
-                    total_statistics
-                }
-            },
-            None => {
-                Self {
-                    record_information,
-                    recent_statistics: total_statistics.clone(),
-                    total_statistics
-                }
-            },
+            Self {
+                record_information,
+                recent_statistics: total_statistics.clone(),
+                total_statistics
+            }
         }
+    }
+
+    fn starting_money(record_information: &[RecordInformation]) -> f64 {
+        record_information.first().map(|x| x.old_sum()).unwrap_or(0.0)
+    }
+
+    fn final_money(record_information: &[RecordInformation]) -> f64 {
+        record_information.last().map(|x| x.new_sum()).unwrap_or(0.0)
+    }
+
+    fn total_gains(record_information: &[RecordInformation]) -> f64 {
+        Self::final_money(record_information) - Self::starting_money(record_information)
     }
 }
 
@@ -675,14 +687,80 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
         fn real_data(records: &[Record]) -> Vec<RecordInformation> {
             let real: ChartMode<()> = ChartMode::RealData { days: None };
-            RecordInformation::calculate(records, real, true)
+            RecordInformation::calculate(Simulation::new(), records, real, true)
+        }
+
+        async fn find_best(&self) {
+            let reset_money = self.reset_money.get();
+            let extra_data = self.extra_data.get();
+            let show_only_recent_data =  self.show_only_recent_data.get();
+
+            let average_sums = self.average_sums.get();
+            let scale_by_matches = self.scale_by_matches.get();
+            let round_to_magnitude = self.round_to_magnitude.get();
+
+            let mut strategies = vec![];
+
+            Permutate::each(|money: MoneyStrategy| {
+                Permutate::each(|bet: BetStrategy| {
+                    strategies.push(CustomStrategy {
+                        average_sums,
+                        scale_by_matches,
+                        round_to_magnitude,
+                        bet,
+                        money,
+                    });
+                });
+            });
+
+            let mut results = Vec::with_capacity(strategies.len());
+
+            // TODO pre-calculate up to the recent data
+            let simulation = Simulation::new();
+
+            for strategy in strategies {
+                let information = RecordInformation::calculate(simulation.clone(), &self.records, ChartMode::SimulateMatchmaking {
+                    reset_money,
+                    // TODO figure out a way to avoid this clone
+                    strategy: strategy.clone(),
+                }, extra_data);
+
+                let information = if show_only_recent_data {
+                    Information::recent_information(information)
+
+                } else {
+                    information
+                };
+
+                let total_gains = Information::total_gains(&information);
+
+                results.push((total_gains, strategy));
+
+                await!(wait(0));
+            }
+
+            results.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
+
+            for (total_gains, strategy) in &results[(results.len() - 10)..] {
+                log!("{} {:#?}", total_gains, strategy);
+            }
+
+            if let Some((_, strategy)) = results.pop() {
+                self.average_sums.set_neq(strategy.average_sums);
+                self.scale_by_matches.set_neq(strategy.scale_by_matches);
+                self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
+                self.money_type.set_neq(strategy.money);
+                self.simulation_type.set_neq(Rc::new(SimulationType::BetStrategy(strategy.bet)));
+                //self.information.set(Rc::new(information));
+                self.update();
+            }
         }
 
         fn update(&self) {
             let information = match **self.simulation_type.lock_ref() {
                 SimulationType::RealData => Self::real_data(&self.records),
 
-                SimulationType::BetStrategy(ref bet_strategy) => RecordInformation::calculate(&self.records, ChartMode::SimulateMatchmaking {
+                SimulationType::BetStrategy(ref bet_strategy) => RecordInformation::calculate(Simulation::new(), &self.records, ChartMode::SimulateMatchmaking {
                     reset_money: self.reset_money.get(),
                     strategy: CustomStrategy {
                         average_sums: self.average_sums.get(),
@@ -1039,8 +1117,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
             .text_signal(state.information.signal_cloned().map(|information| {
                 let statistics = &information.recent_statistics;
-                let starting_money = information.record_information.first().map(|x| x.old_sum()).unwrap_or(0.0);
-                let final_money = information.record_information.last().map(|x| x.new_sum()).unwrap_or(0.0);
+                let starting_money = Information::starting_money(&information.record_information);
+                let final_money = Information::final_money(&information.record_information);
 
                 let total_gains = final_money - starting_money;
                 let average_gains = total_gains / statistics.len;
@@ -1148,6 +1226,18 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
     let state = Rc::new(State::new(records));
 
+    js! { @(no_return)
+        window.find_best = @{clone!(state, loading => move || {
+            spawn_local(clone!(state, loading => async move {
+                loading.show();
+                await!(wait(0));
+                await!(state.find_best());
+                // TODO handle this better
+                loading.hide();
+            }));
+        })};
+    }
+
     lazy_static! {
         static ref CLASS_ROOT: String = class! {
             .style("position", "absolute")
@@ -1216,7 +1306,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "Genetic",
                                 "ExpectedBetWinner",
                                 "ExpectedBet",
-                                "WinnerBet",
+                                "BetDifference",
+                                "BetDifferenceWinner",
                                 "ExpectedProfit",
                                 "Upsets",
                                 "Odds",
@@ -1225,6 +1316,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "Bettors",
                                 "IlluminatiBettors",
                                 "NormalBettors",
+                                "BetAmount",
                                 "Wins",
                                 "Losses",
                                 "Left",
@@ -1238,7 +1330,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                         "Genetic" => BetStrategy::Genetic(GENETIC_STRATEGY.clone()),
                                         "ExpectedBetWinner" => BetStrategy::ExpectedBetWinner,
                                         "ExpectedBet" => BetStrategy::ExpectedBet,
-                                        "WinnerBet" => BetStrategy::WinnerBet,
+                                        "BetDifference" => BetStrategy::BetDifference,
+                                        "BetDifferenceWinner" => BetStrategy::BetDifferenceWinner,
                                         "ExpectedProfit" => BetStrategy::ExpectedProfit,
                                         "Upsets" => BetStrategy::Upsets,
                                         "Odds" => BetStrategy::Odds,
@@ -1247,6 +1340,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                         "Bettors" => BetStrategy::Bettors,
                                         "IlluminatiBettors" => BetStrategy::IlluminatiBettors,
                                         "NormalBettors" => BetStrategy::NormalBettors,
+                                        "BetAmount" => BetStrategy::BetAmount,
                                         "Wins" => BetStrategy::Wins,
                                         "Losses" => BetStrategy::Losses,
                                         "Left" => BetStrategy::Left,
@@ -1261,7 +1355,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "ExpectedBetWinner",
                                 "ExpectedBet",
                                 "Percentage",
-                                "WinnerBet",
+                                "BetDifference",
+                                "BetDifferenceWinner",
                                 "Fixed",
                                 "AllIn",
                             ], |value| {
@@ -1269,7 +1364,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     "ExpectedBetWinner" => MoneyStrategy::ExpectedBetWinner,
                                     "ExpectedBet" => MoneyStrategy::ExpectedBet,
                                     "Percentage" => MoneyStrategy::Percentage,
-                                    "WinnerBet" => MoneyStrategy::WinnerBet,
+                                    "BetDifference" => MoneyStrategy::BetDifference,
+                                    "BetDifferenceWinner" => MoneyStrategy::BetDifferenceWinner,
                                     "Fixed" => MoneyStrategy::Fixed,
                                     "AllIn" => MoneyStrategy::AllIn,
                                     a => panic!("Invalid value {}", a),
@@ -1283,7 +1379,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             make_checkbox("Reset money at regular intervals", state.reset_money.clone(), state.show_options()),
                             make_checkbox("Simulate extra data", state.extra_data.clone(), state.show_options()),
 
-                            make_button("Run simulation", always(true), clone!(state => move || {
+                            make_button("Run simulation", always(true), clone!(state, loading => move || {
                                 loading.show();
 
                                 set_timeout(clone!(loading, state => move || {
@@ -1334,7 +1430,7 @@ async fn main_future() -> Result<(), Error> {
 fn main() {
     stdweb::initialize();
 
-    spawn_local(unwrap_future(main_future()));
+    spawn(main_future());
 
     stdweb::event_loop();
 }

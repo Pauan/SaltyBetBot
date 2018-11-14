@@ -11,8 +11,8 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     average_sums: false,
     round_to_magnitude: false,
     scale_by_matches: true,
-    bet: BetStrategy::Odds,
-    money: MoneyStrategy::Fixed,
+    money: MoneyStrategy::ExpectedBetWinner,
+    bet: BetStrategy::Bettors,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -31,6 +31,18 @@ lazy_static! {
         let result: FitnessResult<CustomStrategy> = serde_json::from_str(&include_str!("../../strategies/2018-11-10T22.51.42 (matchmaking)")).unwrap();
         Box::new(result.creature.bet.unwrap_genetic().clone())
     };
+}
+
+
+pub trait Permutate {
+    fn each<F>(f: F) where F: FnMut(Self), Self: Sized;
+}
+
+impl Permutate for bool {
+    fn each<F>(mut f: F) where F: FnMut(Self) {
+        f(true);
+        f(false);
+    }
 }
 
 
@@ -183,10 +195,23 @@ pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, left_bet: f6
 pub enum MoneyStrategy {
     ExpectedBetWinner,
     ExpectedBet,
-    WinnerBet,
+    BetDifference,
+    BetDifferenceWinner,
     Percentage,
     Fixed,
     AllIn,
+}
+
+impl Permutate for MoneyStrategy {
+    fn each<F>(mut f: F) where F: FnMut(Self) {
+        f(MoneyStrategy::ExpectedBetWinner);
+        f(MoneyStrategy::ExpectedBet);
+        f(MoneyStrategy::BetDifference);
+        f(MoneyStrategy::BetDifferenceWinner);
+        f(MoneyStrategy::Percentage);
+        f(MoneyStrategy::Fixed);
+        //f(MoneyStrategy::AllIn);
+    }
 }
 
 impl MoneyStrategy {
@@ -219,7 +244,8 @@ impl MoneyStrategy {
         match self {
             MoneyStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet_winner(&records, name, bet))),
             MoneyStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet(&records, name, bet))),
-            MoneyStrategy::WinnerBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
+            MoneyStrategy::BetDifference => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::bet(records, name, bet))),
+            MoneyStrategy::BetDifferenceWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
             MoneyStrategy::Percentage => (percentage, percentage),
             MoneyStrategy::Fixed => (PERCENTAGE_THRESHOLD, PERCENTAGE_THRESHOLD),
             MoneyStrategy::AllIn => (current_money, current_money),
@@ -233,7 +259,8 @@ pub enum BetStrategy {
     ExpectedBetWinner,
     ExpectedBet,
     ExpectedProfit,
-    WinnerBet,
+    BetDifference,
+    BetDifferenceWinner,
     Odds,
     OddsDifference,
     WinnerOdds,
@@ -241,12 +268,37 @@ pub enum BetStrategy {
     Bettors,
     IlluminatiBettors,
     NormalBettors,
+    BetAmount,
     Wins,
     Losses,
     Left,
     Right,
     Random,
     Genetic(Box<NeuralNetwork>),
+}
+
+impl Permutate for BetStrategy {
+    fn each<F>(mut f: F) where F: FnMut(Self) {
+        f(BetStrategy::ExpectedBetWinner);
+        f(BetStrategy::ExpectedBet);
+        f(BetStrategy::ExpectedProfit);
+        f(BetStrategy::BetDifference);
+        f(BetStrategy::BetDifferenceWinner);
+        f(BetStrategy::Odds);
+        f(BetStrategy::OddsDifference);
+        f(BetStrategy::WinnerOdds);
+        f(BetStrategy::Upsets);
+        f(BetStrategy::Bettors);
+        f(BetStrategy::IlluminatiBettors);
+        f(BetStrategy::NormalBettors);
+        f(BetStrategy::BetAmount);
+        f(BetStrategy::Wins);
+        f(BetStrategy::Losses);
+        f(BetStrategy::Left);
+        f(BetStrategy::Right);
+        //f(BetStrategy::Random);
+        f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
+    }
 }
 
 impl BetStrategy {
@@ -258,7 +310,8 @@ impl BetStrategy {
             BetStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
             BetStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
             BetStrategy::ExpectedProfit => expected_profits(simulation, left, right, left_bet, right_bet),
-            BetStrategy::WinnerBet => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
+            BetStrategy::BetDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::bet(records, name, bet)),
+            BetStrategy::BetDifferenceWinner => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
             BetStrategy::Odds => average_odds(simulation, left, right, left_bet, right_bet),
             BetStrategy::OddsDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),
             BetStrategy::WinnerOdds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
@@ -266,6 +319,7 @@ impl BetStrategy {
             BetStrategy::Bettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bettors(records, name)),
             BetStrategy::IlluminatiBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
             BetStrategy::NormalBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
+            BetStrategy::BetAmount => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),
             BetStrategy::Wins => winrates(simulation, left, right),
             BetStrategy::Losses => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
             BetStrategy::Left => (1.0, 0.0),
@@ -295,6 +349,22 @@ pub struct CustomStrategy {
     pub round_to_magnitude: bool,
     pub money: MoneyStrategy,
     pub bet: BetStrategy,
+}
+
+impl Permutate for CustomStrategy {
+    fn each<F>(mut f: F) where F: FnMut(Self) {
+        Permutate::each(|average_sums| {
+            Permutate::each(|scale_by_matches| {
+                Permutate::each(|round_to_magnitude| {
+                    Permutate::each(|money| {
+                        Permutate::each(|bet| {
+                            f(Self { average_sums, scale_by_matches, round_to_magnitude, money, bet });
+                        });
+                    });
+                });
+            });
+        });
+    }
 }
 
 impl Strategy for CustomStrategy {

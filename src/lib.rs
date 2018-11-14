@@ -179,6 +179,11 @@ pub fn query_all(input: &str) -> NodeList {
 }
 
 
+pub fn spawn<A>(future: A) where A: Future<Output = Result<(), Error>> + 'static {
+    spawn_local(unwrap_future(future))
+}
+
+
 #[inline]
 fn send_message_raw(message: &str) -> PromiseFuture<String> {
     js!(
@@ -326,7 +331,7 @@ pub async fn records_delete_all() -> Result<(), Error> {
 }
 
 pub fn server_log(message: String) {
-    spawn_local(unwrap_future(send_message(&Message::ServerLog(message))))
+    spawn(send_message(&Message::ServerLog(message)))
 }
 
 

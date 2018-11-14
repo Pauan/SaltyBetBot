@@ -10,11 +10,10 @@ extern crate salty_bet_bot;
 #[macro_use]
 extern crate dominator;
 
-use salty_bet_bot::{records_get_all, records_insert, records_delete_all, deserialize_records, serialize_records, get_added_records, Loading, set_panic_hook};
+use salty_bet_bot::{set_panic_hook, spawn, records_get_all, records_insert, records_delete_all, deserialize_records, serialize_records, get_added_records, Loading};
 use dominator::events::{ClickEvent, ChangeEvent};
-use stdweb::{Reference, PromiseFuture, spawn_local, unwrap_future};
+use stdweb::{Reference, PromiseFuture};
 use stdweb::web::{document, INode, Blob};
-use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 
 
@@ -190,7 +189,7 @@ fn main() {
                             .attribute("type", "file")
                             .style("display", "none")
                             .event(clone!(loading => move |e: ChangeEvent| {
-                                async fn future(loading: Loading, e: ChangeEvent) -> Result<(), Error> {
+                                spawn(clone!(loading => async move {
                                     if let Some(file) = get_file(&e) {
                                         reset_input(&e);
 
@@ -224,9 +223,7 @@ fn main() {
                                     }
 
                                     Ok(())
-                                }
-
-                                spawn_local(unwrap_future(future(loading.clone(), e)));
+                                }));
                             }))
                         }),
 
@@ -243,7 +240,7 @@ fn main() {
                             .class(&*CLASS_BUTTON)
                             .text("Export")
                             .event(clone!(loading => move |_: ClickEvent| {
-                                async fn future(loading: Loading) -> Result<(), Error> {
+                                spawn(clone!(loading => async move {
                                     log!("Starting export");
 
                                     loading.show();
@@ -261,9 +258,7 @@ fn main() {
                                     loading.hide();
 
                                     Ok(())
-                                }
-
-                                spawn_local(unwrap_future(future(loading.clone())));
+                                }));
                             }))
                         }),
 
@@ -273,7 +268,7 @@ fn main() {
                             .text("DELETE")
                             .event(clone!(loading => move |_: ClickEvent| {
                                 if confirm("This will PERMANENTLY delete ALL of the match records!\n\nYou should export the match records before doing this.\n\nAre you sure that you want to delete the match records?") {
-                                    async fn future(loading: Loading) -> Result<(), Error> {
+                                    spawn(clone!(loading => async move {
                                         log!("Starting deletion");
 
                                         loading.show();
@@ -283,9 +278,7 @@ fn main() {
                                         loading.hide();
 
                                         Ok(())
-                                    }
-
-                                    spawn_local(unwrap_future(future(loading.clone())));
+                                    }));
                                 }
                             }))
                         }),

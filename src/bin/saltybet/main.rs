@@ -15,11 +15,11 @@ extern crate futures_signals;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook};
+use salty_bet_bot::{spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
-use stdweb::{spawn_local, unwrap_future};
+use stdweb::spawn_local;
 use stdweb::web::{set_timeout, NodeList};
 use stdweb::web::error::Error;
 use futures_util::stream::StreamExt;
@@ -440,7 +440,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
                         state.simulation.insert_record(&record);
 
                         // TODO figure out a way to avoid this clone
-                        spawn_local(unwrap_future(records_insert(vec![record.clone()])));
+                        spawn(records_insert(vec![record.clone()]));
 
                         state.records.push(record);
                     }
@@ -826,9 +826,9 @@ fn main() {
         log!("Bettors hidden");
     });*/
 
-    spawn_local(unwrap_future(initialize_state(container)));
+    spawn(initialize_state(container));
 
-    spawn_local(unwrap_future(initialize_tab()));
+    spawn(initialize_tab());
 
     // Reloads the page every 24 hours, just in case something screwed up on saltybet.com
     // Normally this doesn't happen, because it reloads the page at the start of exhibitions

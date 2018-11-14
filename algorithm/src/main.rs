@@ -12,7 +12,7 @@ use algorithm::genetic::Creature;
 use algorithm::types::FitnessResult;
 use algorithm::record::{Record, Mode};
 use algorithm::simulation::Strategy;
-use algorithm::strategy::{CustomStrategy, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
+use algorithm::strategy::{CustomStrategy, Permutate};
 use algorithm::random::shuffle;
 
 use serde::Serialize;
@@ -268,9 +268,9 @@ fn simulate<A>(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut 
     population.best().clone()
 }
 
-fn test_strategy<A>(mode: Mode, records: &mut [Record], strategy: A) -> f64 where A: Strategy + Clone {
+fn test_strategy<A>(mode: Mode, records: &mut [Record], strategy: A) -> FitnessResult<A> where A: Strategy + Clone {
     let records = shuffle_records(records, mode);
-    FitnessResult::new(&genetic::SimulationSettings { mode, records: &records }, strategy).fitness
+    FitnessResult::new(&genetic::SimulationSettings { mode, records: &records }, strategy)
 }
 
 
@@ -289,8 +289,8 @@ fn test_strategy<A>(mode: Mode, records: &mut [Record], strategy: A) -> f64 wher
 
 fn run_strategy<A: Strategy + Clone>(name: &str, left: &mut [Record], right: &mut [Record], strategy: A) {
     println!("Matchmaking {}   -> {}   -> {}", name,
-        test_strategy(Mode::Matchmaking, left, strategy.clone()),
-        test_strategy(Mode::Matchmaking, right, strategy.clone()));
+        test_strategy(Mode::Matchmaking, left, strategy.clone()).fitness,
+        test_strategy(Mode::Matchmaking, right, strategy.clone()).fitness);
     /*println!("Tournament {}   -> {}   -> {}\n", name,
         test_strategy(Mode::Tournament, left, strategy.clone()),
         test_strategy(Mode::Tournament, right, strategy));*/
@@ -312,7 +312,7 @@ fn run_bet_strategy<A>(left: &mut [Record], right: &mut [Record]) -> Result<(), 
     let matchmaking_test = test_strategy(Mode::Matchmaking, right, matchmaking.creature.clone());
     //let tournament_test = test_strategy(Mode::Tournament, right, tournament.creature.clone());
 
-    println!("Matchmaking Genetic  {} -> {}", matchmaking.fitness, matchmaking_test);
+    println!("Matchmaking Genetic  {} -> {}", matchmaking.fitness, matchmaking_test.fitness);
     //println!("Tournament Genetic  {} -> {}", tournament.fitness, tournament_test);
 
     write(&format!("../strategies/{} (matchmaking)", date), &matchmaking)?;
@@ -329,11 +329,21 @@ fn run_simulation() -> Result<(), std::io::Error> {
 
     let (mut left, mut right) = split_records(records);
 
-    run_strategy("Default (matchmaking)", &mut left, &mut right, MATCHMAKING_STRATEGY);
+    let mut strategies: Vec<FitnessResult<CustomStrategy>> = vec![];
+
+    Permutate::each(|strategy| {
+        strategies.push(test_strategy(Mode::Matchmaking, &mut left, strategy));
+    });
+
+    strategies.sort_by(|x, y| x.fitness.partial_cmp(&y.fitness).unwrap());
+
+    println!("{:#?}", &strategies[(strategies.len() - 10)..]);
+
+    //run_strategy("Default (matchmaking)", &mut left, &mut right, MATCHMAKING_STRATEGY);
     //run_strategy("Default (tournament)", &mut left, &mut right, TOURNAMENT_STRATEGY);
 
     //run_old_simulation(&mut left, &mut right)?;
-    run_bet_strategy::<CustomStrategy>(&mut left, &mut right)?;
+    //run_bet_strategy::<CustomStrategy>(&mut left, &mut right)?;
 
     Ok(())
 }
