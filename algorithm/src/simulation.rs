@@ -292,10 +292,10 @@ pub mod lookup {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             if record.left.name == name {
-                record.left.bet_amount
+                -record.left.bet_amount
 
             } else {
-                record.right.bet_amount
+                -record.right.bet_amount
             }
         }).unwrap_or(0.0)
     }

@@ -11,7 +11,7 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     average_sums: false,
     round_to_magnitude: false,
     scale_by_matches: true,
-    money: MoneyStrategy::ExpectedBetWinner,
+    money: MoneyStrategy::Fixed,
     bet: BetStrategy::Bettors,
 };
 
@@ -81,7 +81,10 @@ fn weight_percentage(len: f64, max: f64) -> f64 {
     (len / max).max(0.0).min(1.0)
 }
 
-fn weight(percentage: f64, general: f64, specific: f64) -> f64 {
+fn weight(_percentage: f64, general: f64, _specific: f64) -> f64 {
+    general
+
+    /*
     // TODO is this correct ?
     let general = if percentage == 1.0 {
         0.0
@@ -96,7 +99,7 @@ fn weight(percentage: f64, general: f64, specific: f64) -> f64 {
         specific * percentage
     };
 
-    general + specific
+    general + specific*/
 }
 
 fn normalize(value: f64, min: f64, max: f64) -> f64 {
@@ -188,6 +191,10 @@ pub fn needed_odds<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) whe
 
 pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
     weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet))
+}
+
+pub fn bettors<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::bettors(records, name))
 }
 
 
@@ -316,7 +323,7 @@ impl BetStrategy {
             BetStrategy::OddsDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),
             BetStrategy::WinnerOdds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
             BetStrategy::Upsets => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
-            BetStrategy::Bettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bettors(records, name)),
+            BetStrategy::Bettors => bettors(simulation, left, right),
             BetStrategy::IlluminatiBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
             BetStrategy::NormalBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
             BetStrategy::BetAmount => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),

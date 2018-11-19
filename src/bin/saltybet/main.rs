@@ -18,7 +18,7 @@ use std::cell::RefCell;
 use salty_bet_bot::{spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
-use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
 use stdweb::spawn_local;
 use stdweb::web::{set_timeout, NodeList};
 use stdweb::web::error::Error;
@@ -483,6 +483,10 @@ impl State {
         self.info_container.left.name.set(Some(left.to_string()));
         self.info_container.right.name.set(Some(right.to_string()));
 
+        let (left_bettors, right_bettors) = bettors(&self.simulation, left, right);
+        self.info_container.left.bettors.set(Some(left_bettors));
+        self.info_container.right.bettors.set(Some(right_bettors));
+
         let (left_winrate, right_winrate) = winrates(&self.simulation, left, right);
         self.info_container.left.winrate.set(Some(left_winrate));
         self.info_container.right.winrate.set(Some(right_winrate));
@@ -530,6 +534,7 @@ struct InfoSide {
     matches_len: Mutable<Option<usize>>,
     specific_matches_len: Mutable<Option<usize>>,
     winrate: Mutable<Option<f64>>,
+    bettors: Mutable<Option<f64>>,
 }
 
 impl InfoSide {
@@ -543,6 +548,7 @@ impl InfoSide {
             matches_len: Mutable::new(None),
             specific_matches_len: Mutable::new(None),
             winrate: Mutable::new(None),
+            bettors: Mutable::new(None),
         }
     }
 
@@ -555,6 +561,7 @@ impl InfoSide {
         self.matches_len.set(None);
         self.specific_matches_len.set(None);
         self.winrate.set(None);
+        self.bettors.set(None);
     }
 
     fn render(&self, other: &Self, color: &str) -> Dom {
@@ -637,6 +644,10 @@ impl InfoSide {
 
                 info_bar(&self.specific_matches_len, always(Some(0)), |x| {
                     format!("Number of past matches (in specific): {}", x)
+                }),
+
+                info_bar(&self.bettors, other.bettors.signal(), |x| {
+                    format!("Bettors: {}", -x)
                 }),
 
                 info_bar(&self.winrate, other.winrate.signal(), |x| {

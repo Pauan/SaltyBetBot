@@ -35,7 +35,8 @@ const DATE_CUTOFF: u32 = 21;
 const MATCHMAKING_STARTING_MONEY: f64 = 10_000_000.0;
 
 lazy_static! {
-    static ref STARTING_DATE: f64 = subtract_days(Date::now(), DATE_CUTOFF);
+    static ref CURRENT_DATE: f64 = Date::now();
+    static ref STARTING_DATE: f64 = subtract_days(*CURRENT_DATE, DATE_CUTOFF);
 }
 
 
@@ -112,8 +113,8 @@ impl RecordInformation {
 
                     let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
 
-                    if let Some(amount) = bet.amount() {
-                        if amount > 1.0 {
+                    if let Some(_amount) = bet.amount() {
+                        //if amount > 1.0 {
                             simulation.calculate(&record, &bet);
 
                             let new_sum = simulation.tournament_sum;
@@ -136,7 +137,7 @@ impl RecordInformation {
                                     bet,
                                 });
                             }
-                        }
+                        //}
                     }
 
                     if let Some(tournament_profit) = tournament_profit {
@@ -207,8 +208,8 @@ impl RecordInformation {
 
                         let bet = simulation.bet(&record);
 
-                        if let Some(amount) = bet.amount() {
-                            if amount > 1.0 {
+                        if let Some(_amount) = bet.amount() {
+                            //if amount > 1.0 {
                                 simulation.calculate(&record, &bet);
 
                                 simulation.sum -= tournament_profit.unwrap_or(0.0);
@@ -234,7 +235,7 @@ impl RecordInformation {
                                     odds: record.odds(&bet),
                                     bet,
                                 });
-                            }
+                            //}
                         }
                     }
 
@@ -288,8 +289,8 @@ impl RecordInformation {
 
                         let bet = record.bet.clone();
 
-                        if let Some(amount) = bet.amount() {
-                            if amount > 1.0 {
+                        if let Some(_amount) = bet.amount() {
+                            //if amount > 1.0 {
                                 simulation.calculate(&record, &bet);
 
                                 if let Mode::Matchmaking = record.mode {
@@ -311,7 +312,7 @@ impl RecordInformation {
                                         bet,
                                     });
                                 }
-                            }
+                            //}
                         }
 
                     } else {
@@ -379,7 +380,7 @@ struct Statistics {
 }
 
 impl Statistics {
-    fn new(records: &[Record], information: &[RecordInformation], show_recent: bool) -> Self {
+    fn new(information: &[RecordInformation], lowest_date: f64, highest_date: f64) -> Self {
         let mut len: f64 = 0.0;
         let mut wins: f64 = 0.0;
         let mut losses: f64 = 0.0;
@@ -403,18 +404,10 @@ impl Statistics {
         let mut min_match_len: f64 = -1.0;
         let mut max_match_len: f64 = 0.0;
 
-        let mut lowest_date: f64 = if show_recent { -1.0 } else { records.first().map(|x| x.date).unwrap_or(0.0) };
-        let highest_date: f64 = records.last().map(|x| x.date).unwrap_or(0.0);
-
         for record in information {
             let date = record.date();
             let old_sum = record.old_sum();
             let new_sum = record.new_sum();
-
-            if show_recent {
-                lowest_date = if lowest_date == -1.0 { date } else { lowest_date.min(date) };
-                //highest_date = highest_date.max(date);
-            }
 
             min_money = if min_money == -1.0 { old_sum } else { min_money.min(old_sum) };
             max_money = max_money.max(old_sum);
@@ -527,11 +520,13 @@ impl Information {
 
     fn new(records: &[Record], record_information: Vec<RecordInformation>, show_only_recent_data: bool) -> Self {
         // TODO is this `false` correct ?
-        let total_statistics = Statistics::new(records, &record_information, false);
+        let total_statistics = Statistics::new(&record_information,
+            records.first().map(|x| x.date).unwrap_or(0.0),
+            *CURRENT_DATE);
 
         if show_only_recent_data {
             let record_information = Self::recent_information(record_information);
-            let recent_statistics = Statistics::new(records, &record_information, true);
+            let recent_statistics = Statistics::new(&record_information, *STARTING_DATE, *CURRENT_DATE);
 
             Self {
                 record_information,
@@ -1313,6 +1308,27 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         .style("margin-right", "15px")
 
                         .children(&mut [
+                            make_dropdown(state.money_type.clone(), state.show_options(), &[
+                                "ExpectedBetWinner",
+                                "ExpectedBet",
+                                "Percentage",
+                                "BetDifference",
+                                "BetDifferenceWinner",
+                                "Fixed",
+                                "AllIn",
+                            ], |value| {
+                                match value.as_str() {
+                                    "ExpectedBetWinner" => MoneyStrategy::ExpectedBetWinner,
+                                    "ExpectedBet" => MoneyStrategy::ExpectedBet,
+                                    "Percentage" => MoneyStrategy::Percentage,
+                                    "BetDifference" => MoneyStrategy::BetDifference,
+                                    "BetDifferenceWinner" => MoneyStrategy::BetDifferenceWinner,
+                                    "Fixed" => MoneyStrategy::Fixed,
+                                    "AllIn" => MoneyStrategy::AllIn,
+                                    a => panic!("Invalid value {}", a),
+                                }
+                            }),
+
                             make_dropdown(state.simulation_type.clone(), always(true), &[
                                 "RealData",
                                 "Genetic",
@@ -1361,27 +1377,6 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                         a => panic!("Invalid value {}", a),
                                     }),
                                 })
-                            }),
-
-                            make_dropdown(state.money_type.clone(), state.show_options(), &[
-                                "ExpectedBetWinner",
-                                "ExpectedBet",
-                                "Percentage",
-                                "BetDifference",
-                                "BetDifferenceWinner",
-                                "Fixed",
-                                "AllIn",
-                            ], |value| {
-                                match value.as_str() {
-                                    "ExpectedBetWinner" => MoneyStrategy::ExpectedBetWinner,
-                                    "ExpectedBet" => MoneyStrategy::ExpectedBet,
-                                    "Percentage" => MoneyStrategy::Percentage,
-                                    "BetDifference" => MoneyStrategy::BetDifference,
-                                    "BetDifferenceWinner" => MoneyStrategy::BetDifferenceWinner,
-                                    "Fixed" => MoneyStrategy::Fixed,
-                                    "AllIn" => MoneyStrategy::AllIn,
-                                    a => panic!("Invalid value {}", a),
-                                }
                             }),
 
                             make_checkbox("Show only recent data", state.show_only_recent_data.clone(), always(true)),
