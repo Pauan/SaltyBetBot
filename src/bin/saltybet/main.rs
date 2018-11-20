@@ -15,16 +15,17 @@ extern crate futures_signals;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook};
+use salty_bet_bot::{spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
 use stdweb::spawn_local;
-use stdweb::web::{set_timeout, NodeList};
+use stdweb::web::{set_timeout, INode, Node, NodeList, Element};
 use stdweb::web::error::Error;
 use futures_util::stream::StreamExt;
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
-use dominator::Dom;
+use dominator::{Dom, HIGHEST_ZINDEX};
+use dominator::events::ClickEvent;
 
 
 const SHOULD_BET: bool = true;
@@ -675,6 +676,7 @@ impl InfoSide {
 }
 
 struct InfoContainer {
+    visible: Mutable<bool>,
     left: InfoSide,
     right: InfoSide,
 }
@@ -682,6 +684,7 @@ struct InfoContainer {
 impl InfoContainer {
     fn new() -> Self {
         Self {
+            visible: Mutable::new(true),
             left: InfoSide::new(),
             right: InfoSide::new(),
         }
@@ -703,6 +706,17 @@ impl InfoContainer {
 
         html!("div", {
             .class(&*CLASS)
+
+            .style_signal("display", self.visible.signal().map(|visible| {
+                if visible {
+                    None
+
+                } else {
+                    Some("none")
+                }
+            }))
+            //.visible_signal(self.visible.signal())
+
             .children(&mut [
                 self.left.render(&self.right, "rgb(176, 68, 68)"),
                 self.right.render(&self.left, "rgb(52, 158, 255)"),
@@ -804,20 +818,83 @@ fn main() {
 
     let container = Rc::new(InfoContainer::new());
 
-    wait_until_defined(|| query("#stream"), clone!(container => move |stream| {
-        dominator::append_dom(&stream, container.render());
-        log!("Information initialized");
-    }));
-
-    wait_until_defined(|| query("#iframeplayer"), move |video| {
-        // TODO hacky
-        js! { @(no_return)
-            var video = @{video};
-            video.parentNode.removeChild(video);
+    wait_until_defined(|| query("#iframeplayer"), clone!(container => move |video: Element| {
+        struct Player {
+            statistics: Rc<InfoContainer>,
+            parent: Node,
+            video: Element,
+            showing_video: Mutable<bool>,
         }
 
-        log!("Video hidden");
-    });
+        impl Player {
+            fn swap(&mut self) {
+                if self.showing_video.get() {
+                    self.hide_video();
+
+                } else {
+                    self.show_video();
+                }
+            }
+
+            fn show_video(&mut self) {
+                self.showing_video.set_neq(true);
+                self.parent.append_child(&self.video);
+                self.statistics.visible.set_neq(false);
+            }
+
+            fn hide_video(&mut self) {
+                self.showing_video.set_neq(false);
+                self.parent.remove_child(&self.video).unwrap();
+                self.statistics.visible.set_neq(true);
+            }
+
+            fn render(mut self) -> Dom {
+                html!("img", {
+                    .attribute_signal("src", self.showing_video.signal().map(|showing| {
+                        // TODO use RefFn to make this more efficient
+                        if showing {
+                            get_extension_url("icons/eye-blocked.svg")
+
+                        } else {
+                            get_extension_url("icons/eye.svg")
+                        }
+                    }))
+
+                    .style("z-index", HIGHEST_ZINDEX)
+                    .style("position", "absolute")
+                    .style("bottom", "0px")
+                    .style("right", "0px")
+                    .style("width", "42px")
+                    .style("height", "32px")
+                    .style("background-color", "hsla(0, 0%, 100%, 1)")
+                    .style("padding", "0px 5px")
+                    .style("border-top-left-radius", "5px")
+                    .style("cursor", "pointer")
+
+                    .event(move |_: ClickEvent| {
+                        self.swap();
+                    })
+                })
+            }
+        }
+
+        let parent = video.parent_node().unwrap();
+
+        dominator::append_dom(&parent, container.render());
+
+        let mut player = Player {
+            statistics: container,
+            parent: parent.clone(),
+            video,
+            showing_video: Mutable::new(true),
+        };
+
+        player.hide_video();
+
+        dominator::append_dom(&parent, player.render());
+
+        log!("Information initialized, video hidden");
+    }));
 
     /*wait_until_defined(|| query("#chat-frame-stream"), move |chat| {
        // TODO hacky

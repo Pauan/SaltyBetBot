@@ -46,8 +46,7 @@ fn create_twitch_tab() -> PromiseFuture<()> {
                 active: false
             }, function (tab) {
                 if (chrome.runtime.lastError != null) {
-                    console.log(chrome.runtime.lastError);
-                    reject(chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
 
                 } else {
                     resolve();
@@ -64,8 +63,7 @@ fn create_twitch_tab() -> PromiseFuture<()> {
                 url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
             }, function (tabs) {
                 if (chrome.runtime.lastError != null) {
-                    console.log(chrome.runtime.lastError);
-                    reject(chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
 
                 } else {
                     resolve(tabs);
@@ -83,8 +81,7 @@ fn remove_tabs(tabs: &[Tab]) -> PromiseFuture<()> {
         return new Promise(function (resolve, reject) {
             chrome.tabs.remove(ids, function () {
                 if (chrome.runtime.lastError != null) {
-                    console.log(chrome.runtime.lastError);
-                    reject(chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
 
                 } else {
                     resolve();

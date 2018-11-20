@@ -190,8 +190,7 @@ fn send_message_raw(message: &str) -> PromiseFuture<String> {
         return new Promise(function (resolve, reject) {
             chrome.runtime.sendMessage(null, @{message}, null, function (x) {
                 if (chrome.runtime.lastError != null) {
-                    console.log(chrome.runtime.lastError);
-                    reject(chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
 
                 } else {
                     resolve(x);
@@ -520,6 +519,11 @@ impl IndexedDB {
         IndexedDBWrite(js!( return @{&self.0}.transaction(@{stores}, "readwrite"); ))
     }
 }*/
+
+
+pub fn get_extension_url(url: &str) -> String {
+    js!( return chrome.runtime.getURL(@{url}); ).try_into().unwrap()
+}
 
 
 #[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
