@@ -819,7 +819,7 @@ fn main() {
         log!("Video hidden");
     });
 
-    wait_until_defined(|| query("#chat-frame-stream"), move |chat| {
+    /*wait_until_defined(|| query("#chat-frame-stream"), move |chat| {
        // TODO hacky
         js! { @(no_return)
             var chat = @{chat};
@@ -827,7 +827,7 @@ fn main() {
         }
 
         log!("Chat hidden");
-    });
+    });*/
 
     /*wait_until_defined(|| query("#sbettorswrapper"), move |bettors| {
         js! { @(no_return)
