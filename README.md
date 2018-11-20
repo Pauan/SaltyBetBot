@@ -34,7 +34,9 @@ How to upgrade
 
 5. Find "Salty Bet Bot" in the extensions list, and then click the reload button (it looks like a circular arrow).
 
-6. Re-open the [saltybet.com](http://www.saltybet.com/) website.
+6. Wait for 10 seconds (this gives it time to read the new data).
+
+7. Re-open the [saltybet.com](http://www.saltybet.com/) website.
 
 How to build (for programmers only)
 ===================================
