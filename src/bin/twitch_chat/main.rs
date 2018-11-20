@@ -251,13 +251,13 @@ pub fn observe_changes() {
         }
     });
 
-    wait_until_defined(|| query("body"), move |body| {
+    /*wait_until_defined(|| query("body"), move |body| {
         js! { @(no_return)
             @{body}.style.display = "none";
         }
 
         log!("Body hidden");
-    });
+    });*/
 
     wait_until_defined(|| query("[data-a-target='chat-welcome-message']"), move |welcome| {
         observer.observe(&welcome.parent_node().unwrap(), MutationObserverInit {
