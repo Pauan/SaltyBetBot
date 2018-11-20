@@ -545,89 +545,89 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
                 "__extjs_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
                 Module.STDWEB_PRIVATE.decrement_refcount( $0 );
             },
-            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
-                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
-            },
-            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
-            },
-            "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
-            },
-            "__extjs_ad52d59d80aecad398c056ccad20049bb2c45653": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var state = ($0); state.cancelled = true ; state.callback.drop ();
-            },
-            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
-                Module.STDWEB_PRIVATE.increment_refcount( $0 );
-            },
-            "__extjs_2e6bf47ec7f31b4cb119a8d2793bacfcfe38b112": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Error) | 0;
-            },
-            "__extjs_1b47036256330bc1f1d6cf232021ddf04df850e2": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). style.removeProperty (($1));
-            },
-            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
-            },
-            "__extjs_7c5535365a3df6a4cc1f59c4a957bfce1dbfb8ee": function($0, $1, $2, $3) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){var listener = ($1); ($2). addEventListener (($3), listener); return listener ;})());
-            },
-            "__extjs_412b3bd01e407f1a833248d9eb9e255da2cb0f33": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (($1)). toISOString ();})());
-            },
-            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
-                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
-            },
-            "__extjs_4125cc9e90bd4b15315b9dfd73bc6605725d7451": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createTextNode (($1));})());
-            },
-            "__extjs_cd167021a7bb085ca183bf0c9dde5277b9f77aca": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). innerHTML = "" ;
-            },
-            "__extjs_68d21cddc428c8f40dc802238f92a69b9ba9f92b": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){var e = document.createElement ("style"); e.type = "text/css" ; document.head.appendChild (e); return e.sheet ;})());
-            },
             "__extjs_a0b7b9e5ff62e9d75889569ce62d2d2c2ed899e1": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof HTMLElement) | 0;
             },
-            "__extjs_351b27505bc97d861c3914c20421b6277babb53b": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Node) | 0;
-            },
-            "__extjs_c41297f1f679af47d6390b4b617d1a8375706933": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);console.error (($0));
-            },
-            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
-                console.error( 'Encountered a panic!' );
+            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
             },
             "__extjs_8de42e19567dc9a6c1a2ff637265f4d0db6f718a": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). classList.add (($1));
             },
+            "__extjs_f167788c39e80562a6972017cda9ecd6bb91dba7": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){try {return {value : function (){return ($1). createElement (($2));}(), success : true};}catch (error){return {error : error , success : false};}})());
+            },
+            "__extjs_ac8ad4183ba55ff52a4271f8c65efeba62875383": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "currency" , currency : "USD" , minimumFractionDigits : 0});})());
+            },
+            "__extjs_ff5103e6cc179d13b4c7a785bdce2708fd559fc0": function($0) {
+                Module.STDWEB_PRIVATE.tmp = Module.STDWEB_PRIVATE.to_js( $0 );
+            },
+            "__extjs_4125cc9e90bd4b15315b9dfd73bc6605725d7451": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createTextNode (($1));})());
+            },
+            "__extjs_412b3bd01e407f1a833248d9eb9e255da2cb0f33": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (($1)). toISOString ();})());
+            },
             "__extjs_7f342438c940bfafc63d7b76e806c8cc569cd9d6": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var stylesheet = ($1); var length = stylesheet.cssRules.length ; stylesheet.insertRule (($2)+ "{}" , length); return stylesheet.cssRules [length];})());
-            },
-            "__extjs_08b01249624ddc3d96fbac0c69755a1223a49c67": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS (($1), ($2));})());
-            },
-            "__extjs_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof CSSStyleRule) | 0;
-            },
-            "__extjs_15f8ab2268ae77c8bd6e93a6c1d1351d74d7f5f4": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (). toISOString ();})());
             },
             "__extjs_964a9c3ea63f7374eeff4e3e5c6b7525934ec155": function($0, $1, $2, $3) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);($0). style.setProperty (($1), ($2), (($3)? "important" : ""));
             },
-            "__extjs_8c2840cb312e587ab1e9209521811fabbf4b9634": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.textContent = "LOADING" ; node.style.cursor = "default" ; node.style.position = "fixed" ; node.style.left = "0px" ; node.style.top = "0px" ; node.style.width = "100%" ; node.style.height = "100%" ; node.style.zIndex = "2147483647" ; node.style.backgroundColor = "hsla(0, 0%, 0%, 0.50)" ; node.style.color = "white" ; node.style.fontWeight = "bold" ; node.style.fontSize = "30px" ; node.style.letterSpacing = "15px" ; node.style.textShadow = "2px 2px 10px black, 0px 0px 5px black" ; node.style.display = "flex" ; node.style.flexDirection = "row" ; node.style.alignItems = "center" ; node.style.justifyContent = "center" ;
+            "__extjs_da7526dacc33bb6de7714dde287806f568820e31": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.log (($0));
+            },
+            "__extjs_1c8769c3b326d77ceb673ada3dc887cf1d509509": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document ;})());
+            },
+            "__extjs_ad52d59d80aecad398c056ccad20049bb2c45653": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var state = ($0); state.cancelled = true ; state.callback.drop ();
+            },
+            "__extjs_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof CSSStyleRule) | 0;
+            },
+            "__extjs_35b945cda841e63bb9b708539a50cd97b61ac87a": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return document.body ;})());
+            },
+            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
+            },
+            "__extjs_906f13b1e97c3e6e6996c62d7584c4917315426d": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "click") | 0;
+            },
+            "__extjs_107fce123c29f59052d85458acf31661a2184edf": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){chrome.runtime.sendMessage (null , ($1), null , function (x){if (chrome.runtime.lastError != null){reject (new Error (chrome.runtime.lastError.message));}else {resolve (x);}});});})());
+            },
+            "__extjs_8e58259110540e5448a6fe40a28dc94acd78c8a1": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var state = {cancelled : false , callback : callback}; ($2). then (function (value){if (! state.cancelled){callback (value , true);}}, function (value){if (! state.cancelled){callback (value , false);}}); return state ;})());
             },
             "__extjs_7a8d264960219d56eb855d4805d38340117514c6": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). style.getPropertyValue (($2));})());
             },
+            "__extjs_0e54fd9c163fcf648ce0a395fde4500fd167a40b": function($0) {
+                var r = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (r instanceof DOMException) && (r.name === "InvalidCharacterError");
+            },
+            "__extjs_2ff57da66ea0e6d13328bc60a5a5dbfee840cbf2": function($0, $1, $2) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var listener = ($0); ($1). removeEventListener (($2), listener); listener.drop ();
+            },
+            "__extjs_1b47036256330bc1f1d6cf232021ddf04df850e2": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). style.removeProperty (($1));
+            },
+            "__extjs_352943ae98b2eeb817e36305c3531d61c7e1a52b": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Element) | 0;
+            },
+            "__extjs_9f22d4ca7bc938409787341b7db181f8dd41e6df": function($0) {
+                Module.STDWEB_PRIVATE.increment_refcount( $0 );
+            },
+            "__extjs_17e4e94f0ce5ce7395aa490886a2f956d3737afa": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Error (($1));})());
+            },
             "__extjs_7a6027d4ced528c61e9597e225c3b8e4e5c22b0e": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Promise) | 0;
             },
-            "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
+            "__extjs_cd167021a7bb085ca183bf0c9dde5277b9f77aca": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). innerHTML = "" ;
             },
             "__extjs_5ecfd7ee5cecc8be26c1e6e3c90ce666901b547c": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). error ;})());
@@ -635,59 +635,59 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__extjs_b00332decb7a1ee6b8ac41a46cf9fd095a78679e": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var dropped = false ; function wrapper (){if (! dropped){callback ();}}var nextTick ; if (typeof MutationObserver ==="function"){var node = document.createTextNode ("0"); var state = false ; new MutationObserver (wrapper). observe (node , {characterData : true}); nextTick = function (){state = ! state ; node.data = (state ? "1" : "0");};}else {var promise = Promise.resolve (null); nextTick = function (){promise.then (wrapper);};}nextTick.drop = function (){dropped = true ; callback.drop ();}; return nextTick ;})());
             },
+            "__extjs_c41297f1f679af47d6390b4b617d1a8375706933": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);console.error (($0));
+            },
             "__extjs_1458d968803f0ead5043da77c58d02a82094eda9": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);($0). style.display = "none" ;
             },
-            "__extjs_8e58259110540e5448a6fe40a28dc94acd78c8a1": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback = ($1); var state = {cancelled : false , callback : callback}; ($2). then (function (value){if (! state.cancelled){callback (value , true);}}, function (value){if (! state.cancelled){callback (value , false);}}); return state ;})());
+            "__extjs_08b01249624ddc3d96fbac0c69755a1223a49c67": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return document.createElementNS (($1), ($2));})());
             },
-            "__extjs_6ebf6fad3f8f565b0ef89c359c39cc9dbdd562c0": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise (function (resolve , reject){chrome.runtime.sendMessage (null , ($1), null , function (x){if (chrome.runtime.lastError != null){console.log (chrome.runtime.lastError); reject (chrome.runtime.lastError);}else {resolve (x);}});});})());
+            "__extjs_97495987af1720d8a9a923fa4683a7b683e3acd6": function($0, $1) {
+                console.error( 'Panic error message:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) );
             },
-            "__extjs_db0226ae1bbecd407e9880ee28ddc70fc3322d9c": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);Module.STDWEB_PRIVATE.unregister_raw_value (($0));
+            "__extjs_8c2840cb312e587ab1e9209521811fabbf4b9634": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);var node = ($0); node.textContent = "LOADING" ; node.style.cursor = "default" ; node.style.position = "fixed" ; node.style.left = "0px" ; node.style.top = "0px" ; node.style.width = "100%" ; node.style.height = "100%" ; node.style.zIndex = "2147483647" ; node.style.backgroundColor = "hsla(0, 0%, 0%, 0.50)" ; node.style.color = "white" ; node.style.fontWeight = "bold" ; node.style.fontSize = "30px" ; node.style.letterSpacing = "15px" ; node.style.textShadow = "2px 2px 10px black, 0px 0px 5px black" ; node.style.display = "flex" ; node.style.flexDirection = "row" ; node.style.alignItems = "center" ; node.style.justifyContent = "center" ;
             },
-            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            "__extjs_2e6bf47ec7f31b4cb119a8d2793bacfcfe38b112": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Error) | 0;
             },
-            "__extjs_17e4e94f0ce5ce7395aa490886a2f956d3737afa": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return new Error (($1));})());
+            "__extjs_351b27505bc97d861c3914c20421b6277babb53b": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Node) | 0;
             },
-            "__extjs_35b945cda841e63bb9b708539a50cd97b61ac87a": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return document.body ;})());
-            },
-            "__extjs_906f13b1e97c3e6e6996c62d7584c4917315426d": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "click") | 0;
-            },
-            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
-            },
-            "__extjs_74b1b0b6327c6d2bad2259c05a1887a099ec3014": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "decimal" , maximumFractionDigits : 2});})());
-            },
-            "__extjs_2ff57da66ea0e6d13328bc60a5a5dbfee840cbf2": function($0, $1, $2) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);var listener = ($0); ($1). removeEventListener (($2), listener); listener.drop ();
-            },
-            "__extjs_352943ae98b2eeb817e36305c3531d61c7e1a52b": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Element) | 0;
-            },
-            "__extjs_0e54fd9c163fcf648ce0a395fde4500fd167a40b": function($0) {
-                var r = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (r instanceof DOMException) && (r.name === "InvalidCharacterError");
-            },
-            "__extjs_a342681e5c1e3fb0bdeac6e35d67bf944fcd4102": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). value ;})());
-            },
-            "__extjs_a3b76c5b7916fd257ee3f362dc672b974e56c476": function($0, $1) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). success ;})());
-            },
-            "__extjs_f167788c39e80562a6972017cda9ecd6bb91dba7": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){try {return {value : function (){return ($1). createElement (($2));}(), success : true};}catch (error){return {error : error , success : false};}})());
+            "__extjs_dc2fd915bd92f9e9c6a3bd15174f1414eee3dbaf": function() {
+                console.error( 'Encountered a panic!' );
             },
             "__extjs_72fc447820458c720c68d0d8e078ede631edd723": function($0, $1, $2) {
                 console.error( 'Panic location:', Module.STDWEB_PRIVATE.to_js_string( $0, $1 ) + ':' + $2 );
             },
-            "__extjs_a94847da281e0efb983dce68b7315dc4a7731c72": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);($0)();
+            "__extjs_15f8ab2268ae77c8bd6e93a6c1d1351d74d7f5f4": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){return new Date (). toISOString ();})());
+            },
+            "__extjs_7c5535365a3df6a4cc1f59c4a957bfce1dbfb8ee": function($0, $1, $2, $3) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);$3 = Module.STDWEB_PRIVATE.to_js($3);Module.STDWEB_PRIVATE.from_js($0, (function(){var listener = ($1); ($2). addEventListener (($3), listener); return listener ;})());
+            },
+            "__extjs_4cc2b2ed53586a2bd32ca2206724307e82bb32ff": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0). appendChild (($1));
+            },
+            "__extjs_6665489d4099b58ea29d83630ab4c8be80d7387e": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). body ;})());
+            },
+            "__extjs_68d21cddc428c8f40dc802238f92a69b9ba9f92b": function($0) {
+                Module.STDWEB_PRIVATE.from_js($0, (function(){var e = document.createElement ("style"); e.type = "text/css" ; document.head.appendChild (e); return e.sheet ;})());
+            },
+            "__extjs_a342681e5c1e3fb0bdeac6e35d67bf944fcd4102": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). value ;})());
+            },
+            "__extjs_fc52a58ca59f907dd0ac5c3478b1248029ae9b71": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0). drop ();
+            },
+            "__extjs_a3b76c5b7916fd257ee3f362dc672b974e56c476": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). success ;})());
+            },
+            "__extjs_74b1b0b6327c6d2bad2259c05a1887a099ec3014": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return ($1). toLocaleString ("en-US" , {style : "decimal" , maximumFractionDigits : 2});})());
             },
                 "__web_on_grow": __web_on_grow
             }
