@@ -81,7 +81,8 @@ enum RecordInformation {
         match_len: f64,
         mode: Mode,
         won: bool,
-        odds: Option<Result<f64, f64>>,
+        odds: Option<f64>,
+        odds_winner: Option<Result<f64, f64>>,
         bet: Bet,
     },
 }
@@ -134,6 +135,7 @@ impl RecordInformation {
                                     mode: record.mode,
                                     won: record.won(&bet),
                                     odds: record.odds(&bet),
+                                    odds_winner: record.odds_winner(&bet),
                                     bet,
                                 });
                             }
@@ -233,6 +235,7 @@ impl RecordInformation {
                                     mode: record.mode,
                                     won: record.won(&bet),
                                     odds: record.odds(&bet),
+                                    odds_winner: record.odds_winner(&bet),
                                     bet,
                                 });
                             //}
@@ -309,6 +312,7 @@ impl RecordInformation {
                                         mode: record.mode,
                                         won: record.won(&bet),
                                         odds: record.odds(&bet),
+                                        odds_winner: record.odds_winner(&bet),
                                         bet,
                                     });
                                 }
@@ -354,7 +358,7 @@ impl RecordInformation {
 struct Statistics {
     len: f64,
     wins: f64,
-    losses: f64,
+    upsets: f64,
 
     average_odds: f64,
     odds_gain: f64,
@@ -383,7 +387,7 @@ impl Statistics {
     fn new(information: &[RecordInformation], lowest_date: f64, highest_date: f64) -> Self {
         let mut len: f64 = 0.0;
         let mut wins: f64 = 0.0;
-        let mut losses: f64 = 0.0;
+        let mut upsets: f64 = 0.0;
 
         let mut average_odds: f64 = 0.0;
         let mut odds_gain: f64 = 0.0;
@@ -421,7 +425,7 @@ impl Statistics {
                     assert!(new_sum > old_sum);
                     max_gain = max_gain.max(*profit);
                 },
-                RecordInformation::Match { profit, won, odds, bet, match_len, .. } => {
+                RecordInformation::Match { profit, won, odds, odds_winner, bet, match_len, .. } => {
                     if let Some(bet_amount) = bet.amount() {
                         // TODO is this correct ?
                         if bet_amount > 1.0 {
@@ -442,26 +446,24 @@ impl Statistics {
 
                             if *won {
                                 wins += 1.0;
-
-                            } else {
-                                losses += 1.0;
                             }
 
-                            match odds {
-                                Some(Ok(amount)) => {
+                            if odds.unwrap() > 1.0 {
+                                upsets += 1.0;
+                            }
+
+                            match odds_winner.unwrap() {
+                                Ok(amount) => {
                                     average_odds += amount;
                                     odds_gain += amount;
-                                    max_odds_gain = max_odds_gain.max(*amount);
+                                    max_odds_gain = max_odds_gain.max(amount);
                                 },
 
-                                Some(Err(amount)) => {
+                                Err(amount) => {
                                     average_odds += -1.0;
                                     odds_loss += -1.0;
-                                    max_odds_loss = max_odds_loss.max(*amount);
+                                    max_odds_loss = max_odds_loss.max(amount);
                                 },
-
-                                // TODO is this correct ?
-                                None => {},
                             }
 
                             min_bet = if min_bet == 0.0 { bet_amount } else { min_bet.min(bet_amount) };
@@ -480,7 +482,7 @@ impl Statistics {
             odds_gain: odds_gain / len,
             odds_loss: odds_loss / len,
             average_bet: average_bet / len,
-            max_odds_loss, max_odds_gain, len, wins, losses, max_gain, max_loss, max_bet, min_bet, max_money, min_money, min_match_len, max_match_len, lowest_date, highest_date,
+            max_odds_loss, max_odds_gain, len, wins, upsets, max_gain, max_loss, max_bet, min_bet, max_money, min_money, min_match_len, max_match_len, lowest_date, highest_date,
         }
     }
 
@@ -1124,7 +1126,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     let total_gains = final_money - starting_money;
                     let average_gains = total_gains / statistics.len;
 
-                    format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%",
+                    format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%\nUpsets: {}%",
                         salty_bet_bot::money(statistics.min_money),
                         salty_bet_bot::money(statistics.max_money),
                         salty_bet_bot::money(starting_money),
@@ -1135,7 +1137,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         decimal(information.total_statistics.len),
                         statistics.average_odds,
                         salty_bet_bot::money(statistics.average_bet),
-                        (statistics.wins / (statistics.wins + statistics.losses)) * 100.0)
+                        (statistics.wins / statistics.len) * 100.0,
+                        (statistics.upsets / statistics.len) * 100.0)
 
                 } else {
                     "".to_string()

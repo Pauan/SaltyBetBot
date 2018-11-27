@@ -1099,7 +1099,7 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
             let mut sum = 0.0;
 
             for record in settings.records {
-                if let Some(odds) = record.odds(&simulation.pick_winner(&creature, &record.tier, &record.left.name, &record.right.name)) {
+                if let Some(odds) = record.odds_winner(&simulation.pick_winner(&creature, &record.tier, &record.left.name, &record.right.name)) {
                     len += 1.0;
 
                     match odds {
