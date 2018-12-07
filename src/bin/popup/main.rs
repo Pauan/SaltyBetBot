@@ -203,6 +203,8 @@ fn main() {
 
                                         let new_records = time!("Loading file", { await!(read_file(file, on_progress))? });
 
+                                        //time!("Deserializing JSON.parse", { js!( return JSON.parse(@{&new_records}); ) });
+
                                         let new_records = time!("Deserializing records", { deserialize_records(&new_records) });
 
                                         log!("{} records deserialized", new_records.len());
