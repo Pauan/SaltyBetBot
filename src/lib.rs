@@ -1,5 +1,5 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro, futures_api, pin, arbitrary_self_types)]
+#![feature(async_await, await_macro, futures_api, arbitrary_self_types)]
 
 #[macro_use]
 extern crate lazy_static;

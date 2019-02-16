@@ -14,6 +14,7 @@ extern crate futures_signals;
 
 use std::f64::INFINITY;
 use std::rc::Rc;
+use std::collections::BTreeSet;
 use salty_bet_bot::{records_get_all, spawn, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator};
@@ -79,6 +80,7 @@ enum RecordInformation {
         old_sum: f64,
         new_sum: f64,
         match_len: f64,
+        characters: (String, String),
         mode: Mode,
         won: bool,
         odds: Option<f64>,
@@ -132,6 +134,7 @@ impl RecordInformation {
                                     old_sum: old_sum,
                                     new_sum: new_sum,
                                     match_len,
+                                    characters: (record.left.name.clone(), record.right.name.clone()),
                                     mode: record.mode,
                                     won: record.won(&bet),
                                     odds: record.odds(&bet),
@@ -232,6 +235,7 @@ impl RecordInformation {
                                     old_sum: old_sum,
                                     new_sum: new_sum,
                                     match_len,
+                                    characters: (record.left.name.clone(), record.right.name.clone()),
                                     mode: record.mode,
                                     won: record.won(&bet),
                                     odds: record.odds(&bet),
@@ -309,6 +313,7 @@ impl RecordInformation {
                                         old_sum: old_sum,
                                         new_sum: new_sum,
                                         match_len,
+                                        characters: (record.left.name.clone(), record.right.name.clone()),
                                         mode: record.mode,
                                         won: record.won(&bet),
                                         odds: record.odds(&bet),
@@ -360,6 +365,8 @@ struct Statistics {
     wins: f64,
     upsets: f64,
 
+    number_of_characters: usize,
+
     average_odds: f64,
     odds_gain: f64,
     odds_loss: f64,
@@ -388,6 +395,9 @@ impl Statistics {
         let mut len: f64 = 0.0;
         let mut wins: f64 = 0.0;
         let mut upsets: f64 = 0.0;
+
+        let mut seen_characters: BTreeSet<&str> = BTreeSet::new();
+        let mut number_of_characters: usize = 0;
 
         let mut average_odds: f64 = 0.0;
         let mut odds_gain: f64 = 0.0;
@@ -425,7 +435,15 @@ impl Statistics {
                     assert!(new_sum > old_sum);
                     max_gain = max_gain.max(*profit);
                 },
-                RecordInformation::Match { profit, won, odds, odds_winner, bet, match_len, .. } => {
+                RecordInformation::Match { profit, won, odds, odds_winner, bet, match_len, characters, .. } => {
+                    if seen_characters.insert(&characters.0) {
+                        number_of_characters += 1;
+                    }
+
+                    if seen_characters.insert(&characters.1) {
+                        number_of_characters += 1;
+                    }
+
                     if let Some(bet_amount) = bet.amount() {
                         // TODO is this correct ?
                         if bet_amount > 1.0 {
@@ -482,6 +500,7 @@ impl Statistics {
             odds_gain: odds_gain / len,
             odds_loss: odds_loss / len,
             average_bet: average_bet / len,
+            number_of_characters,
             max_odds_loss, max_odds_gain, len, wins, upsets, max_gain, max_loss, max_bet, min_bet, max_money, min_money, min_match_len, max_match_len, lowest_date, highest_date,
         }
     }
@@ -1126,7 +1145,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     let total_gains = final_money - starting_money;
                     let average_gains = total_gains / statistics.len;
 
-                    format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%\nUpsets: {}%",
+                    format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nNumber of characters: {}\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%\nUpsets: {}%",
                         salty_bet_bot::money(statistics.min_money),
                         salty_bet_bot::money(statistics.max_money),
                         salty_bet_bot::money(starting_money),
@@ -1135,6 +1154,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         salty_bet_bot::money(average_gains),
                         decimal(statistics.len),
                         decimal(information.total_statistics.len),
+                        statistics.number_of_characters,
                         statistics.average_odds,
                         salty_bet_bot::money(statistics.average_bet),
                         (statistics.wins / statistics.len) * 100.0,

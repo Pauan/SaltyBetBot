@@ -6,10 +6,10 @@ use types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
 
 
 // TODO this should take into account the user's real limit
-pub const SALT_MINE_AMOUNT: f64 = 400.0; // TODO verify that this is correct
+pub const SALT_MINE_AMOUNT: f64 = 200.0 + 550.0 + 1100.0; // TODO verify that this is correct
 
 // TODO this should take into account the user's real limit
-pub const TOURNAMENT_BALANCE: f64 = 1000.0 + (22.0 * 25.0);
+pub const TOURNAMENT_BALANCE: f64 = 1000.0 + 550.0 + 1100.0; // TODO verify that this is correct
 
 // The percentage of profit per match that `expected_bet` should try to get
 const DESIRED_PERCENTAGE_PROFIT: f64 = 0.10;

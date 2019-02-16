@@ -1,5 +1,5 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro, futures_api, try_blocks, pin)]
+#![feature(async_await, await_macro, futures_api, try_blocks)]
 
 #[macro_use]
 extern crate stdweb;

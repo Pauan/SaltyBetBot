@@ -2,6 +2,7 @@ use std;
 use rand;
 use rand::Rng;
 use rand::distributions::StandardNormal;
+use rand::seq::SliceRandom;
 
 
 const PERCENTAGE_MAX: f64 = 1.0 + std::f64::EPSILON;
@@ -17,7 +18,7 @@ pub fn bool() -> bool {
 }
 
 pub fn shuffle<A>(slice: &mut [A]) {
-    rand::thread_rng().shuffle(slice)
+    slice.shuffle(&mut rand::thread_rng())
 }
 
 pub fn gaussian() -> f64 {
