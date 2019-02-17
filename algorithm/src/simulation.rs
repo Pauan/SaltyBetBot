@@ -305,33 +305,77 @@ pub mod lookup {
         iterate_average(iter, |record| record.duration as f64).unwrap_or(0.0)
     }
 
+    pub fn bet_percentage<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_average(iter, |record| {
+            let total = record.left.bet_amount + record.right.bet_amount + bet_amount;
+
+            if total == 0.0 {
+                0.0
+
+            } else {
+                // TODO what about mirror matches ?
+                // TODO better detection for whether the character matches or not
+                let record = if record.left.name == name { &record.left } else { &record.right };
+
+                -((record.bet_amount + bet_amount) / total)
+            }
+        }).unwrap_or(0.0)
+    }
+
     pub fn bettors<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         iterate_average(iter, |record| {
-            // TODO what about mirror matches ?
-            // TODO better detection for whether the character matches or not
-            let record = if record.left.name == name { &record.left } else { &record.right };
-            -(record.illuminati_bettors + record.normal_bettors) as f64
+            let total =
+                record.left.illuminati_bettors + record.left.normal_bettors +
+                record.right.illuminati_bettors + record.right.normal_bettors;
+
+            if total == 0.0 {
+                0.0
+
+            } else {
+                // TODO what about mirror matches ?
+                // TODO better detection for whether the character matches or not
+                let record = if record.left.name == name { &record.left } else { &record.right };
+
+                -((record.illuminati_bettors + record.normal_bettors) / total)
+            }
         }).unwrap_or(0.0)
     }
 
     pub fn illuminati_bettors<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         iterate_average(iter, |record| {
-            // TODO what about mirror matches ?
-            // TODO better detection for whether the character matches or not
-            let record = if record.left.name == name { &record.left } else { &record.right };
-            -record.illuminati_bettors as f64
+            let total = record.left.illuminati_bettors + record.right.illuminati_bettors;
+
+            if total == 0.0 {
+                0.0
+
+            } else {
+                // TODO what about mirror matches ?
+                // TODO better detection for whether the character matches or not
+                let record = if record.left.name == name { &record.left } else { &record.right };
+
+                -(record.illuminati_bettors / total)
+            }
         }).unwrap_or(0.0)
     }
 
     pub fn normal_bettors<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         iterate_average(iter, |record| {
-            // TODO what about mirror matches ?
-            // TODO better detection for whether the character matches or not
-            let record = if record.left.name == name { &record.left } else { &record.right };
-            -record.normal_bettors as f64
+            let total = record.left.normal_bettors + record.right.normal_bettors;
+
+            if total == 0.0 {
+                0.0
+
+            } else {
+                // TODO what about mirror matches ?
+                // TODO better detection for whether the character matches or not
+                let record = if record.left.name == name { &record.left } else { &record.right };
+
+                -(record.normal_bettors / total)
+            }
         }).unwrap_or(0.0)
     }
 

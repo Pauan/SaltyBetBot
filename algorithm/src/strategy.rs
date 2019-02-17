@@ -47,6 +47,7 @@ impl Permutate for bool {
 
 
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
+const FIXED_BET_AMOUNT: f64 = 50_000.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 15.0;  // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 40.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
@@ -254,7 +255,7 @@ impl MoneyStrategy {
             MoneyStrategy::BetDifference => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::bet(records, name, bet))),
             MoneyStrategy::BetDifferenceWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
             MoneyStrategy::Percentage => (percentage, percentage),
-            MoneyStrategy::Fixed => (PERCENTAGE_THRESHOLD, PERCENTAGE_THRESHOLD),
+            MoneyStrategy::Fixed => (FIXED_BET_AMOUNT, FIXED_BET_AMOUNT),
             MoneyStrategy::AllIn => (current_money, current_money),
         }
     }
@@ -276,6 +277,7 @@ pub enum BetStrategy {
     IlluminatiBettors,
     NormalBettors,
     BetAmount,
+    BetPercentage,
     Wins,
     Losses,
     Left,
@@ -299,6 +301,7 @@ impl Permutate for BetStrategy {
         f(BetStrategy::IlluminatiBettors);
         f(BetStrategy::NormalBettors);
         f(BetStrategy::BetAmount);
+        f(BetStrategy::BetPercentage);
         f(BetStrategy::Wins);
         f(BetStrategy::Losses);
         f(BetStrategy::Left);
@@ -327,6 +330,7 @@ impl BetStrategy {
             BetStrategy::IlluminatiBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
             BetStrategy::NormalBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
             BetStrategy::BetAmount => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),
+            BetStrategy::BetPercentage => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::bet_percentage(records, name, bet)),
             BetStrategy::Wins => winrates(simulation, left, right),
             BetStrategy::Losses => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
             BetStrategy::Left => (1.0, 0.0),
