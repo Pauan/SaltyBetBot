@@ -648,7 +648,7 @@ impl InfoSide {
                 }),
 
                 info_bar(&self.bettors, other.bettors.signal(), |x| {
-                    format!("Bettors: {}", -x)
+                    format!("Bettors: {}%", (-x) * 100.0)
                 }),
 
                 info_bar(&self.winrate, other.winrate.signal(), |x| {
