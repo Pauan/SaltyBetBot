@@ -1,8 +1,8 @@
-use random;
-use record::{Tier, Record};
-use genetic::NeuralNetwork;
-use types::FitnessResult;
-use simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
+use crate::random;
+use crate::record::{Tier, Record};
+use crate::genetic::NeuralNetwork;
+use crate::types::FitnessResult;
+use crate::simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
 //const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;

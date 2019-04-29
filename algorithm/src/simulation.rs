@@ -1,8 +1,8 @@
 use std;
 use std::collections::{ HashMap };
-use record::{ Record, Mode, Winner, Tier };
-use genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
-use types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
+use crate::record::{ Record, Mode, Winner, Tier };
+use crate::genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
+use crate::types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
 
 
 // TODO this should take into account the user's real limit
@@ -53,11 +53,11 @@ impl Bet {
 pub trait Simulator {
     fn average_sum(&self) -> f64;
     fn clamp(&self, bet_amount: f64) -> f64;
-    fn matches_len(&self, &str) -> usize;
+    fn matches_len(&self, name: &str) -> usize;
     fn min_matches_len(&self, left: &str, right: &str) -> f64;
     fn current_money(&self) -> f64;
     fn is_in_mines(&self) -> bool;
-    fn lookup_character(&self, &str) -> Vec<&Record>;
+    fn lookup_character(&self, name: &str) -> Vec<&Record>;
     fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record>;
 }
 
@@ -80,7 +80,7 @@ impl Strategy for () {
 
 
 pub trait Calculate<A> {
-    fn calculate<B: Simulator>(&self, &B, &Tier, &str, &str) -> A;
+    fn calculate<B: Simulator>(&self, simulator: &B, tier: &Tier, left: &str, right: &str) -> A;
 
     fn precalculate(&self) -> Option<A> {
         None
@@ -96,7 +96,7 @@ pub mod lookup {
     use super::DESIRED_PERCENTAGE_PROFIT;
     use std::f64::INFINITY;
     use std::iter::IntoIterator;
-    use record::{Record, Winner};
+    use crate::record::{Record, Winner};
 
 
     fn iterate_percentage<'a, A, B>(iter: A, mut matches: B) -> Option<f64>

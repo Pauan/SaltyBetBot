@@ -3,8 +3,8 @@
 //use csv;
 use serde_json;
 use std::cmp::{PartialOrd, Ordering};
-use genetic;
-use simulation::Bet;
+use crate::genetic;
+use crate::simulation::Bet;
 
 
 /*fn error<A>(input: Option<A>, message: &str) -> Result<A, Box<std::error::Error>> {

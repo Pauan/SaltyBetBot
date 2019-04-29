@@ -1,5 +1,4 @@
 use std;
-use rand;
 use rand::Rng;
 use rand::distributions::StandardNormal;
 use rand::seq::SliceRandom;

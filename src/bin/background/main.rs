@@ -1,5 +1,5 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro, futures_api, try_blocks)]
+#![feature(async_await, await_macro, try_blocks)]
 
 #[macro_use]
 extern crate stdweb;
@@ -19,7 +19,7 @@ use salty_bet_bot::{set_panic_hook, spawn, deserialize_records, get_added_record
 use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
-use futures_util::try_join;
+use futures_util::try_future::try_join;
 use futures_util::stream::StreamExt;
 
 
@@ -249,6 +249,33 @@ fn remove_ports(ports: &mut Vec<Port>) -> impl Future<Output = Result<(), Error>
 }
 
 
+pub struct Remote;
+
+// TODO use u32, usize, or isize ?
+impl Remote {
+    #[inline]
+    fn new<A>(value: A) -> u32 {
+        Box::into_raw(Box::new(value)) as u32
+    }
+
+    #[inline]
+    fn with<A, B, F>(pointer: u32, f: F) -> B where F: FnOnce(&mut A) -> B {
+        let mut value: Box<A> = unsafe { Box::from_raw(pointer as *mut A) };
+
+        let output = f(&mut value);
+
+        Box::into_raw(value);
+
+        output
+    }
+
+    #[inline]
+    fn drop<A>(pointer: u32) {
+        drop(unsafe { Box::from_raw(pointer as *mut A) });
+    }
+}
+
+
 async fn main_future() -> Result<(), Error> {
     set_panic_hook();
 
@@ -277,9 +304,29 @@ async fn main_future() -> Result<(), Error> {
     DiscardOnDrop::leak(on_message(move |message| {
         clone!(db => async move {
             match message {
-                Message::GetAllRecords => reply_result!({
-                    await!(db.get_all_records())?
+                Message::RecordsNew => reply_result!({
+                    let records = await!(db.get_all_records())?;
+                    Remote::new(records)
                 }),
+                Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
+                    let from = from as usize;
+                    let to = to as usize;
+
+                    reply!({
+                        let len = records.len();
+
+                        if from >= len {
+                            None
+
+                        } else {
+                            Some(&records[from..(to.min(len))])
+                        }
+                    })
+                }),
+                Message::RecordsDrop(id) => reply!({
+                    Remote::drop::<Vec<Record>>(id);
+                }),
+
                 Message::InsertRecords(records) => reply_result!({
                     await!(db.insert_records(records.as_slice()))?;
                 }),
@@ -369,7 +416,7 @@ async fn main_future() -> Result<(), Error> {
                     Ok(())
                 };
 
-                try_join!(a, b).map(|_| {})
+                await!(try_join(a, b)).map(|_| {})
             })),
 
             name => {

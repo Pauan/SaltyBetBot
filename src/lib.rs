@@ -1,5 +1,5 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro, futures_api, arbitrary_self_types)]
+#![feature(async_await, await_macro)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -15,7 +15,7 @@ mod macros;
 
 use core::cmp::Ordering;
 use std::pin::Pin;
-use std::task::{Poll, LocalWaker};
+use std::task::{Poll, Context};
 use std::future::Future;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -300,7 +300,10 @@ macro_rules! reply {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Message {
-    GetAllRecords,
+    RecordsNew,
+    RecordsSlice(u32, u32, u32),
+    RecordsDrop(u32),
+
     InsertRecords(Vec<Record>),
     DeleteAllRecords,
     OpenTwitchChat,
@@ -312,7 +315,29 @@ pub async fn create_tab() -> Result<(), Error> {
 }
 
 pub async fn records_get_all() -> Result<Vec<Record>, Error> {
-    await!(send_message_result(&Message::GetAllRecords))
+    let mut records = vec![];
+
+    let mut index = 0;
+
+    const CHUNK_SIZE: u32 = 10000;
+
+    let id: u32 = await!(send_message_result(&Message::RecordsNew))?;
+
+    loop {
+        let chunk: Option<Vec<Record>> = await!(send_message(&Message::RecordsSlice(id, index, index + CHUNK_SIZE)))?;
+
+        if let Some(mut chunk) = chunk {
+            records.append(&mut chunk);
+            index += CHUNK_SIZE;
+
+        } else {
+            break;
+        }
+    }
+
+    await!(send_message(&Message::RecordsDrop(id)))?;
+
+    Ok(records)
 }
 
 pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
@@ -590,8 +615,8 @@ impl Port {
             type Item = A;
 
             #[inline]
-            fn poll_next(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
-                self.receiver.poll_next_unpin(lw)
+            fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+                self.receiver.poll_next_unpin(cx)
             }
         }
 

@@ -1,11 +1,11 @@
 use std;
-use random;
-use record::{Record, Mode, Tier};
 use arrayvec::ArrayVec;
 use rayon::prelude::*;
-use simulation::{Simulation, Strategy, Bet, Calculate, Simulator, lookup};
-use strategy::{CustomStrategy, BetStrategy, MATCHMAKING_STRATEGY};
-use types::{FitnessResult, BooleanCalculator, FormulaStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
+use crate::random;
+use crate::record::{Record, Mode, Tier};
+use crate::simulation::{Simulation, Strategy, Bet, Calculate, Simulator, lookup};
+use crate::strategy::{CustomStrategy, BetStrategy, MATCHMAKING_STRATEGY};
+use crate::types::{FitnessResult, BooleanCalculator, FormulaStrategy, Percentage, NumericCalculator, CubicBezierSegment, Point, Lookup};
 
 
 //const MAX_BET_AMOUNT: f64 = 1000000.0;

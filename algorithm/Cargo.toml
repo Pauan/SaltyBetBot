@@ -2,6 +2,7 @@
 name = "algorithm"
 version = "0.1.0"
 authors = ["Pauan <pcxunlimited@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 arrayvec = { version = "0.4.7", features = ["serde-1"] }
@@ -15,4 +16,4 @@ serde_derive = "1.0.27"
 
 [target.'cfg(not(any(target_arch = "wasm32", target_arch = "asmjs")))'.dependencies]
 chrono = "0.4.0"
-indicatif = "0.9.0"
+indicatif = "0.11.0"
