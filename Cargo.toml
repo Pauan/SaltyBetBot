@@ -19,9 +19,9 @@ futures-util-preview = "0.3.0-alpha.15"
 futures-channel-preview = "0.3.0-alpha.15"
 discard = "1.0.0"
 
-[patch.crates-io]
-stdweb = { git = "https://github.com/koute/stdweb" }
-dominator = { git = "https://github.com/Pauan/rust-dominator" }
+#[patch.crates-io]
+#stdweb = { git = "https://github.com/koute/stdweb" }
+#dominator = { git = "https://github.com/Pauan/rust-dominator" }
 #stdweb = { path = "../stdweb" }
 #dominator = { path = "../rust-dominator" }
 #futures-signals = { path = "../rust-signals" }
