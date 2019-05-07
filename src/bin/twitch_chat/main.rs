@@ -28,10 +28,14 @@ extern crate salty_bet_bot;
 extern crate stdweb;
 
 use std::iter::Iterator;
-use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook};
+use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook, reload_page, Debouncer};
 use algorithm::record::{Tier, Mode, Winner};
 use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode};
 use stdweb::unstable::TryInto;
+
+
+// 10 minutes
+const REFRESH_TIME: u32 = 1000 * 60 * 10;
 
 
 fn parse_tier(input: &str) -> Option<Tier> {
@@ -231,6 +235,10 @@ pub fn observe_changes() {
 
     log!("Initializing...");
 
+    let debounce = Debouncer::new(REFRESH_TIME, || {
+        reload_page();
+    });
+
     let port = Port::connect("twitch_chat");
 
     let observer = MutationObserver::new(move |records, _| {
@@ -238,10 +246,16 @@ pub fn observe_changes() {
 
         let messages: Vec<WaifuMessage> = records.into_iter().filter_map(|record| {
             match record {
-                MutationRecord::ChildList { inserted_nodes, .. } => Some(
-                    inserted_nodes.into_iter()
-                        .filter_map(|x| get_waifu_message(x, now))
-                ),
+                MutationRecord::ChildList { inserted_nodes, .. } => {
+                    if inserted_nodes.len() != 0 {
+                        debounce.reset();
+                    }
+
+                    Some(
+                        inserted_nodes.into_iter()
+                            .filter_map(|x| get_waifu_message(x, now))
+                    )
+                },
                 _ => None,
             }
         }).flat_map(|x| x).collect();

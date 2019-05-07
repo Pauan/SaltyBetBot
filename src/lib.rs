@@ -546,6 +546,47 @@ impl IndexedDB {
 }*/
 
 
+pub struct Debouncer {
+    value: Value,
+}
+
+impl Debouncer {
+    pub fn new<F>(time: u32, f: F) -> Self where F: FnMut() + 'static {
+        Self {
+            value: js!(
+                var callback = @{f};
+                var timer;
+
+                function reset() {
+                    clearTimeout(timer);
+
+                    timer = setTimeout(function () {
+                        callback();
+                    }, @{time});
+                }
+
+                reset();
+
+                return reset;
+            )
+        }
+    }
+
+    pub fn reset(&self) {
+        js! { @(no_return)
+            @{&self.value}();
+        }
+    }
+}
+
+
+pub fn reload_page() {
+    js! { @(no_return)
+        location.reload();
+    }
+}
+
+
 pub fn get_extension_url(url: &str) -> String {
     js!( return chrome.runtime.getURL(@{url}); ).try_into().unwrap()
 }
