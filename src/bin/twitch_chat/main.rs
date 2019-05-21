@@ -60,6 +60,7 @@ fn parse_mode(input: &str) -> Option<Mode> {
 
 fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
     lazy_static! {
+        // Bets are OPEN for Team DoraTheEmployer vs Team NoSwiping! (Requested by NinaYamada) (exhibitions) www.saltybet.com
         static ref BET_OPEN_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"^Bets are OPEN for (.+) vs (.+?) *! \((NEW|[XSABP]) Tier\) ((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1))$"
         );
