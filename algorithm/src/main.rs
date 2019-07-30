@@ -322,12 +322,21 @@ fn run_bet_strategy<A>(left: &mut [Record], right: &mut [Record]) -> Result<(), 
 }
 
 
+fn run_genetic_algorithm(records: Vec<Records>) -> Result<(), std::io::Error> {
+    let records = shuffle_records(&records, Mode::Matchmaking);
+    records.
+    let chunks = records.into_iter().filter(|x| ).chunks().collect();
+}
+
+
 fn run_simulation() -> Result<(), std::io::Error> {
     let records: Vec<Record> = read("../static/SaltyBet Records.json")?;
 
     println!("Read in {} records\n", records.len());
 
-    let (mut left, mut right) = split_records(records);
+    run_genetic_algorithm(records)?;
+
+    /*let (mut left, mut right) = split_records(records);
 
     let mut strategies: Vec<FitnessResult<CustomStrategy>> = vec![];
 
@@ -337,7 +346,7 @@ fn run_simulation() -> Result<(), std::io::Error> {
 
     strategies.sort_by(|x, y| x.fitness.partial_cmp(&y.fitness).unwrap());
 
-    println!("{:#?}", &strategies[(strategies.len() - 10)..]);
+    println!("{:#?}", &strategies[(strategies.len() - 10)..]);*/
 
     //run_strategy("Default (matchmaking)", &mut left, &mut right, MATCHMAKING_STRATEGY);
     //run_strategy("Default (tournament)", &mut left, &mut right, TOURNAMENT_STRATEGY);

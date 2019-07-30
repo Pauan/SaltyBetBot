@@ -23,21 +23,21 @@ use stdweb::traits::*;
 use stdweb::spawn_local;
 use stdweb::web::{document, set_timeout, Date, wait};
 use stdweb::web::error::Error;
-use stdweb::web::html_element::SelectElement;
+use stdweb::web::html_element::{InputElement, SelectElement};
 use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
 use stdweb::unstable::TryInto;
 use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
 
 
-// 21 days
-const DATE_CUTOFF: u32 = 21;
+// 84 days
+const DEFAULT_DAYS_SHOWN: u32 = 84;
 
 const MATCHMAKING_STARTING_MONEY: f64 = 10_000_000.0;
 
+
 lazy_static! {
     static ref CURRENT_DATE: f64 = Date::now();
-    static ref STARTING_DATE: f64 = subtract_days(*CURRENT_DATE, DATE_CUTOFF);
 }
 
 
@@ -90,7 +90,8 @@ enum RecordInformation {
 }
 
 impl RecordInformation {
-    fn calculate<A: Strategy>(mut simulation: Simulation<A, A>, records: &[Record], mode: ChartMode<A>, extra_data: bool) -> Vec<Self> {
+    fn calculate<A: Strategy>(state: &State, mut simulation: Simulation<A, A>, records: &[Record], mode: ChartMode<A>, extra_data: bool) -> Vec<Self> {
+        let days_shown = state.days_shown.get();
         let mut output: Vec<RecordInformation> = vec![];
 
         //simulation.sum = PERCENTAGE_THRESHOLD;
@@ -187,18 +188,18 @@ impl RecordInformation {
                         if let Some(old_date) = date_cutoff {
                             if record.date > old_date {
                                 simulation.sum = MATCHMAKING_STARTING_MONEY;
-                                date_cutoff = Some(add_days(old_date, DATE_CUTOFF));
+                                date_cutoff = Some(add_days(old_date, days_shown));
                             }
 
                         // TODO implement this more efficiently
                         } else {
-                            let mut ending_date = *STARTING_DATE;
+                            let mut ending_date = state.starting_date();
 
                             while ending_date > record.date {
-                                ending_date = subtract_days(ending_date, DATE_CUTOFF);
+                                ending_date = subtract_days(ending_date, days_shown);
                             }
 
-                            date_cutoff = Some(add_days(ending_date, DATE_CUTOFF));
+                            date_cutoff = Some(add_days(ending_date, days_shown));
                         }
                     }
 
@@ -464,10 +465,10 @@ impl Statistics {
 
                             if *won {
                                 wins += 1.0;
-                            }
 
-                            if odds.unwrap() > 1.0 {
-                                upsets += 1.0;
+                                if odds.unwrap() > 1.0 {
+                                    upsets += 1.0;
+                                }
                             }
 
                             match odds_winner.unwrap() {
@@ -528,8 +529,8 @@ struct Information {
 }
 
 impl Information {
-    fn recent_information(mut record_information: Vec<RecordInformation>) -> Vec<RecordInformation> {
-        let cutoff_date = *STARTING_DATE;
+    fn recent_information(state: &State, mut record_information: Vec<RecordInformation>) -> Vec<RecordInformation> {
+        let cutoff_date = state.starting_date();
 
         // TODO is this faster than using filter ?
         record_information.retain(|x| {
@@ -539,15 +540,15 @@ impl Information {
         record_information
     }
 
-    fn new(records: &[Record], record_information: Vec<RecordInformation>, show_only_recent_data: bool) -> Self {
+    fn new(state: &State, records: &[Record], record_information: Vec<RecordInformation>, show_only_recent_data: bool) -> Self {
         // TODO is this `false` correct ?
         let total_statistics = Statistics::new(&record_information,
             records.first().map(|x| x.date).unwrap_or(0.0),
             *CURRENT_DATE);
 
         if show_only_recent_data {
-            let record_information = Self::recent_information(record_information);
-            let recent_statistics = Statistics::new(&record_information, *STARTING_DATE, *CURRENT_DATE);
+            let record_information = Self::recent_information(state, record_information);
+            let recent_statistics = Statistics::new(&record_information, state.starting_date(), *CURRENT_DATE);
 
             Self {
                 record_information,
@@ -658,145 +659,151 @@ lazy_static! {
 }
 
 
-fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
-    #[derive(Debug, PartialEq)]
-    enum SimulationType {
-        RealData,
-        BetStrategy(BetStrategy),
-    }
+#[derive(Debug, PartialEq)]
+enum SimulationType {
+    RealData,
+    BetStrategy(BetStrategy),
+}
 
-    struct State {
-        simulation_type: Mutable<Rc<SimulationType>>,
-        money_type: Mutable<MoneyStrategy>,
-        hover_info: Mutable<bool>,
-        hover_percentage: Mutable<Option<f64>>,
-        average_sums: Mutable<bool>,
-        show_only_recent_data: Mutable<bool>,
-        round_to_magnitude: Mutable<bool>,
-        scale_by_matches: Mutable<bool>,
-        extra_data: Mutable<bool>,
-        reset_money: Mutable<bool>,
-        information: Mutable<Option<Rc<Information>>>,
-        records: Vec<Record>,
-    }
+struct State {
+    simulation_type: Mutable<Rc<SimulationType>>,
+    days_shown: Mutable<u32>,
+    money_type: Mutable<MoneyStrategy>,
+    hover_info: Mutable<bool>,
+    hover_percentage: Mutable<Option<f64>>,
+    average_sums: Mutable<bool>,
+    show_only_recent_data: Mutable<bool>,
+    round_to_magnitude: Mutable<bool>,
+    scale_by_matches: Mutable<bool>,
+    extra_data: Mutable<bool>,
+    reset_money: Mutable<bool>,
+    information: Mutable<Option<Rc<Information>>>,
+    records: Vec<Record>,
+}
 
-    impl State {
-        fn new(records: Vec<Record>) -> Self {
-            Self {
-                simulation_type: Mutable::new(Rc::new(SimulationType::BetStrategy(MATCHMAKING_STRATEGY.bet))),
-                money_type: Mutable::new(MATCHMAKING_STRATEGY.money),
-                hover_info: Mutable::new(false),
-                hover_percentage: Mutable::new(None),
-                average_sums: Mutable::new(false),
-                show_only_recent_data: Mutable::new(true),
-                round_to_magnitude: Mutable::new(false),
-                scale_by_matches: Mutable::new(true),
-                extra_data: Mutable::new(false),
-                reset_money: Mutable::new(true),
-                information: Mutable::new(None),
-                records,
-            }
+impl State {
+    fn new(records: Vec<Record>) -> Self {
+        Self {
+            simulation_type: Mutable::new(Rc::new(SimulationType::BetStrategy(MATCHMAKING_STRATEGY.bet))),
+            days_shown: Mutable::new(DEFAULT_DAYS_SHOWN),
+            money_type: Mutable::new(MATCHMAKING_STRATEGY.money),
+            hover_info: Mutable::new(false),
+            hover_percentage: Mutable::new(None),
+            average_sums: Mutable::new(false),
+            show_only_recent_data: Mutable::new(true),
+            round_to_magnitude: Mutable::new(false),
+            scale_by_matches: Mutable::new(true),
+            extra_data: Mutable::new(false),
+            reset_money: Mutable::new(true),
+            information: Mutable::new(None),
+            records,
         }
+    }
 
-        async fn find_best(&self) {
-            let reset_money = self.reset_money.get();
-            let extra_data = self.extra_data.get();
-            let show_only_recent_data =  self.show_only_recent_data.get();
+    fn starting_date(&self) -> f64 {
+        subtract_days(*CURRENT_DATE, self.days_shown.get())
+    }
 
-            let average_sums = self.average_sums.get();
-            let scale_by_matches = self.scale_by_matches.get();
-            let round_to_magnitude = self.round_to_magnitude.get();
+    async fn find_best(&self) {
+        let reset_money = self.reset_money.get();
+        let extra_data = self.extra_data.get();
+        let show_only_recent_data =  self.show_only_recent_data.get();
 
-            let mut strategies = vec![];
+        let average_sums = self.average_sums.get();
+        let scale_by_matches = self.scale_by_matches.get();
+        let round_to_magnitude = self.round_to_magnitude.get();
 
-            Permutate::each(|money: MoneyStrategy| {
-                Permutate::each(|bet: BetStrategy| {
-                    strategies.push(CustomStrategy {
-                        average_sums,
-                        scale_by_matches,
-                        round_to_magnitude,
-                        bet,
-                        money,
-                    });
+        let mut strategies = vec![];
+
+        Permutate::each(|money: MoneyStrategy| {
+            Permutate::each(|bet: BetStrategy| {
+                strategies.push(CustomStrategy {
+                    average_sums,
+                    scale_by_matches,
+                    round_to_magnitude,
+                    bet,
+                    money,
                 });
             });
+        });
 
-            let mut results = Vec::with_capacity(strategies.len());
+        let mut results = Vec::with_capacity(strategies.len());
 
-            // TODO pre-calculate up to the recent data
-            let simulation = Simulation::new();
+        // TODO pre-calculate up to the recent data
+        let simulation = Simulation::new();
 
-            for strategy in strategies {
-                let information = RecordInformation::calculate(simulation.clone(), &self.records, ChartMode::SimulateMatchmaking {
-                    reset_money,
-                    // TODO figure out a way to avoid this clone
-                    strategy: strategy.clone(),
-                }, extra_data);
+        for strategy in strategies {
+            let information = RecordInformation::calculate(self, simulation.clone(), &self.records, ChartMode::SimulateMatchmaking {
+                reset_money,
+                // TODO figure out a way to avoid this clone
+                strategy: strategy.clone(),
+            }, extra_data);
 
-                let information = if show_only_recent_data {
-                    Information::recent_information(information)
+            let information = if show_only_recent_data {
+                Information::recent_information(self, information)
 
-                } else {
-                    information
-                };
-
-                let total_gains = Information::total_gains(&information);
-
-                results.push((total_gains, strategy));
-
-                await!(wait(0));
-            }
-
-            results.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
-
-            for (total_gains, strategy) in &results[(results.len() - 10)..] {
-                log!("{} {:#?}", total_gains, strategy);
-            }
-
-            if let Some((_, strategy)) = results.pop() {
-                self.average_sums.set_neq(strategy.average_sums);
-                self.scale_by_matches.set_neq(strategy.scale_by_matches);
-                self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
-                self.money_type.set_neq(strategy.money);
-                self.simulation_type.set_neq(Rc::new(SimulationType::BetStrategy(strategy.bet)));
-                //self.information.set(Rc::new(information));
-                self.update();
-            }
-        }
-
-        fn update(&self) {
-            let information = match **self.simulation_type.lock_ref() {
-                SimulationType::RealData => {
-                    let real: ChartMode<()> = ChartMode::RealData { days: None };
-                    RecordInformation::calculate(Simulation::new(), &self.records, real, false)
-                },
-
-                SimulationType::BetStrategy(ref bet_strategy) => RecordInformation::calculate(Simulation::new(), &self.records, ChartMode::SimulateMatchmaking {
-                    reset_money: self.reset_money.get(),
-                    strategy: CustomStrategy {
-                        average_sums: self.average_sums.get(),
-                        scale_by_matches: self.scale_by_matches.get(),
-                        round_to_magnitude: self.round_to_magnitude.get(),
-                        money: self.money_type.get(),
-                        // TODO figure out a way to avoid this clone ?
-                        bet: bet_strategy.clone(),
-                    }
-                }, self.extra_data.get()),
-            //ChartMode::RealData { days: Some(7), matches: None }
-            //ChartMode::RealData { days: None }
-            //ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages })
-            //ChartMode::SimulateMatchmaking(matchmaking_strategy())
+            } else {
+                information
             };
 
-            self.information.set(Some(Rc::new(Information::new(&self.records, information, self.show_only_recent_data.get()))));
+            let total_gains = Information::total_gains(&information);
+
+            results.push((total_gains, strategy));
+
+            await!(wait(0));
         }
 
-        fn show_options(&self) -> impl Signal<Item = bool> {
-            self.simulation_type.signal_cloned().map(|x| *x != SimulationType::RealData)
+        results.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
+
+        for (total_gains, strategy) in &results[(results.len() - 10)..] {
+            log!("{} {:#?}", total_gains, strategy);
+        }
+
+        if let Some((_, strategy)) = results.pop() {
+            self.average_sums.set_neq(strategy.average_sums);
+            self.scale_by_matches.set_neq(strategy.scale_by_matches);
+            self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
+            self.money_type.set_neq(strategy.money);
+            self.simulation_type.set_neq(Rc::new(SimulationType::BetStrategy(strategy.bet)));
+            //self.information.set(Rc::new(information));
+            self.update();
         }
     }
 
+    fn update(&self) {
+        let information = match **self.simulation_type.lock_ref() {
+            SimulationType::RealData => {
+                let real: ChartMode<()> = ChartMode::RealData { days: None };
+                RecordInformation::calculate(self, Simulation::new(), &self.records, real, false)
+            },
 
+            SimulationType::BetStrategy(ref bet_strategy) => RecordInformation::calculate(self, Simulation::new(), &self.records, ChartMode::SimulateMatchmaking {
+                reset_money: self.reset_money.get(),
+                strategy: CustomStrategy {
+                    average_sums: self.average_sums.get(),
+                    scale_by_matches: self.scale_by_matches.get(),
+                    round_to_magnitude: self.round_to_magnitude.get(),
+                    money: self.money_type.get(),
+                    // TODO figure out a way to avoid this clone ?
+                    bet: bet_strategy.clone(),
+                }
+            }, self.extra_data.get()),
+        //ChartMode::RealData { days: Some(7), matches: None }
+        //ChartMode::RealData { days: None }
+        //ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages })
+        //ChartMode::SimulateMatchmaking(matchmaking_strategy())
+        };
+
+        self.information.set(Some(Rc::new(Information::new(self, &self.records, information, self.show_only_recent_data.get()))));
+    }
+
+    fn show_options(&self) -> impl Signal<Item = bool> {
+        self.simulation_type.signal_cloned().map(|x| *x != SimulationType::RealData)
+    }
+}
+
+
+fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     fn svg_root(state: Rc<State>) -> Dom {
         lazy_static! {
             static ref CLASS: String = class! {
@@ -1196,17 +1203,11 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
     }
 
 
-    fn make_checkbox<S>(name: &str, value: Mutable<bool>, enabled: S) -> Dom where S: Signal<Item = bool> + 'static {
+    fn make_label(children: &mut [Dom]) -> Dom {
         lazy_static! {
             static ref CLASS_LABEL: String = class! {
                 .style("color", "white")
                 .style("text-shadow", TEXT_SHADOW)
-            };
-
-            static ref CLASS_INPUT: String = class! {
-                .style("vertical-align", "bottom")
-                .style("margin", "0px")
-                .style("margin-right", "3px")
             };
         }
 
@@ -1214,24 +1215,36 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             .class(&*WIDGET)
             .class(&*CLASS_LABEL)
 
-            .children(&mut [
-                html!("input", {
-                    .class(&*CLASS_INPUT)
-
-                    .attribute("type", "checkbox")
-                    .property_signal("disabled", not(enabled))
-                    .property_signal("checked", value.signal())
-
-                    .event(move |e: ChangeEvent| {
-                        let node = e.target().unwrap();
-                        let checked: bool = js!( return @{node}.checked; ).try_into().unwrap();
-                        value.set_neq(checked);
-                    })
-                }),
-
-                text(name),
-            ])
+            .children(children)
         })
+    }
+
+    fn make_checkbox<S>(name: &str, value: Mutable<bool>, enabled: S) -> Dom where S: Signal<Item = bool> + 'static {
+        lazy_static! {
+            static ref CLASS_INPUT: String = class! {
+                .style("vertical-align", "bottom")
+                .style("margin", "0px")
+                .style("margin-right", "3px")
+            };
+        }
+
+        make_label(&mut [
+            html!("input", {
+                .class(&*CLASS_INPUT)
+
+                .attribute("type", "checkbox")
+                .property_signal("disabled", not(enabled))
+                .property_signal("checked", value.signal())
+
+                .event(move |e: ChangeEvent| {
+                    let node = e.target().unwrap();
+                    let checked: bool = js!( return @{node}.checked; ).try_into().unwrap();
+                    value.set_neq(checked);
+                })
+            }),
+
+            text(name),
+        ])
     }
 
 
@@ -1403,6 +1416,38 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     }),
                                 })
                             }),
+
+                            make_label(&mut [
+                                html!("input" => InputElement, {
+                                    .attribute("type", "number")
+                                    .attribute("min", "1")
+                                    .attribute("step", "1")
+
+                                    .property_signal("value", state.days_shown.signal()
+                                        .map(|x| x.to_string()))
+
+                                    .style("width", "55px")
+                                    .style("height", "20px")
+                                    .style("text-align", "left")
+                                    .style("padding", "0px 4px")
+                                    .style("box-sizing", "border-box")
+
+                                    .with_element(|dom, element| {
+                                        dom.event(clone!(state => move |_: ChangeEvent| {
+                                            if let Ok(days) = element.raw_value().parse() {
+                                                if days > 0 {
+                                                    state.days_shown.set(days);
+                                                    return;
+                                                }
+                                            }
+
+                                            // TODO hacky, should have an `invalidate` method or similar
+                                            state.days_shown.set(state.days_shown.get());
+                                        }))
+                                    })
+                                }),
+                                text(" days shown"),
+                            ]),
 
                             make_checkbox("Show only recent data", state.show_only_recent_data.clone(), always(true)),
                             make_checkbox("Use average for current money", state.average_sums.clone(), state.show_options()),
