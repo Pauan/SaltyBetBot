@@ -12,7 +12,7 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: true,
     money: MoneyStrategy::Fixed,
-    bet: BetStrategy::Bettors,
+    bet: BetStrategy::BettorsRatio,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -28,7 +28,7 @@ pub const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
 
 lazy_static! {
     pub static ref GENETIC_STRATEGY: Box<NeuralNetwork> = {
-        let result: FitnessResult<CustomStrategy> = serde_json::from_str(&include_str!("../../strategies/2018-11-10T22.51.42 (matchmaking)")).unwrap();
+        let result: FitnessResult<CustomStrategy> = serde_json::from_str(&include_str!("../../strategies/2019-07-30T11.20.23 0 (matchmaking)")).unwrap();
         Box::new(result.creature.bet.unwrap_genetic().clone())
     };
 }
@@ -274,6 +274,7 @@ pub enum BetStrategy {
     WinnerOdds,
     Upsets,
     Bettors,
+    BettorsRatio,
     IlluminatiBettors,
     NormalBettors,
     BetAmount,
@@ -298,6 +299,7 @@ impl Permutate for BetStrategy {
         f(BetStrategy::WinnerOdds);
         f(BetStrategy::Upsets);
         f(BetStrategy::Bettors);
+        f(BetStrategy::BettorsRatio);
         f(BetStrategy::IlluminatiBettors);
         f(BetStrategy::NormalBettors);
         f(BetStrategy::BetAmount);
@@ -327,6 +329,7 @@ impl BetStrategy {
             BetStrategy::WinnerOdds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
             BetStrategy::Upsets => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
             BetStrategy::Bettors => bettors(simulation, left, right),
+            BetStrategy::BettorsRatio => weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::bettors_ratio(records, name)),
             BetStrategy::IlluminatiBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
             BetStrategy::NormalBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
             BetStrategy::BetAmount => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),
@@ -340,7 +343,20 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
-            BetStrategy::Genetic(strategy) => strategy.choose(simulation, tier, left, right, left_bet, right_bet),
+            BetStrategy::Genetic(strategy) => {
+                let (left, right) = strategy.choose(simulation, tier, left, right, left_bet, right_bet);
+
+                assert!(left >= 0.0 && left <= 1.0);
+                assert!(right >= 0.0 && right <= 1.0);
+
+                if left >= 0.5 || right >= 0.5 {
+                    (left, right)
+
+                // Don't bet if left and right are less than 0.5
+                } else {
+                    (0.0, 0.0)
+                }
+            },
         }
     }
 

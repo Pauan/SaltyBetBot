@@ -19,7 +19,11 @@
   "content_scripts": [{
     "matches": [
       "http://www.saltybet.com/",
-      "https://www.saltybet.com/"
+      "https://www.saltybet.com/",
+      "http://mugen.saltybet.com/",
+      "https://mugen.saltybet.com/",
+      "http://live.saltybet.com/",
+      "https://live.saltybet.com/"
     ],
     "js": [
       "saltybet.js"

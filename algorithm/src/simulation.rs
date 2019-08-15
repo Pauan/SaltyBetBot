@@ -96,7 +96,7 @@ pub mod lookup {
     use super::DESIRED_PERCENTAGE_PROFIT;
     use std::f64::INFINITY;
     use std::iter::IntoIterator;
-    use crate::record::{Record, Winner};
+    use crate::record::{Record, Winner, Character};
 
 
     fn iterate_percentage<'a, A, B>(iter: A, mut matches: B) -> Option<f64>
@@ -142,14 +142,16 @@ pub mod lookup {
 
     fn iterate_geometric<'a, A, B>(iter: A, mut f: B) -> Option<f64>
         where A: IntoIterator<Item = &'a Record>,
-              B: FnMut(&'a Record) -> f64 {
+              B: FnMut(&'a Record) -> Option<f64> {
         // TODO is this correct ?
         let mut output: f64 = 1.0;
         let mut len: f64 = 0.0;
 
         for record in iter {
-            len += 1.0;
-            output = output * f(record);
+            if let Some(add) = f(record) {
+                len += 1.0;
+                output = output * add;
+            }
         }
 
         if len == 0.0 {
@@ -158,6 +160,16 @@ pub mod lookup {
         } else {
             // Calculates the nth root
             Some(output.powf(1.0 / len))
+        }
+    }
+
+    fn choose_map<A, F>(record: &Record, name: &str, mut f: F) -> (A, A) where F: FnMut(&Character) -> A {
+        // TODO what about mirror matches ?
+        // TODO better detection for whether the character matches or not
+        if record.left.name == name {
+            (f(&record.left), f(&record.right))
+        } else {
+            (f(&record.right), f(&record.left))
         }
     }
 
@@ -326,9 +338,7 @@ pub mod lookup {
     pub fn bettors<'a, A>(iter: A, name: &str) -> f64
         where A: IntoIterator<Item = &'a Record> {
         iterate_average(iter, |record| {
-            let total =
-                record.left.illuminati_bettors + record.left.normal_bettors +
-                record.right.illuminati_bettors + record.right.normal_bettors;
+            let total = record.left.bettors() + record.right.bettors();
 
             if total == 0.0 {
                 0.0
@@ -336,9 +346,27 @@ pub mod lookup {
             } else {
                 // TODO what about mirror matches ?
                 // TODO better detection for whether the character matches or not
-                let record = if record.left.name == name { &record.left } else { &record.right };
+                let bettors = if record.left.name == name {
+                    record.left.bettors()
+                } else {
+                    record.right.bettors()
+                };
 
-                -((record.illuminati_bettors + record.normal_bettors) / total)
+                -(bettors / total)
+            }
+        }).unwrap_or(0.0)
+    }
+
+    pub fn bettors_ratio<'a, A>(iter: A, name: &str) -> f64
+        where A: IntoIterator<Item = &'a Record> {
+        iterate_geometric(iter, |record| {
+            let (pick, other) = choose_map(&record, name, |x| x.bettors());
+
+            if pick == 0.0 || other == 0.0 {
+                None
+
+            } else {
+                Some(other / pick)
             }
         }).unwrap_or(0.0)
     }
@@ -432,10 +460,27 @@ pub mod lookup {
     }
 
 
-    // TODO use iterate_geometric ?
     pub fn odds<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
         where A: IntoIterator<Item = &'a Record> {
-        iterate_average(iter, |record| {
+        iterate_geometric(iter, |record| {
+            // TODO what about mirror matches ?
+            // TODO better detection for whether the character matches or not
+            let (pick, other) = if record.left.name == name {
+                ((record.left.bet_amount + bet_amount), record.right.bet_amount)
+
+            } else {
+                ((record.right.bet_amount + bet_amount), record.left.bet_amount)
+            };
+
+            if pick == 0.0 || other == 0.0 {
+                None
+
+            } else {
+                Some(other / pick)
+            }
+        }).unwrap_or(0.0)
+
+        /*iterate_average(iter, |record| {
             // TODO what about mirror matches ?
             // TODO better detection for whether the character matches or not
             if record.left.name == name {
@@ -445,7 +490,7 @@ pub mod lookup {
                 record.left.bet_amount / (record.right.bet_amount + bet_amount)
             }
         // TODO should this return 1.0 instead ?
-        }).unwrap_or(0.0)
+        }).unwrap_or(0.0)*/
     }
 
     pub fn winner_odds<'a, A>(iter: A, name: &str, bet_amount: f64) -> f64
@@ -713,6 +758,7 @@ pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub in_tournament: bool,
     pub successes: f64,
     pub failures: f64,
+    pub upsets: f64,
     pub max_character_len: usize,
     pub sums: Vec<f64>,
     pub characters: HashMap<String, Vec<Record>>,
@@ -730,6 +776,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             in_tournament: false,
             successes: 0.0,
             failures: 0.0,
+            upsets: 0.0,
             max_character_len: 0,
             sums: vec![],
             characters: HashMap::new()
@@ -851,6 +898,11 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
                 Winner::Left => {
                     let odds = record.right.bet_amount / (record.left.bet_amount + bet_amount);
                     self.successes += 1.0;
+
+                    if odds > 1.0 {
+                        self.upsets += 1.0;
+                    }
+
                     (bet_amount * odds).ceil()
                 },
 
@@ -864,6 +916,11 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
                 Winner::Right => {
                     let odds = record.left.bet_amount / (record.right.bet_amount + bet_amount);
                     self.successes += 1.0;
+
+                    if odds > 1.0 {
+                        self.upsets += 1.0;
+                    }
+
                     (bet_amount * odds).ceil()
                 },
 

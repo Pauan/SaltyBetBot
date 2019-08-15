@@ -30,9 +30,9 @@ const LAYERS: usize = 3;
 // https://en.wikipedia.org/wiki/Sigmoid_function
 #[inline]
 fn sigmoid(x: f64) -> f64 {
-    x
+    //x
     //(0.5 * (x / (1.0 + x.abs()))) + 0.5
-    //1.0 / (1.0 + (-x).exp())
+    1.0 / (1.0 + (-x).exp())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1076,23 +1076,23 @@ pub struct SimulationSettings<'a> {
 impl<A> FitnessResult<A> where A: Strategy + Clone {
     // TODO figure out a way to avoid the clone and to_vec
     pub fn new<'a>(settings: &SimulationSettings<'a>, creature: A) -> Self {
-        let (sum, successes, failures, record_len, characters_len, max_character_len) = {
-            let mut simulation = Simulation::<(), ()>::new();
+        let (fitness, successes, failures, record_len, characters_len, max_character_len) = {
+            let mut simulation = Simulation::<A, A>::new();
 
             // TODO is this correct ?
             simulation.sum = 10_000_000.0;
 
-            /*match settings.mode {
+            match settings.mode {
                 Mode::Matchmaking => simulation.matchmaking_strategy = Some(creature.clone()),
                 Mode::Tournament => simulation.tournament_strategy = Some(creature.clone()),
-            }*/
-
-            // TODO is this correct ?
-            for record in settings.records {
-                simulation.insert_record(record);
             }
 
-            let mut successes = 0.0;
+            // TODO is this correct ?
+            /*for record in settings.records {
+                simulation.insert_record(record);
+            }*/
+
+            /*let mut successes = 0.0;
             let mut failures = 0.0;
 
             let mut len = 0.0;
@@ -1113,14 +1113,14 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
                         },
                     }
                 }
-            }
+            }*/
 
-            //simulation.simulate(settings.records.to_vec(), false);
+            simulation.simulate(settings.records.to_vec(), true);
 
             (
-                if len == 0.0 { 0.0 } else { sum / len }, // simulation.sum,
-                successes,
-                failures,
+                if simulation.record_len == 0.0 { 0.0 } else { simulation.upsets / simulation.record_len }, // simulation.sum,
+                simulation.successes,
+                simulation.failures,
                 simulation.record_len,
                 simulation.characters.len(),
                 simulation.max_character_len,
@@ -1128,7 +1128,7 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
         };
 
         FitnessResult {
-            fitness: sum / record_len,
+            fitness: fitness,
             successes: successes,
             failures: failures,
             record_len: record_len,

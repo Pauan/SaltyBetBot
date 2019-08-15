@@ -12,19 +12,22 @@ use algorithm::genetic::Creature;
 use algorithm::types::FitnessResult;
 use algorithm::record::{Record, Mode};
 use algorithm::simulation::Strategy;
-use algorithm::strategy::{CustomStrategy, Permutate};
+use algorithm::strategy::{CustomStrategy, MATCHMAKING_STRATEGY};
 use algorithm::random::shuffle;
 
+use rayon::slice::ParallelSlice;
+use rayon::iter::ParallelIterator;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use chrono::offset::Utc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::borrow::Borrow;
 use std::io::{BufReader, BufWriter};
 use std::fs::File;
 
 
 const POPULATION_SIZE: usize = 100;
-const GENERATIONS: u64 = 200;
+const GENERATIONS: u64 = 400;
 
 
 /*fn read_file(path: &str) -> std::io::Result<String> {
@@ -244,10 +247,8 @@ fn shuffle_records(records: &[Record], mode: Mode) -> Vec<Record> {
     }
 }
 
-fn simulate<A>(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut [Record]) -> FitnessResult<A>
+fn simulate<A>(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &[Record]) -> FitnessResult<A>
     where A: Creature + Clone + Send + Sync {
-
-    let records = shuffle_records(records, mode);
 
     let settings = genetic::SimulationSettings {
         mode,
@@ -268,8 +269,7 @@ fn simulate<A>(progress_bar: &indicatif::ProgressBar, mode: Mode, records: &mut 
     population.best().clone()
 }
 
-fn test_strategy<A>(mode: Mode, records: &mut [Record], strategy: A) -> FitnessResult<A> where A: Strategy + Clone {
-    let records = shuffle_records(records, mode);
+fn test_strategy<A>(mode: Mode, records: &[Record], strategy: A) -> FitnessResult<A> where A: Strategy + Clone {
     FitnessResult::new(&genetic::SimulationSettings { mode, records: &records }, strategy)
 }
 
@@ -297,35 +297,66 @@ fn run_strategy<A: Strategy + Clone>(name: &str, left: &mut [Record], right: &mu
 }
 
 
-fn run_bet_strategy<A>(left: &mut [Record], right: &mut [Record]) -> Result<(), std::io::Error>
+fn run_bet_strategy<A>(records: &[Record]) -> Result<(), std::io::Error>
     where A: Creature + Clone + Send + Sync + Serialize {
+
+    const CHUNK_SIZE: usize = 20_000;
+    const MAX_CHUNKS: usize = 1;
+
+    struct Result<A> {
+        actual: FitnessResult<A>,
+        test: FitnessResult<A>,
+    }
 
     let date = current_time();
 
-    let progress_bar = indicatif::ProgressBar::new(GENERATIONS + 1);
+    let progress_bar = indicatif::ProgressBar::new(0);
 
-    let matchmaking = simulate::<A>(&progress_bar, Mode::Matchmaking, left);
+    let left = AtomicU64::new(0);
+
+    let test_records = &records[0..CHUNK_SIZE];
+
+    let mut results: Vec<Result<A>> = records[CHUNK_SIZE..(CHUNK_SIZE + (CHUNK_SIZE * MAX_CHUNKS))].par_chunks(CHUNK_SIZE).map(|chunk| {
+        assert_eq!(chunk.len(), CHUNK_SIZE);
+
+        left.fetch_add(GENERATIONS + 1, Ordering::SeqCst);
+        progress_bar.set_length(left.load(Ordering::SeqCst));
+
+        let actual = simulate::<A>(&progress_bar, Mode::Matchmaking, chunk);
+        let test = test_strategy(Mode::Matchmaking, test_records, actual.creature.clone());
+
+        Result {
+            actual,
+            test,
+        }
+    }).collect();
+
+    //let matchmaking = simulate::<A>(&progress_bar, Mode::Matchmaking, left);
     //let tournament = simulate::<A>(&progress_bar, Mode::Tournament, left);
 
     progress_bar.finish_and_clear();
 
-    let matchmaking_test = test_strategy(Mode::Matchmaking, right, matchmaking.creature.clone());
+    results.sort_by(|x, y| {
+        x.test.cmp(&y.test)
+    });
+
+    println!("Baseline {}", test_strategy(Mode::Matchmaking, test_records, MATCHMAKING_STRATEGY).fitness);
+
+    for (index, result) in results.iter().enumerate() {
+        println!("{}   {} -> {}", index, result.actual.fitness, result.test.fitness);
+        write(&format!("../strategies/{} {} (matchmaking)", date, index), &result.actual)?;
+    }
+
+    //let matchmaking_test = test_strategy(Mode::Matchmaking, left, matchmaking.creature.clone());
     //let tournament_test = test_strategy(Mode::Tournament, right, tournament.creature.clone());
 
-    println!("Matchmaking Genetic  {} -> {}", matchmaking.fitness, matchmaking_test.fitness);
+    //println!("Matchmaking Genetic  {} -> {}", matchmaking.fitness, matchmaking_test.fitness);
     //println!("Tournament Genetic  {} -> {}", tournament.fitness, tournament_test);
 
-    write(&format!("../strategies/{} (matchmaking)", date), &matchmaking)?;
+    //write(&format!("../strategies/{} (matchmaking)", date), &results[0].0.creature)?;
     //write(&format!("../strategies/{} (tournament)", date), &tournament)?;
 
     Ok(())
-}
-
-
-fn run_genetic_algorithm(records: Vec<Records>) -> Result<(), std::io::Error> {
-    let records = shuffle_records(&records, Mode::Matchmaking);
-    records.
-    let chunks = records.into_iter().filter(|x| ).chunks().collect();
 }
 
 
@@ -334,11 +365,13 @@ fn run_simulation() -> Result<(), std::io::Error> {
 
     println!("Read in {} records\n", records.len());
 
-    run_genetic_algorithm(records)?;
+    let mut records: Vec<Record> = records.into_iter().filter(|x| x.mode == Mode::Matchmaking).collect();
 
-    /*let (mut left, mut right) = split_records(records);
+    shuffle(&mut records);
 
-    let mut strategies: Vec<FitnessResult<CustomStrategy>> = vec![];
+    run_bet_strategy::<CustomStrategy>(&records)?;
+
+    /*let mut strategies: Vec<FitnessResult<CustomStrategy>> = vec![];
 
     Permutate::each(|strategy| {
         strategies.push(test_strategy(Mode::Matchmaking, &mut left, strategy));

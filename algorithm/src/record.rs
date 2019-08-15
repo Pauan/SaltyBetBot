@@ -109,6 +109,12 @@ pub struct Character {
     pub normal_bettors: f64,
 }
 
+impl Character {
+    pub fn bettors(&self) -> f64 {
+        self.illuminati_bettors + self.normal_bettors
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Profit {
