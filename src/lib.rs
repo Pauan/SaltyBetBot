@@ -360,7 +360,7 @@ pub fn server_log(message: String) {
 
 
 pub fn serialize_records(records: Vec<Record>) -> String {
-    serde_json::to_string_pretty(&records).unwrap()
+    serde_json::to_string(&records).unwrap()
 }
 
 pub fn deserialize_records(records: &str) -> Vec<Record> {
