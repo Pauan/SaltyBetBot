@@ -359,15 +359,6 @@ pub fn server_log(message: String) {
 }
 
 
-pub fn serialize_records(records: Vec<Record>) -> String {
-    serde_json::to_string(&records).unwrap()
-}
-
-pub fn deserialize_records(records: &str) -> Vec<Record> {
-    serde_json::from_str(records).unwrap()
-}
-
-
 pub fn find_starting_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) -> Ordering {
     slice.binary_search_by(|value| {
         match f(value) {

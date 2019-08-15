@@ -1,0 +1,8 @@
+[package]
+name = "process-records"
+version = "0.1.0"
+authors = ["Pauan <pcxunlimited@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+algorithm = { path = "../../algorithm" }

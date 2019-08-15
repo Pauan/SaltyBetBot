@@ -10,7 +10,8 @@ extern crate salty_bet_bot;
 #[macro_use]
 extern crate dominator;
 
-use salty_bet_bot::{set_panic_hook, spawn, records_get_all, records_insert, records_delete_all, deserialize_records, serialize_records, get_added_records, Loading};
+use algorithm::record::{deserialize_records, serialize_records};
+use salty_bet_bot::{set_panic_hook, spawn, records_get_all, records_insert, records_delete_all, get_added_records, Loading};
 use dominator::events::{ClickEvent, ChangeEvent};
 use stdweb::{Reference, PromiseFuture};
 use stdweb::web::{document, INode, Blob};
@@ -249,7 +250,7 @@ fn main() {
 
                                     let records = time!("Getting records", { await!(records_get_all())? });
 
-                                    let records = time!("Serializing records", { serialize_records(records) });
+                                    let records = time!("Serializing records", { serialize_records(&records) });
 
                                     let blob = time!("Converting into Blob", { str_to_blob(&records) });
 

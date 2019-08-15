@@ -357,3 +357,12 @@ impl Record {
     Ok(output)
 }
 */
+
+
+pub fn serialize_records(records: &[Record]) -> String {
+    serde_json::to_string_pretty(&records).unwrap()
+}
+
+pub fn deserialize_records(records: &str) -> Vec<Record> {
+    serde_json::from_str(records).unwrap()
+}

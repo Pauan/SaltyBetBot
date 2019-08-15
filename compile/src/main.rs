@@ -9,17 +9,24 @@ use std::io::{Result, BufReader, BufWriter};
 use regex::Regex;
 
 
+fn read(path: &str) -> Result<String> {
+    let mut reader = BufReader::new(File::open(path)?);
+    let mut contents = String::new();
+    reader.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+fn write(path: &str, contents: &str) -> Result<()> {
+    let mut writer = BufWriter::new(File::create(path)?);
+    write!(writer, "{}", contents)?;
+    writer.flush()
+}
+
 // TODO better implementation of this
 fn copy_map<F>(from: &str, to: &str, f: F) -> Result<()>
     where F: FnOnce(String) -> String {
-
-    let mut reader = BufReader::new(File::open(from)?);
-    let mut contents = String::new();
-    reader.read_to_string(&mut contents)?;
-
-    let mut writer = BufWriter::new(File::create(to)?);
-    write!(writer, "{}", f(contents))?;
-    writer.flush()
+    let contents = read(from)?;
+    write(to, &f(contents))
 }
 
 

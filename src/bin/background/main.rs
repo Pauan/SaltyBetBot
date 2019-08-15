@@ -10,16 +10,16 @@ extern crate salty_bet_bot;
 #[macro_use]
 extern crate dominator;
 
-use algorithm::record::Record;
+use algorithm::record::{Record, deserialize_records};
 use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{set_panic_hook, spawn, deserialize_records, get_added_records, Message, Tab, Port, on_message, WaifuMessage};
+use salty_bet_bot::{set_panic_hook, spawn, get_added_records, Message, Tab, Port, on_message, WaifuMessage};
 use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
-use futures_util::try_future::try_join;
+use futures_util::try_future::{try_join, try_join_all};
 use futures_util::stream::StreamExt;
 
 
@@ -276,6 +276,22 @@ impl Remote {
 }
 
 
+async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, Error> {
+    let mut output = vec![];
+
+    let files = files.into_iter().map(|file| fetch(file));
+
+    for file in await!(try_join_all(files))? {
+        let mut records = deserialize_records(&file);
+        output.append(&mut records);
+    }
+
+    log!("Retrieved {} default records", output.len());
+
+    Ok(output)
+}
+
+
 async fn main_future() -> Result<(), Error> {
     set_panic_hook();
 
@@ -288,10 +304,19 @@ async fn main_future() -> Result<(), Error> {
     });
 
     time!("Inserting default records", {
-        let new_records = await!(fetch("SaltyBet Records.json"))?;
-        let new_records = deserialize_records(&new_records);
+        let new_records = get_static_records(&[
+            "records/SaltyBet Records 0.json",
+            "records/SaltyBet Records 1.json",
+            "records/SaltyBet Records 2.json",
+        ]);
 
-        let old_records = await!(db.get_all_records())?;
+        let old_records = async {
+            let records = await!(db.get_all_records())?;
+            log!("Retrieved {} current records", records.len());
+            Ok(records)
+        };
+
+        let (new_records, old_records) = await!(try_join(new_records, old_records))?;
 
         let added_records = get_added_records(old_records, new_records);
 
