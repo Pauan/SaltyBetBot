@@ -1,5 +1,4 @@
 #![recursion_limit="128"]
-#![feature(async_await, await_macro)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -741,7 +740,7 @@ impl InfoContainer {
 async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
     let port = Port::connect("saltybet");
 
-    let records = await!(records_get_all())?;
+    let records = records_get_all().await?;
     //let matches = migrate_records(matches);
 
     log!("Initialized {} records", records.len());
@@ -794,7 +793,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
 
 
 async fn initialize_tab() -> Result<(), Error> {
-    await!(create_tab())?;
+    create_tab().await?;
 
     log!("Tab created");
 

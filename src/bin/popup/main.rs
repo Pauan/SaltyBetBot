@@ -1,5 +1,4 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -202,7 +201,7 @@ fn main() {
                                             log!("Loaded {} / {}", loaded, total);
                                         };
 
-                                        let new_records = time!("Loading file", { await!(read_file(file, on_progress))? });
+                                        let new_records = time!("Loading file", { read_file(file, on_progress).await? });
 
                                         //time!("Deserializing JSON.parse", { js!( return JSON.parse(@{&new_records}); ) });
 
@@ -210,7 +209,7 @@ fn main() {
 
                                         log!("{} records deserialized", new_records.len());
 
-                                        let old_records = time!("Retrieving current records", { await!(records_get_all())? });
+                                        let old_records = time!("Retrieving current records", { records_get_all().await? });
 
                                         log!("{} records retrieved", old_records.len());
 
@@ -218,7 +217,7 @@ fn main() {
 
                                         let len = added_records.len();
 
-                                        time!("Inserting new records", { await!(records_insert(added_records))? });
+                                        time!("Inserting new records", { records_insert(added_records).await? });
 
                                         loading.hide();
 
@@ -248,14 +247,14 @@ fn main() {
 
                                     loading.show();
 
-                                    let records = time!("Getting records", { await!(records_get_all())? });
+                                    let records = time!("Getting records", { records_get_all().await? });
 
                                     let records = time!("Serializing records", { serialize_records(&records) });
 
                                     let blob = time!("Converting into Blob", { str_to_blob(&records) });
 
                                     time!("Downloading", {
-                                        await!(download(&format!("SaltyBet Records ({}).json", current_date()), &blob))?;
+                                        download(&format!("SaltyBet Records ({}).json", current_date()), &blob).await?;
                                     });
 
                                     loading.hide();
@@ -276,7 +275,7 @@ fn main() {
 
                                         loading.show();
 
-                                        time!("Deleting all records", { await!(records_delete_all())? });
+                                        time!("Deleting all records", { records_delete_all().await? });
 
                                         loading.hide();
 

@@ -1,5 +1,4 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -207,7 +206,7 @@ pub fn send_message<A, B>(message: &A) -> impl Future<Output = Result<B, Error>>
     let message: String = serde_json::to_string(message).unwrap();
 
     async move {
-        let reply: String = await!(send_message_raw(&message))?;
+        let reply: String = send_message_raw(&message).await?;
 
         Ok(serde_json::from_str(&reply).unwrap())
     }
@@ -220,7 +219,7 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
     let future = send_message(message);
 
     async move {
-        let reply: Result<B, String> = await!(future)?;
+        let reply: Result<B, String> = future.await?;
 
         reply.map_err(|e| {
             // TODO replace with stdweb
@@ -238,7 +237,7 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
         let future = f(serde_json::from_str(&message).unwrap());
 
         spawn_local(async {
-            let result = await!(future);
+            let result = future.await;
 
             // TODO make this more efficient ?
             js! { @(no_return)
@@ -311,7 +310,7 @@ pub enum Message {
 }
 
 pub async fn create_tab() -> Result<(), Error> {
-    await!(send_message_result(&Message::OpenTwitchChat))
+    send_message_result(&Message::OpenTwitchChat).await
 }
 
 pub async fn records_get_all() -> Result<Vec<Record>, Error> {
@@ -321,10 +320,10 @@ pub async fn records_get_all() -> Result<Vec<Record>, Error> {
 
     const CHUNK_SIZE: u32 = 10000;
 
-    let id: u32 = await!(send_message_result(&Message::RecordsNew))?;
+    let id: u32 = send_message_result(&Message::RecordsNew).await?;
 
     loop {
-        let chunk: Option<Vec<Record>> = await!(send_message(&Message::RecordsSlice(id, index, index + CHUNK_SIZE)))?;
+        let chunk: Option<Vec<Record>> = send_message(&Message::RecordsSlice(id, index, index + CHUNK_SIZE)).await?;
 
         if let Some(mut chunk) = chunk {
             records.append(&mut chunk);
@@ -335,7 +334,7 @@ pub async fn records_get_all() -> Result<Vec<Record>, Error> {
         }
     }
 
-    await!(send_message(&Message::RecordsDrop(id)))?;
+    send_message(&Message::RecordsDrop(id)).await?;
 
     Ok(records)
 }
@@ -343,7 +342,7 @@ pub async fn records_get_all() -> Result<Vec<Record>, Error> {
 pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
     // TODO more idiomatic check
     if records.len() > 0 {
-        await!(send_message_result(&Message::InsertRecords(records)))
+        send_message_result(&Message::InsertRecords(records)).await
 
     } else {
         Ok(())
@@ -351,7 +350,7 @@ pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
 }
 
 pub async fn records_delete_all() -> Result<(), Error> {
-    await!(send_message_result(&Message::DeleteAllRecords))
+    send_message_result(&Message::DeleteAllRecords).await
 }
 
 pub fn server_log(message: String) {

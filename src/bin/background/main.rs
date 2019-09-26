@@ -1,5 +1,5 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro, try_blocks)]
+#![feature(try_blocks)]
 
 #[macro_use]
 extern crate stdweb;
@@ -163,7 +163,7 @@ impl Db {
     }
 
     pub async fn get_all_records(&self) -> Result<Vec<Record>, Error> {
-        await!(self.get_all_records_raw()).map(|records| records.into_iter().map(|x| Record::deserialize(&x)).collect())
+        self.get_all_records_raw().await.map(|records| records.into_iter().map(|x| Record::deserialize(&x)).collect())
     }
 
     fn insert_records_raw(&self, records: Vec<String>) -> PromiseFuture<()> {
@@ -196,7 +196,7 @@ impl Db {
 
         async move {
             if records.len() > 0 {
-                await!(self.insert_records_raw(records))?;
+                self.insert_records_raw(records).await?;
             }
 
             Ok(())
@@ -241,7 +241,7 @@ fn remove_ports(ports: &mut Vec<Port>) -> impl Future<Output = Result<(), Error>
 
     async move {
         if tabs.len() > 0 {
-            await!(remove_tabs(&tabs))?;
+            remove_tabs(&tabs).await?;
         }
 
         Ok(())
@@ -281,7 +281,7 @@ async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, Error
 
     let files = files.into_iter().map(|file| fetch(file));
 
-    for file in await!(try_join_all(files))? {
+    for file in try_join_all(files).await? {
         let mut records = deserialize_records(&file);
         output.append(&mut records);
     }
@@ -298,9 +298,9 @@ async fn main_future() -> Result<(), Error> {
     log!("Initializing...");
 
     let db = time!("Initializing database", {
-        await!(Db::new(2, |db, _old, _new| {
+        Db::new(2, |db, _old, _new| {
             db.migrate();
-        }))?
+        }).await?
     });
 
     time!("Inserting default records", {
@@ -311,16 +311,16 @@ async fn main_future() -> Result<(), Error> {
         ]);
 
         let old_records = async {
-            let records = await!(db.get_all_records())?;
+            let records = db.get_all_records().await?;
             log!("Retrieved {} current records", records.len());
             Ok(records)
         };
 
-        let (new_records, old_records) = await!(try_join(new_records, old_records))?;
+        let (new_records, old_records) = try_join(new_records, old_records).await?;
 
         let added_records = get_added_records(old_records, new_records);
 
-        await!(db.insert_records(added_records.as_slice()))?;
+        db.insert_records(added_records.as_slice()).await?;
 
         log!("Inserted {} records", added_records.len());
     });
@@ -330,7 +330,7 @@ async fn main_future() -> Result<(), Error> {
         clone!(db => async move {
             match message {
                 Message::RecordsNew => reply_result!({
-                    let records = await!(db.get_all_records())?;
+                    let records = db.get_all_records().await?;
                     Remote::new(records)
                 }),
                 Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
@@ -353,15 +353,15 @@ async fn main_future() -> Result<(), Error> {
                 }),
 
                 Message::InsertRecords(records) => reply_result!({
-                    await!(db.insert_records(records.as_slice()))?;
+                    db.insert_records(records.as_slice()).await?;
                 }),
                 Message::DeleteAllRecords => reply_result!({
-                    await!(db.delete_all_records())?;
+                    db.delete_all_records().await?;
                 }),
                 Message::OpenTwitchChat => reply_result!({
                     // TODO maybe this is okay ?
-                    //await!(remove_twitch_tabs())?;
-                    await!(create_twitch_tab())?;
+                    //remove_twitch_tabs().await?;
+                    create_twitch_tab().await?;
                 }),
                 Message::ServerLog(message) => reply!({
                     console!(log, message);
@@ -405,7 +405,7 @@ async fn main_future() -> Result<(), Error> {
                     }
                 }));
 
-                await!(a)
+                a.await
             })),
 
             "twitch_chat" => spawn(clone!(state => async move {
@@ -426,7 +426,7 @@ async fn main_future() -> Result<(), Error> {
                 })));
 
                 let b = async {
-                    await!(port.messages().for_each(|message: Vec<WaifuMessage>| {
+                    port.messages().for_each(|message: Vec<WaifuMessage>| {
                         let lock = state.borrow();
 
                         assert!(lock.salty_bet_ports.len() <= 1);
@@ -436,12 +436,12 @@ async fn main_future() -> Result<(), Error> {
                         }
 
                         async {}
-                    }));
+                    }).await;
 
                     Ok(())
                 };
 
-                await!(try_join(a, b)).map(|_| {})
+                try_join(a, b).await.map(|_| {})
             })),
 
             name => {

@@ -1,5 +1,4 @@
 #![recursion_limit="256"]
-#![feature(async_await, await_macro)]
 
 #[macro_use]
 extern crate stdweb;
@@ -750,7 +749,7 @@ impl State {
 
             results.push((total_gains, strategy));
 
-            await!(wait(0));
+            wait(0).await;
         }
 
         results.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap());
@@ -1273,8 +1272,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         window.find_best = @{clone!(state, loading => move || {
             spawn_local(clone!(state, loading => async move {
                 loading.show();
-                await!(wait(0));
-                await!(state.find_best());
+                wait(0).await;
+                state.find_best().await;
                 // TODO handle this better
                 loading.hide();
             }));
@@ -1495,7 +1494,7 @@ async fn main_future() -> Result<(), Error> {
 
     document().body().unwrap().append_child(loading.element());
 
-    let mut records = await!(records_get_all())?;
+    let mut records = records_get_all().await?;
 
     records.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
 

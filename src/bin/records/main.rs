@@ -1,5 +1,4 @@
 #![recursion_limit="128"]
-#![feature(async_await, await_macro)]
 
 #[macro_use]
 extern crate stdweb;
@@ -711,7 +710,7 @@ async fn main_future() -> Result<(), Error> {
 
     document().body().unwrap().append_child(loading.element());
 
-    let records = await!(records_get_all())?;
+    let records = records_get_all().await?;
 
     dominator::append_dom(&dominator::body(), display_records(records));
 

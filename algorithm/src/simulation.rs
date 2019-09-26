@@ -748,6 +748,12 @@ impl Gene for Lookup {
 
 
 #[derive(Debug, Clone)]
+pub struct Character {
+    matches: Vec<Record>,
+}
+
+
+#[derive(Debug, Clone)]
 pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub matchmaking_strategy: Option<A>,
     pub tournament_strategy: Option<B>,
@@ -761,7 +767,7 @@ pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub upsets: f64,
     pub max_character_len: usize,
     pub sums: Vec<f64>,
-    pub characters: HashMap<String, Vec<Record>>,
+    pub characters: HashMap<String, Character>,
 }
 
 impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
@@ -784,11 +790,13 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     }
 
     fn insert_match(&mut self, key: String, record: Record) {
-        let matches = self.characters.entry(key).or_insert_with(|| vec![]);
+        let character = self.characters.entry(key).or_insert_with(|| Character {
+            matches: vec![],
+        });
 
-        matches.push(record);
+        character.matches.push(record);
 
-        let len = matches.len();
+        let len = character.matches.len();
 
         if len > self.max_character_len {
             self.max_character_len = len;
@@ -1077,7 +1085,7 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
 
     fn lookup_character(&self, name: &str) -> Vec<&Record> {
         // TODO a bit gross that it returns a Vec and not a &[]
-        self.characters.get(name).map(|x| x.into_iter().collect()).unwrap_or(vec![])
+        self.characters.get(name).map(|x| x.matches.iter().collect()).unwrap_or(vec![])
     }
 
     fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record> {
