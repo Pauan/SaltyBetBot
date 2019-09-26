@@ -1387,6 +1387,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "Left",
                                 "Right",
                                 "Random",
+                                "ELO",
                             ], |value| {
                                 Rc::new(match value.as_str() {
                                     "RealData" => SimulationType::RealData,
@@ -1413,6 +1414,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                         "Left" => BetStrategy::Left,
                                         "Right" => BetStrategy::Right,
                                         "Random" => BetStrategy::Random,
+                                        "ELO" => BetStrategy::Elo,
                                         a => panic!("Invalid value {}", a),
                                     }),
                                 })

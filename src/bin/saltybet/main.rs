@@ -14,7 +14,7 @@ extern crate futures_signals;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
+use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
@@ -510,6 +510,9 @@ impl State {
         let (left_profit, right_profit) = expected_profits(&self.simulation, left, right, left_bet, right_bet);
         self.info_container.left.expected_profit.set(Some(left_profit));
         self.info_container.right.expected_profit.set(Some(right_profit));
+
+        self.info_container.left.elo.set(Some(self.simulation.elo(left)));
+        self.info_container.right.elo.set(Some(self.simulation.elo(right)));
     }
 
     fn clear_info_container(&self) {
@@ -528,6 +531,7 @@ struct InfoSide {
     specific_matches_len: Mutable<Option<usize>>,
     winrate: Mutable<Option<f64>>,
     bettors: Mutable<Option<f64>>,
+    elo: Mutable<Option<glicko2::Glicko2Rating>>,
 }
 
 impl InfoSide {
@@ -542,6 +546,7 @@ impl InfoSide {
             specific_matches_len: Mutable::new(None),
             winrate: Mutable::new(None),
             bettors: Mutable::new(None),
+            elo: Mutable::new(None),
         }
     }
 
@@ -555,12 +560,14 @@ impl InfoSide {
         self.specific_matches_len.set(None);
         self.winrate.set(None);
         self.bettors.set(None);
+        self.elo.set(None);
     }
 
     fn render(&self, other: &Self, color: &str) -> Dom {
-        fn info_bar<A, S, F>(this: &Mutable<Option<A>>, other: S, mut f: F) -> Dom
-            where A: Copy + PartialOrd + 'static,
+        fn info_bar<A, S, O, F>(this: &Mutable<Option<A>>, other: S, mut ord: O, mut f: F) -> Dom
+            where A: Copy + 'static,
                   S: Signal<Item = Option<A>> + 'static,
+                  O: FnMut(&A, &A) -> Option<Ordering> + 'static,
                   F: FnMut(A) -> String + 'static {
             lazy_static! {
                 static ref CLASS: String = class! {
@@ -576,10 +583,10 @@ impl InfoSide {
 
                 .style_signal("color", map_ref! {
                     let this = this.signal(),
-                    let other = other => {
+                    let other = other => move {
                         let cmp = this.and_then(|this| {
                             other.and_then(|other| {
-                                this.partial_cmp(&other)
+                                ord(&this, &other)
                             })
                         }).unwrap_or(Ordering::Equal);
 
@@ -631,35 +638,43 @@ impl InfoSide {
                     }))
                 }),
 
-                info_bar(&self.matches_len, other.matches_len.signal(), |x| {
+                info_bar(&self.matches_len, other.matches_len.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Number of past matches (in general): {}", x)
                 }),
 
-                info_bar(&self.specific_matches_len, always(Some(0)), |x| {
+                info_bar(&self.specific_matches_len, always(Some(0)), PartialOrd::partial_cmp, |x| {
                     format!("Number of past matches (in specific): {}", x)
                 }),
 
-                info_bar(&self.bettors, other.bettors.signal(), |x| {
+                info_bar(&self.bettors, other.bettors.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Bettors: {}%", (-x) * 100.0)
                 }),
 
-                info_bar(&self.winrate, other.winrate.signal(), |x| {
+                info_bar(&self.winrate, other.winrate.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Winrate: {}%", x * 100.0)
                 }),
 
-                info_bar(&self.needed_odds, self.odds.signal(), |x| {
+                info_bar(&self.needed_odds, self.odds.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Needed odds: {}", display_odds(x))
                 }),
 
-                info_bar(&self.odds, self.needed_odds.signal(), |x| {
+                info_bar(&self.odds, self.needed_odds.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Average odds: {}", display_odds(x))
                 }),
 
-                info_bar(&self.bet_amount, other.bet_amount.signal(), |x| {
+                info_bar(&self.elo, other.elo.signal(),
+                    |x, y| x.value.partial_cmp(&y.value),
+                    |x| {
+                        let x: glicko2::GlickoRating = x.into();
+                        format!("ELO: {} (+-{}%)", decimal(x.value), decimal(x.deviation))
+                    }
+                ),
+
+                info_bar(&self.bet_amount, other.bet_amount.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Simulated bet amount: {}", money(x))
                 }),
 
-                info_bar(&self.expected_profit, other.expected_profit.signal(), |x| {
+                info_bar(&self.expected_profit, other.expected_profit.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Simulated expected profit: {}", money(x))
                 }),
             ])
@@ -787,6 +802,8 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
 
     loop_bet(state.clone());
     loop_information(state);
+
+    log!("Initialized state");
 
     Ok(())
 }

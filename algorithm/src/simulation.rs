@@ -51,6 +51,7 @@ impl Bet {
 
 
 pub trait Simulator {
+    fn elo(&self, name: &str) -> glicko2::Glicko2Rating;
     fn average_sum(&self) -> f64;
     fn clamp(&self, bet_amount: f64) -> f64;
     fn matches_len(&self, name: &str) -> usize;
@@ -749,7 +750,17 @@ impl Gene for Lookup {
 
 #[derive(Debug, Clone)]
 pub struct Character {
+    elo: glicko2::Glicko2Rating,
     matches: Vec<Record>,
+}
+
+impl Character {
+    fn new() -> Self {
+        Self {
+            elo: glicko2::Glicko2Rating::unrated(),
+            matches: vec![],
+        }
+    }
 }
 
 
@@ -789,10 +800,10 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn insert_match(&mut self, key: String, record: Record) {
-        let character = self.characters.entry(key).or_insert_with(|| Character {
-            matches: vec![],
-        });
+    fn insert_match(&mut self, name: String, record: Record, new_elo: glicko2::Glicko2Rating) {
+        let character = self.characters.entry(name).or_insert_with(Character::new);
+
+        character.elo = new_elo;
 
         character.matches.push(record);
 
@@ -810,8 +821,31 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
 
         if left != right {
             self.record_len += 1.0;
-            self.insert_match(left, record.clone());
-            self.insert_match(right, record.clone());
+
+            let left_elo = self.characters.entry(left.clone()).or_insert_with(Character::new).elo;
+            let right_elo = self.characters.entry(right.clone()).or_insert_with(Character::new).elo;
+
+            const SYS_CONSTANT: f64 = 0.5;
+
+            self.insert_match(left, record.clone(), glicko2::new_rating(
+                left_elo,
+                &[if record.winner == Winner::Left {
+                    glicko2::GameResult::win(right_elo)
+                } else {
+                    glicko2::GameResult::loss(right_elo)
+                }],
+                SYS_CONSTANT
+            ));
+
+            self.insert_match(right, record.clone(), glicko2::new_rating(
+                right_elo,
+                &[if record.winner == Winner::Right {
+                    glicko2::GameResult::win(left_elo)
+                } else {
+                    glicko2::GameResult::loss(left_elo)
+                }],
+                SYS_CONSTANT
+            ));
         }
     }
 
@@ -1016,6 +1050,13 @@ fn average<A: Iterator<Item = f64>>(iter: A, default: f64) -> f64 {
 }
 
 impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
+    fn elo(&self, name: &str) -> glicko2::Glicko2Rating {
+        match self.characters.get(name) {
+            Some(x) => x.elo,
+            None => Character::new().elo,
+        }
+    }
+
     fn average_sum(&self) -> f64 {
         average(self.sums.iter().map(|x| *x), self.current_money())
 

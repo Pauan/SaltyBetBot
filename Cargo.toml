@@ -18,6 +18,7 @@ futures-core-preview = "0.3.0-alpha.15"
 futures-util-preview = "0.3.0-alpha.15"
 futures-channel-preview = "0.3.0-alpha.15"
 discard = "1.0.0"
+glicko2 = "0.3.0"
 
 #[patch.crates-io]
 #stdweb = { git = "https://github.com/koute/stdweb" }

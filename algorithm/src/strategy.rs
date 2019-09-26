@@ -284,6 +284,7 @@ pub enum BetStrategy {
     Left,
     Right,
     Random,
+    Elo,
     Genetic(Box<NeuralNetwork>),
 }
 
@@ -308,6 +309,7 @@ impl Permutate for BetStrategy {
         f(BetStrategy::Losses);
         f(BetStrategy::Left);
         f(BetStrategy::Right);
+        f(BetStrategy::Elo);
         //f(BetStrategy::Random);
         f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
     }
@@ -343,6 +345,7 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
+            BetStrategy::Elo => (simulation.elo(left).value, simulation.elo(right).value),
             BetStrategy::Genetic(strategy) => {
                 let (left, right) = strategy.choose(simulation, tier, left, right, left_bet, right_bet);
 
@@ -455,6 +458,7 @@ impl Strategy for AllInStrategy {
         (bet_amount, bet_amount)
     }
 
+    // TODO use ELO instead of winrate
     fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
         // TODO a tiny bit hacky
         let bet_amount = self.bet_amount(simulation, tier, left, right).0;
