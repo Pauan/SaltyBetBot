@@ -46,6 +46,7 @@ struct Information {
     odds: f64,
     expected_profit: f64,
     elo: glicko2::Glicko2Rating,
+    upsets_elo: glicko2::Glicko2Rating,
 }
 
 struct State {
@@ -109,6 +110,7 @@ impl State {
                         odds: left_odds,
                         expected_profit: left_profit,
                         elo: simulation.elo(&record.left.name),
+                        upsets_elo: simulation.upsets_elo(&record.left.name),
                     };
 
                     let right = Information {
@@ -126,6 +128,7 @@ impl State {
                         odds: right_odds,
                         expected_profit: right_profit,
                         elo: simulation.elo(&record.right.name),
+                        upsets_elo: simulation.upsets_elo(&record.right.name),
                     };
 
                     // TODO code duplication with bin/chart
@@ -375,6 +378,7 @@ fn display_records(records: Vec<Record>) -> Dom {
                             // TODO calculate the illuminati and normal bettors correctly (adding 1 depending on whether it bet or not)
                             fn display_character(this: &Information, other: &Information, class: &str) -> Dom {
                                 let elo: glicko2::GlickoRating = this.elo.into();
+                                let upsets_elo: glicko2::GlickoRating = this.upsets_elo.into();
 
                                 td(&*CLASS_ALIGN_LEFT, &mut [
                                     field("Name: ", span(class, &this.name), Ordering::Equal),
@@ -387,7 +391,8 @@ fn display_records(records: Vec<Record>) -> Dom {
                                     field("Winrate: ", text(&format!("{}%", this.winrate * 100.0)), this.winrate.partial_cmp(&other.winrate).unwrap()),
                                     field("Needed odds: ", text(&display_odds(this.needed_odds)), this.needed_odds.partial_cmp(&this.odds).unwrap()),
                                     field("Average odds: ", text(&display_odds(this.odds)), this.odds.partial_cmp(&this.needed_odds).unwrap()),
-                                    field("ELO: ", text(&format!("{} ({}%)", decimal(elo.value), decimal(elo.deviation))), this.elo.value.partial_cmp(&other.elo.value).unwrap()),
+                                    field("Wins ELO: ", text(&format!("{} (\u{00B1} {})", decimal(elo.value), decimal(elo.deviation))), this.elo.value.partial_cmp(&other.elo.value).unwrap()),
+                                    field("Upsets ELO: ", text(&format!("{} (\u{00B1} {})", decimal(upsets_elo.value), decimal(upsets_elo.deviation))), this.upsets_elo.value.partial_cmp(&other.upsets_elo.value).unwrap()),
                                     field("Simulated bet amount: ", span(&*CLASS_MONEY, &money(this.simulated_bet)), this.simulated_bet.partial_cmp(&other.simulated_bet).unwrap()),
                                     field("Simulated expected profit: ", span(&*CLASS_MONEY, &money(this.expected_profit)), this.expected_profit.partial_cmp(&other.expected_profit).unwrap()),
                                 ])

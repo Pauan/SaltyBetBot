@@ -513,6 +513,9 @@ impl State {
 
         self.info_container.left.elo.set(Some(self.simulation.elo(left)));
         self.info_container.right.elo.set(Some(self.simulation.elo(right)));
+
+        self.info_container.left.elo.set(Some(self.simulation.upsets_elo(left)));
+        self.info_container.right.elo.set(Some(self.simulation.upsets_elo(right)));
     }
 
     fn clear_info_container(&self) {
@@ -532,6 +535,7 @@ struct InfoSide {
     winrate: Mutable<Option<f64>>,
     bettors: Mutable<Option<f64>>,
     elo: Mutable<Option<glicko2::Glicko2Rating>>,
+    upsets_elo: Mutable<Option<glicko2::Glicko2Rating>>,
 }
 
 impl InfoSide {
@@ -547,6 +551,7 @@ impl InfoSide {
             winrate: Mutable::new(None),
             bettors: Mutable::new(None),
             elo: Mutable::new(None),
+            upsets_elo: Mutable::new(None),
         }
     }
 
@@ -561,6 +566,7 @@ impl InfoSide {
         self.winrate.set(None);
         self.bettors.set(None);
         self.elo.set(None);
+        self.upsets_elo.set(None);
     }
 
     fn render(&self, other: &Self, color: &str) -> Dom {
@@ -666,7 +672,15 @@ impl InfoSide {
                     |x, y| x.value.partial_cmp(&y.value),
                     |x| {
                         let x: glicko2::GlickoRating = x.into();
-                        format!("ELO: {} (+-{}%)", decimal(x.value), decimal(x.deviation))
+                        format!("Wins ELO: {} (\u{00B1} {})", decimal(x.value), decimal(x.deviation))
+                    }
+                ),
+
+                info_bar(&self.upsets_elo, other.upsets_elo.signal(),
+                    |x, y| x.value.partial_cmp(&y.value),
+                    |x| {
+                        let x: glicko2::GlickoRating = x.into();
+                        format!("Upsets ELO: {} (\u{00B1} {})", decimal(x.value), decimal(x.deviation))
                     }
                 ),
 
