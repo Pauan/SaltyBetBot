@@ -12,7 +12,7 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: true,
     money: MoneyStrategy::Fixed,
-    bet: BetStrategy::BettorsRatio,
+    bet: BetStrategy::UpsetsElo,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -285,6 +285,7 @@ pub enum BetStrategy {
     Right,
     Random,
     Elo,
+    UpsetsElo,
     Genetic(Box<NeuralNetwork>),
 }
 
@@ -310,6 +311,7 @@ impl Permutate for BetStrategy {
         f(BetStrategy::Left);
         f(BetStrategy::Right);
         f(BetStrategy::Elo);
+        f(BetStrategy::UpsetsElo);
         //f(BetStrategy::Random);
         f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
     }
@@ -346,6 +348,7 @@ impl BetStrategy {
                 (0.0, 1.0)
             },
             BetStrategy::Elo => (simulation.elo(left).value, simulation.elo(right).value),
+            BetStrategy::UpsetsElo => (simulation.upsets_elo(left).value, simulation.upsets_elo(right).value),
             BetStrategy::Genetic(strategy) => {
                 let (left, right) = strategy.choose(simulation, tier, left, right, left_bet, right_bet);
 
