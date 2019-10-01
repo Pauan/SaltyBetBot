@@ -47,7 +47,7 @@ impl Permutate for bool {
 
 
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
-const FIXED_BET_AMOUNT: f64 = 50_000.0;
+pub(crate) const FIXED_BET_AMOUNT: f64 = 70_000.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 5.0;   // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 50.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
@@ -347,8 +347,38 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
-            BetStrategy::Elo => (simulation.elo(left).value, simulation.elo(right).value),
-            BetStrategy::UpsetsElo => (simulation.upsets_elo(left).value, simulation.upsets_elo(right).value),
+            BetStrategy::Elo => (simulation.elo(left).wins.value, simulation.elo(right).wins.value),
+            BetStrategy::UpsetsElo => {
+                /*{
+                    let x: glicko2::GlickoRating = simulation.elo(left).upsets.into();
+                    let y: glicko2::GlickoRating = simulation.elo(right).upsets.into();
+                    // (simulation.elo(left).upsets.value - simulation.elo(right).upsets.value).abs()
+                    console!(log, x.value, y.value, x.deviation, y.deviation, simulation.elo(left).upsets.value, simulation.elo(left).upsets.deviation);
+                }*/
+
+                let left = simulation.elo(left).upsets;
+                let right = simulation.elo(right).upsets;
+
+                (left.value, right.value)
+
+                /*
+                let diff = (left.value - right.value).abs();
+                let deviation = left.deviation + right.deviation;
+
+                if diff >= deviation {
+                    if left.value > right.value {
+                        (1.0, 0.0)
+
+                    } else if right.value > left.value {
+                        (0.0, 1.0)
+
+                    } else {
+                        (0.0, 0.0)
+                    }
+                } else {
+                    (0.0, 0.0)
+                }*/
+            },
             BetStrategy::Genetic(strategy) => {
                 let (left, right) = strategy.choose(simulation, tier, left, right, left_bet, right_bet);
 

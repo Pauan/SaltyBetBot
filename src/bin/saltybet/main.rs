@@ -16,7 +16,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
-use algorithm::simulation::{Bet, Simulation, Simulator, Strategy};
+use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
 use stdweb::spawn_local;
 use stdweb::web::{set_timeout, INode, Node, NodeList, Element};
@@ -513,9 +513,6 @@ impl State {
 
         self.info_container.left.elo.set(Some(self.simulation.elo(left)));
         self.info_container.right.elo.set(Some(self.simulation.elo(right)));
-
-        self.info_container.left.elo.set(Some(self.simulation.upsets_elo(left)));
-        self.info_container.right.elo.set(Some(self.simulation.upsets_elo(right)));
     }
 
     fn clear_info_container(&self) {
@@ -534,8 +531,7 @@ struct InfoSide {
     specific_matches_len: Mutable<Option<usize>>,
     winrate: Mutable<Option<f64>>,
     bettors: Mutable<Option<f64>>,
-    elo: Mutable<Option<glicko2::Glicko2Rating>>,
-    upsets_elo: Mutable<Option<glicko2::Glicko2Rating>>,
+    elo: Mutable<Option<Elo>>,
 }
 
 impl InfoSide {
@@ -551,7 +547,6 @@ impl InfoSide {
             winrate: Mutable::new(None),
             bettors: Mutable::new(None),
             elo: Mutable::new(None),
-            upsets_elo: Mutable::new(None),
         }
     }
 
@@ -566,7 +561,6 @@ impl InfoSide {
         self.winrate.set(None);
         self.bettors.set(None);
         self.elo.set(None);
-        self.upsets_elo.set(None);
     }
 
     fn render(&self, other: &Self, color: &str) -> Dom {
@@ -610,6 +604,18 @@ impl InfoSide {
                     x.map(|x| f(x)).unwrap_or_else(|| "".to_string())
                 }))
             })
+        }
+
+        fn info_bar_elo<S, F>(this: &Mutable<Option<Elo>>, other: S, f: F, name: &'static str) -> Dom
+            where S: Signal<Item = Option<Elo>> + 'static,
+                  F: Fn(&Elo) -> glicko2::Glicko2Rating + Copy + 'static {
+            info_bar(this, other,
+                move |x, y| f(x).value.partial_cmp(&f(y).value),
+                move |x| {
+                    let x: glicko2::GlickoRating = f(&x).into();
+                    format!("{}: {} (\u{00B1} {})", name, decimal(x.value), decimal(x.deviation))
+                }
+            )
         }
 
         lazy_static! {
@@ -668,21 +674,8 @@ impl InfoSide {
                     format!("Average odds: {}", display_odds(x))
                 }),
 
-                info_bar(&self.elo, other.elo.signal(),
-                    |x, y| x.value.partial_cmp(&y.value),
-                    |x| {
-                        let x: glicko2::GlickoRating = x.into();
-                        format!("Wins ELO: {} (\u{00B1} {})", decimal(x.value), decimal(x.deviation))
-                    }
-                ),
-
-                info_bar(&self.upsets_elo, other.upsets_elo.signal(),
-                    |x, y| x.value.partial_cmp(&y.value),
-                    |x| {
-                        let x: glicko2::GlickoRating = x.into();
-                        format!("Upsets ELO: {} (\u{00B1} {})", decimal(x.value), decimal(x.deviation))
-                    }
-                ),
+                info_bar_elo(&self.elo, other.elo.signal(), |x| x.wins, "Wins ELO"),
+                info_bar_elo(&self.elo, other.elo.signal(), |x| x.upsets, "Upsets ELO"),
 
                 info_bar(&self.bet_amount, other.bet_amount.signal(), PartialOrd::partial_cmp, |x| {
                     format!("Simulated bet amount: {}", money(x))

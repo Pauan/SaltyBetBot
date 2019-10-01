@@ -9,6 +9,9 @@ extern crate serde_json;
 extern crate lazy_static;
 extern crate arrayvec;
 
+//#[macro_use]
+//extern crate stdweb;
+
 pub mod random;
 pub mod genetic;
 pub mod record;

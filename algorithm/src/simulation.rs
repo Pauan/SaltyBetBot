@@ -3,6 +3,7 @@ use std::collections::{ HashMap };
 use crate::record::{ Record, Mode, Winner, Tier };
 use crate::genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
 use crate::types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
+use crate::strategy::FIXED_BET_AMOUNT;
 
 
 // TODO this should take into account the user's real limit
@@ -51,8 +52,7 @@ impl Bet {
 
 
 pub trait Simulator {
-    fn upsets_elo(&self, name: &str) -> glicko2::Glicko2Rating;
-    fn elo(&self, name: &str) -> glicko2::Glicko2Rating;
+    fn elo(&self, name: &str) -> Elo;
     fn average_sum(&self) -> f64;
     fn clamp(&self, bet_amount: f64) -> f64;
     fn matches_len(&self, name: &str) -> usize;
@@ -749,18 +749,66 @@ impl Gene for Lookup {
 
 
 
+#[derive(Debug, Clone, Copy)]
+pub struct Elo {
+    pub wins: glicko2::Glicko2Rating,
+    pub upsets: glicko2::Glicko2Rating,
+}
+
+impl Elo {
+    fn new() -> Self {
+        Self {
+            wins: glicko2::Glicko2Rating::unrated(),
+            upsets: glicko2::Glicko2Rating::unrated(),
+        }
+    }
+
+    fn update(&mut self, won: bool, opponent: &Elo, left: &crate::record::Character, right: &crate::record::Character) {
+        const SYS_CONSTANT: f64 = 0.2;
+
+        self.wins = glicko2::new_rating(
+            self.wins,
+            &[if won {
+                glicko2::GameResult::win(opponent.wins)
+            } else {
+                glicko2::GameResult::loss(opponent.wins)
+            }],
+            SYS_CONSTANT,
+        );
+
+        self.upsets = glicko2::new_rating(
+            self.upsets,
+            &[if won {
+                if left.normal_bettors < right.normal_bettors {
+                //if (left.bet_amount + FIXED_BET_AMOUNT) < right.bet_amount {
+                    glicko2::GameResult::win(opponent.upsets)
+                } else {
+                    glicko2::GameResult::draw(opponent.upsets)
+                }
+            } else {
+                if left.normal_bettors > right.normal_bettors {
+                //if left.bet_amount > (right.bet_amount + FIXED_BET_AMOUNT) {
+                    glicko2::GameResult::loss(opponent.upsets)
+                } else {
+                    glicko2::GameResult::draw(opponent.upsets)
+                }
+            }],
+            SYS_CONSTANT,
+        );
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct Character {
-    elo: glicko2::Glicko2Rating,
-    upsets_elo: glicko2::Glicko2Rating,
+    elo: Elo,
     matches: Vec<Record>,
 }
 
 impl Character {
     fn new() -> Self {
         Self {
-            elo: glicko2::Glicko2Rating::unrated(),
-            upsets_elo: glicko2::Glicko2Rating::unrated(),
+            elo: Elo::new(),
             matches: vec![],
         }
     }
@@ -803,11 +851,10 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn insert_match(&mut self, name: String, record: Record, new_elo: glicko2::Glicko2Rating, new_upsets_elo: glicko2::Glicko2Rating) {
+    fn insert_match(&mut self, name: String, record: Record, won: bool, opponent: &Elo, left: &crate::record::Character, right: &crate::record::Character) {
         let character = self.characters.entry(name).or_insert_with(Character::new);
 
-        character.elo = new_elo;
-        character.upsets_elo = new_upsets_elo;
+        character.elo.update(won, opponent, left, right);
 
         character.matches.push(record);
 
@@ -826,74 +873,21 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         if left != right {
             self.record_len += 1.0;
 
-            let (left_elo, left_upsets_elo) = {
-                let character = self.characters.entry(left.clone()).or_insert_with(Character::new);
-                (character.elo, character.upsets_elo)
-            };
-
-            let (right_elo, right_upsets_elo) = {
-                let character = self.characters.entry(right.clone()).or_insert_with(Character::new);
-                (character.elo, character.upsets_elo)
-            };
-
-            const SYS_CONSTANT: f64 = 0.5;
+            let left_elo = self.elo(&left);
+            let right_elo = self.elo(&right);
 
             self.insert_match(left, record.clone(),
-                glicko2::new_rating(
-                    left_elo,
-                    &[if record.winner == Winner::Left {
-                        glicko2::GameResult::win(right_elo)
-                    } else {
-                        glicko2::GameResult::loss(right_elo)
-                    }],
-                    SYS_CONSTANT
-                ),
-                glicko2::new_rating(
-                    left_upsets_elo,
-                    &[if record.winner == Winner::Left {
-                        if record.left.normal_bettors < record.right.normal_bettors {
-                            glicko2::GameResult::win(right_upsets_elo)
-                        } else {
-                            glicko2::GameResult::draw(right_upsets_elo)
-                        }
-                    } else {
-                        if record.left.normal_bettors > record.right.normal_bettors {
-                            glicko2::GameResult::loss(right_upsets_elo)
-                        } else {
-                            glicko2::GameResult::draw(right_upsets_elo)
-                        }
-                    }],
-                    SYS_CONSTANT
-                ),
+                record.winner == Winner::Left,
+                &right_elo,
+                &record.left,
+                &record.right,
             );
 
             self.insert_match(right, record.clone(),
-                glicko2::new_rating(
-                    right_elo,
-                    &[if record.winner == Winner::Right {
-                        glicko2::GameResult::win(left_elo)
-                    } else {
-                        glicko2::GameResult::loss(left_elo)
-                    }],
-                    SYS_CONSTANT
-                ),
-                glicko2::new_rating(
-                    right_upsets_elo,
-                    &[if record.winner == Winner::Right {
-                        if record.right.normal_bettors < record.left.normal_bettors {
-                            glicko2::GameResult::win(left_upsets_elo)
-                        } else {
-                            glicko2::GameResult::draw(left_upsets_elo)
-                        }
-                    } else {
-                        if record.right.normal_bettors > record.left.normal_bettors {
-                            glicko2::GameResult::loss(left_upsets_elo)
-                        } else {
-                            glicko2::GameResult::draw(left_upsets_elo)
-                        }
-                    }],
-                    SYS_CONSTANT
-                ),
+                record.winner == Winner::Right,
+                &left_elo,
+                &record.right,
+                &record.left,
             );
         }
     }
@@ -1099,17 +1093,10 @@ fn average<A: Iterator<Item = f64>>(iter: A, default: f64) -> f64 {
 }
 
 impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
-    fn upsets_elo(&self, name: &str) -> glicko2::Glicko2Rating {
-        match self.characters.get(name) {
-            Some(x) => x.upsets_elo,
-            None => Character::new().upsets_elo,
-        }
-    }
-
-    fn elo(&self, name: &str) -> glicko2::Glicko2Rating {
+    fn elo(&self, name: &str) -> Elo {
         match self.characters.get(name) {
             Some(x) => x.elo,
-            None => Character::new().elo,
+            None => Elo::new(),
         }
     }
 
