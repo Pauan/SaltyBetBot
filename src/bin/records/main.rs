@@ -13,7 +13,7 @@ use std::rc::Rc;
 use std::cmp::Ordering;
 use salty_bet_bot::{records_get_all, percentage, decimal, money, display_odds, Loading, set_panic_hook};
 use algorithm::simulation::{Simulation, Simulator, Strategy, Bet, Elo};
-use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
 use algorithm::record::{Record, Winner, Tier, Mode, Profit};
 use stdweb::{spawn_local, unwrap_future};
 use stdweb::unstable::TryInto;
@@ -55,7 +55,7 @@ struct State {
 
 impl State {
     fn new(records: Vec<Record>) -> Self {
-        let mut simulation: Simulation<CustomStrategy, AllInStrategy> = Simulation::new();
+        let mut simulation: Simulation<CustomStrategy, CustomStrategy> = Simulation::new();
 
         simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
         simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);

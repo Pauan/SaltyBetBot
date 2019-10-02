@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
-use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, AllInStrategy, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
 use stdweb::spawn_local;
 use stdweb::web::{set_timeout, INode, Node, NodeList, Element};
 use stdweb::web::error::Error;
@@ -463,7 +463,7 @@ pub struct State {
     did_bet: bool,
     open: Option<WaifuBetsOpen>,
     information: Option<Information>,
-    simulation: Simulation<CustomStrategy, AllInStrategy>,
+    simulation: Simulation<CustomStrategy, CustomStrategy>,
     records: Vec<Record>,
     info_container: Rc<InfoContainer>,
 }

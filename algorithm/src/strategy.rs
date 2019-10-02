@@ -23,7 +23,13 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     use_percentages: true,
 };*/
 
-pub const TOURNAMENT_STRATEGY: AllInStrategy = AllInStrategy;
+pub const TOURNAMENT_STRATEGY: CustomStrategy = CustomStrategy {
+    average_sums: false,
+    round_to_magnitude: false,
+    scale_by_matches: true,
+    money: MoneyStrategy::AllIn,
+    bet: BetStrategy::UpsetsElo,
+};
 
 
 lazy_static! {
@@ -218,7 +224,7 @@ impl Permutate for MoneyStrategy {
         f(MoneyStrategy::BetDifferenceWinner);
         f(MoneyStrategy::Percentage);
         f(MoneyStrategy::Fixed);
-        //f(MoneyStrategy::AllIn);
+        f(MoneyStrategy::AllIn);
     }
 }
 
@@ -286,6 +292,7 @@ pub enum BetStrategy {
     Random,
     Elo,
     UpsetsElo,
+    Tournament,
     Genetic(Box<NeuralNetwork>),
 }
 
@@ -312,6 +319,7 @@ impl Permutate for BetStrategy {
         f(BetStrategy::Right);
         f(BetStrategy::Elo);
         f(BetStrategy::UpsetsElo);
+        f(BetStrategy::Tournament);
         //f(BetStrategy::Random);
         f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
     }
@@ -378,6 +386,28 @@ impl BetStrategy {
                 } else {
                     (0.0, 0.0)
                 }*/
+            },
+            BetStrategy::Tournament => {
+                let (left_winrate, right_winrate) = winrates(simulation, left, right);
+
+                assert_not_nan(left_winrate);
+                assert_not_nan(right_winrate);
+
+                let diff = (left_winrate - right_winrate).abs();
+
+                if !simulation.is_in_mines() && diff < MINIMUM_WINRATE {
+                    return (0.0, 0.0);
+                }
+
+                if left_winrate > right_winrate {
+                    (1.0, 0.0)
+
+                } else if right_winrate > left_winrate {
+                    (0.0, 1.0)
+
+                } else {
+                    (0.0, 0.0)
+                }
             },
             BetStrategy::Genetic(strategy) => {
                 let (left, right) = strategy.choose(simulation, tier, left, right, left_bet, right_bet);
