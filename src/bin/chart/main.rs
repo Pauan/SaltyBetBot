@@ -733,6 +733,7 @@ struct State {
     show_only_recent_data: Mutable<bool>,
     round_to_magnitude: Mutable<bool>,
     scale_by_matches: Mutable<bool>,
+    scale_by_money: Mutable<bool>,
     extra_data: Mutable<bool>,
     reset_money: Mutable<bool>,
     simulation_mode: Mutable<Mode>,
@@ -752,6 +753,7 @@ impl State {
             show_only_recent_data: Mutable::new(true),
             round_to_magnitude: Mutable::new(false),
             scale_by_matches: Mutable::new(true),
+            scale_by_money: Mutable::new(true),
             extra_data: Mutable::new(false),
             reset_money: Mutable::new(true),
             simulation_mode: Mutable::new(Mode::Matchmaking),
@@ -780,6 +782,7 @@ impl State {
 
         let average_sums = self.average_sums();
         let scale_by_matches = self.scale_by_matches.get();
+        let scale_by_money = self.scale_by_money.get();
         let round_to_magnitude = self.round_to_magnitude.get();
 
         let mut strategies = vec![];
@@ -789,6 +792,7 @@ impl State {
                 strategies.push(CustomStrategy {
                     average_sums,
                     scale_by_matches,
+                    scale_by_money,
                     round_to_magnitude,
                     bet,
                     money,
@@ -844,6 +848,7 @@ impl State {
         if let Some((_, strategy)) = results.pop() {
             self.average_sums.set_neq(strategy.average_sums);
             self.scale_by_matches.set_neq(strategy.scale_by_matches);
+            self.scale_by_money.set_neq(strategy.scale_by_money);
             self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
             self.money_type.set_neq(strategy.money);
             self.simulation_type.set_neq(Rc::new(SimulationType::BetStrategy(strategy.bet)));
@@ -863,6 +868,7 @@ impl State {
                 let strategy = CustomStrategy {
                     average_sums: self.average_sums(),
                     scale_by_matches: self.scale_by_matches.get(),
+                    scale_by_money: self.scale_by_money.get(),
                     round_to_magnitude: self.round_to_magnitude.get(),
                     money: self.money_type.get(),
                     // TODO figure out a way to avoid this clone ?
@@ -1581,6 +1587,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             make_checkbox("Use average for current money", state.average_sums.clone(), and(state.show_options(), not(state.is_tournament()))),
                             make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone(), state.show_options()),
                             make_checkbox("Scale by match length", state.scale_by_matches.clone(), state.show_options()),
+                            make_checkbox("Scale by money", state.scale_by_money.clone(), state.show_options()),
                             make_checkbox("Reset money at regular intervals", state.reset_money.clone(), state.show_options()),
                             make_checkbox("Simulate extra data", state.extra_data.clone(), state.show_options()),
 
