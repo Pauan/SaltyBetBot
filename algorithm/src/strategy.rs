@@ -27,9 +27,9 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
 pub const TOURNAMENT_STRATEGY: CustomStrategy = CustomStrategy {
     average_sums: false,
     round_to_magnitude: false,
-    scale_by_matches: true,
+    scale_by_matches: false,
     scale_by_money: false,
-    money: MoneyStrategy::AllIn,
+    money: MoneyStrategy::Tournament,
     bet: BetStrategy::Elo,
 };
 
@@ -119,6 +119,11 @@ fn normalize(value: f64, min: f64, max: f64) -> f64 {
     } else {
         ((value - min) * (1.0 / (max - min))).max(0.0).min(1.0)
     }
+}
+
+#[inline]
+fn range_inclusive(percentage: f64, low: f64, high: f64) -> f64 {
+    low + (percentage * (high - low))
 }
 
 fn bet_amount<A: Simulator>(simulation: &A, left: &str, right: &str, bet_amount: f64, round_to_magnitude: bool, scale_by_matches: bool, scale_by_money: bool) -> f64 {
@@ -221,6 +226,7 @@ pub enum MoneyStrategy {
     Percentage,
     Fixed,
     AllIn,
+    Tournament,
 }
 
 impl Permutate for MoneyStrategy {
@@ -232,6 +238,7 @@ impl Permutate for MoneyStrategy {
         f(MoneyStrategy::Percentage);
         f(MoneyStrategy::Fixed);
         f(MoneyStrategy::AllIn);
+        f(MoneyStrategy::Tournament);
     }
 }
 
@@ -270,6 +277,10 @@ impl MoneyStrategy {
             MoneyStrategy::Percentage => (percentage, percentage),
             MoneyStrategy::Fixed => (FIXED_BET_AMOUNT, FIXED_BET_AMOUNT),
             MoneyStrategy::AllIn => (current_money, current_money),
+            MoneyStrategy::Tournament => {
+                let bet = range_inclusive(normalize(current_money, 100_000.0, 60_000.0), 1.0 / 4.0, 1.0) * current_money;
+                (bet, bet)
+            },
         }
     }
 }

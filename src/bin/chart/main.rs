@@ -17,7 +17,7 @@ use std::collections::BTreeSet;
 use salty_bet_bot::{records_get_all, spawn, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE};
-use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, GENETIC_STRATEGY, MATCHMAKING_STRATEGY};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, GENETIC_STRATEGY, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
 use stdweb::traits::*;
 use stdweb::spawn_local;
 use stdweb::web::{document, set_timeout, Date, wait};
@@ -743,20 +743,37 @@ struct State {
 
 impl State {
     fn new(records: Vec<Record>) -> Self {
+        let mode = Mode::Matchmaking;
+
+        let strategy = if let Mode::Matchmaking = mode {
+            MATCHMAKING_STRATEGY
+
+        } else {
+            TOURNAMENT_STRATEGY
+        };
+
         Self {
-            simulation_type: Mutable::new(Rc::new(SimulationType::BetStrategy(MATCHMAKING_STRATEGY.bet))),
+            simulation_type: Mutable::new(Rc::new(SimulationType::BetStrategy(strategy.bet))),
             days_shown: Mutable::new(DEFAULT_DAYS_SHOWN),
-            money_type: Mutable::new(MATCHMAKING_STRATEGY.money),
+            money_type: Mutable::new(strategy.money),
             hover_info: Mutable::new(false),
             hover_percentage: Mutable::new(None),
-            average_sums: Mutable::new(false),
-            show_only_recent_data: Mutable::new(true),
-            round_to_magnitude: Mutable::new(false),
-            scale_by_matches: Mutable::new(true),
-            scale_by_money: Mutable::new(true),
+            average_sums: Mutable::new(strategy.average_sums),
+            show_only_recent_data: Mutable::new(if let Mode::Matchmaking = mode {
+                true
+            } else {
+                false
+            }),
+            round_to_magnitude: Mutable::new(strategy.round_to_magnitude),
+            scale_by_matches: Mutable::new(strategy.scale_by_matches),
+            scale_by_money: Mutable::new(strategy.scale_by_money),
             extra_data: Mutable::new(false),
-            reset_money: Mutable::new(true),
-            simulation_mode: Mutable::new(Mode::Matchmaking),
+            reset_money: Mutable::new(if let Mode::Matchmaking = mode {
+                true
+            } else {
+                false
+            }),
+            simulation_mode: Mutable::new(mode),
             information: Mutable::new(None),
             records,
         }
@@ -1266,13 +1283,27 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         let total_gains = final_money - starting_money;
                         let average_gains = total_gains / statistics.len;
 
-                        format!("Minimum: {}\nMaximum: {}\nStarting money: {}\nFinal money: {}\nTotal gains: {}\nAverage gains: {}\nMatches: {} (out of {})\nNumber of characters: {}\nAverage odds: {}\nAverage bet: {}\nWinrate: {}%\nUpsets: {}%",
+                        format!("\
+                            Minimum: {}\n\
+                            Maximum: {}\n\
+                            Starting money: {}\n\
+                            Final money: {}\n\
+                            Total gains: {}\n\
+                            Average gains: {}\n\
+                            Maximum gain: {}\n\
+                            Matches: {} (out of {})\n\
+                            Number of characters: {}\n\
+                            Average odds: {}\n\
+                            Average bet: {}\n\
+                            Winrate: {}%\n\
+                            Upsets: {}%",
                             salty_bet_bot::money(statistics.min_money),
                             salty_bet_bot::money(statistics.max_money),
                             salty_bet_bot::money(starting_money),
                             salty_bet_bot::money(final_money),
                             salty_bet_bot::money(total_gains),
                             salty_bet_bot::money(average_gains),
+                            salty_bet_bot::money(statistics.max_gain),
                             decimal(statistics.len),
                             decimal(information.total_statistics.len),
                             statistics.number_of_characters,
@@ -1478,6 +1509,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "BetDifferenceWinner",
                                 "Fixed",
                                 "AllIn",
+                                "Tournament",
                             ], |value| {
                                 match value.as_str() {
                                     "ExpectedBetWinner" => MoneyStrategy::ExpectedBetWinner,
@@ -1487,6 +1519,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     "BetDifferenceWinner" => MoneyStrategy::BetDifferenceWinner,
                                     "Fixed" => MoneyStrategy::Fixed,
                                     "AllIn" => MoneyStrategy::AllIn,
+                                    "Tournament" => MoneyStrategy::Tournament,
                                     a => panic!("Invalid value {}", a),
                                 }
                             }),
