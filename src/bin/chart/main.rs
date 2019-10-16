@@ -743,7 +743,31 @@ struct State {
 
 impl State {
     fn new(records: Vec<Record>) -> Self {
-        let mode = Mode::Matchmaking;
+        let this = Self {
+            simulation_type: Mutable::new(Rc::new(SimulationType::RealData)),
+            days_shown: Mutable::new(DEFAULT_DAYS_SHOWN),
+            money_type: Mutable::new(MoneyStrategy::Fixed),
+            hover_info: Mutable::new(false),
+            hover_percentage: Mutable::new(None),
+            average_sums: Mutable::new(false),
+            show_only_recent_data: Mutable::new(false),
+            round_to_magnitude: Mutable::new(false),
+            scale_by_matches: Mutable::new(false),
+            scale_by_money: Mutable::new(false),
+            extra_data: Mutable::new(false),
+            reset_money: Mutable::new(false),
+            simulation_mode: Mutable::new(Mode::Matchmaking),
+            information: Mutable::new(None),
+            records,
+        };
+
+        this.reset_simulation_mode();
+
+        this
+    }
+
+    fn reset_simulation_mode(&self) {
+        let mode = self.simulation_mode.get();
 
         let strategy = if let Mode::Matchmaking = mode {
             MATCHMAKING_STRATEGY
@@ -752,31 +776,25 @@ impl State {
             TOURNAMENT_STRATEGY
         };
 
-        Self {
-            simulation_type: Mutable::new(Rc::new(SimulationType::BetStrategy(strategy.bet))),
-            days_shown: Mutable::new(DEFAULT_DAYS_SHOWN),
-            money_type: Mutable::new(strategy.money),
-            hover_info: Mutable::new(false),
-            hover_percentage: Mutable::new(None),
-            average_sums: Mutable::new(strategy.average_sums),
-            show_only_recent_data: Mutable::new(if let Mode::Matchmaking = mode {
-                true
-            } else {
-                false
-            }),
-            round_to_magnitude: Mutable::new(strategy.round_to_magnitude),
-            scale_by_matches: Mutable::new(strategy.scale_by_matches),
-            scale_by_money: Mutable::new(strategy.scale_by_money),
-            extra_data: Mutable::new(false),
-            reset_money: Mutable::new(if let Mode::Matchmaking = mode {
-                true
-            } else {
-                false
-            }),
-            simulation_mode: Mutable::new(mode),
-            information: Mutable::new(None),
-            records,
-        }
+        self.simulation_type.set(Rc::new(SimulationType::BetStrategy(strategy.bet)));
+        self.money_type.set_neq(strategy.money);
+        self.average_sums.set_neq(strategy.average_sums);
+
+        self.show_only_recent_data.set_neq(if let Mode::Matchmaking = mode {
+            true
+        } else {
+            false
+        });
+
+        self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
+        self.scale_by_matches.set_neq(strategy.scale_by_matches);
+        self.scale_by_money.set_neq(strategy.scale_by_money);
+
+        self.reset_money.set_neq(if let Mode::Matchmaking = mode {
+            true
+        } else {
+            false
+        });
     }
 
     fn starting_date(&self) -> f64 {
@@ -1488,6 +1506,11 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                         .style("margin-bottom", "5px")
                         .style("margin-right", "15px")
+
+                        .future(state.simulation_mode.signal().for_each(clone!(state => move |_| {
+                            state.reset_simulation_mode();
+                            async {}
+                        })))
 
                         .children(&mut [
                             make_dropdown(state.simulation_mode.clone(), always(true), &[

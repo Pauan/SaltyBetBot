@@ -373,8 +373,33 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
-            BetStrategy::Elo => (simulation.elo(left).wins.value, simulation.elo(right).wins.value),
+            BetStrategy::Elo => {
+                let left = simulation.elo(left).wins;
+                let right = simulation.elo(right).wins;
+
+                //(left.value, right.value)
+
+                let diff = (left.value - right.value).abs();
+                let deviation = 0.01; // left.deviation + right.deviation;
+
+                if diff >= deviation {
+                    if left.value > right.value {
+                        (1.0, 0.0)
+
+                    } else if right.value > left.value {
+                        (0.0, 1.0)
+
+                    } else {
+                        (0.0, 0.0)
+                    }
+                } else {
+                    (0.0, 0.0)
+                }
+            },
             BetStrategy::UpsetsElo => {
+                let left_win = simulation.elo(left).wins.value;
+                let right_win = simulation.elo(right).wins.value;
+
                 /*{
                     let x: glicko2::GlickoRating = simulation.elo(left).upsets.into();
                     let y: glicko2::GlickoRating = simulation.elo(right).upsets.into();
@@ -387,19 +412,14 @@ impl BetStrategy {
 
                 //(left.value, right.value)
 
-                let diff = (left.value - right.value).abs();
-                let deviation = 0.10; // left.deviation + right.deviation;
+                // If the other player has ~260 more win ELO, don't bet
+                if left.value > right.value && right_win < left_win + 1.3 {
+                    (1.0, 0.0)
 
-                if diff >= deviation {
-                    if left.value > right.value {
-                        (1.0, 0.0)
+                // If the other player has ~260 more win ELO, don't bet
+                } else if right.value > left.value && left_win < right_win + 1.3 {
+                    (0.0, 1.0)
 
-                    } else if right.value > left.value {
-                        (0.0, 1.0)
-
-                    } else {
-                        (0.0, 0.0)
-                    }
                 } else {
                     (0.0, 0.0)
                 }
