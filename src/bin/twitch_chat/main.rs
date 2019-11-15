@@ -39,8 +39,8 @@ use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord,
 use stdweb::unstable::TryInto;
 
 
-// 10 minutes
-const REFRESH_TIME: u32 = 1000 * 60 * 10;
+// 15 minutes
+const REFRESH_TIME: u32 = 1000 * 60 * 15;
 
 
 fn parse_tier(input: &str) -> Option<Tier> {
