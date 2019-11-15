@@ -23,7 +23,7 @@ use stdweb::spawn_local;
 use stdweb::web::{document, set_timeout, Date, wait};
 use stdweb::web::error::Error;
 use stdweb::web::html_element::{InputElement, SelectElement};
-use stdweb::web::event::{ClickEvent, ChangeEvent};
+use stdweb::web::event::{ClickEvent, ChangeEvent, MouseEnterEvent, MouseLeaveEvent};
 use stdweb::unstable::TryInto;
 use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
@@ -828,6 +828,8 @@ struct State {
     days_shown: Mutable<Option<u32>>,
     money_type: Mutable<MoneyStrategy>,
     hover_percentage: Mutable<Option<f64>>,
+    hover_info: Mutable<bool>,
+    hover_popup: Mutable<bool>,
     average_sums: Mutable<bool>,
     round_to_magnitude: Mutable<bool>,
     scale_by_matches: Mutable<bool>,
@@ -846,6 +848,8 @@ impl State {
             days_shown: Mutable::new(Some(DEFAULT_DAYS_SHOWN)),
             money_type: Mutable::new(MoneyStrategy::Fixed),
             hover_percentage: Mutable::new(None),
+            hover_info: Mutable::new(false),
+            hover_popup: Mutable::new(false),
             average_sums: Mutable::new(false),
             round_to_magnitude: Mutable::new(false),
             scale_by_matches: Mutable::new(false),
@@ -1053,14 +1057,22 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
             .with_element(|dom, element| {
                 dom.global_event(clone!(state => move |e: ClickEvent| {
-                    // TODO don't hardcode this
-                    let x = (e.client_x() as f64) - 5.0;
-                    // TODO use get_bounding_client_rect instead
-                    let width: f64 = js!( return @{&element}.clientWidth; ).try_into().unwrap();
+                    if state.hover_popup.get() {
+                        // Do nothing
 
-                    let percentage = (x / width).max(0.0).min(1.0);
+                    } else if state.hover_info.get() || state.hover_percentage.lock_ref().is_some() {
+                        state.hover_percentage.set_neq(None);
 
-                    state.hover_percentage.set_neq(Some(percentage));
+                    } else {
+                        // TODO don't hardcode this
+                        let x = (e.client_x() as f64) - 5.0;
+                        // TODO use get_bounding_client_rect instead
+                        let width: f64 = js!( return @{&element}.clientWidth; ).try_into().unwrap();
+
+                        let percentage = (x / width).max(0.0).min(1.0);
+
+                        state.hover_percentage.set_neq(Some(percentage));
+                    }
                 }))
             })
 
@@ -1275,7 +1287,6 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 .style("height", "100%")
                 .style("z-index", "3")
                 .style("background-color", "white")
-                .style("pointer-events", "none")
             };
 
             static ref CLASS_TEXT: String = class! {
@@ -1292,6 +1303,14 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
         html!("div", {
             .class(&*CLASS_LINE)
+
+            .event(clone!(state => move |_: MouseEnterEvent| {
+                state.hover_popup.set_neq(true);
+            }))
+
+            .event(clone!(state => move |_: MouseLeaveEvent| {
+                state.hover_popup.set_neq(false);
+            }))
 
             .style_signal("left", state.hover_percentage.signal().map(|percentage| {
                 percentage.map(|percentage| {
@@ -1594,8 +1613,12 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 .class(&*CLASS_ROW)
                 .class(&*CLASS_INFO)
 
-                .event(clone!(state => move |_: ClickEvent| {
-                    state.hover_percentage.set_neq(None);
+                .event(clone!(state => move |_: MouseEnterEvent| {
+                    state.hover_info.set_neq(true);
+                }))
+
+                .event(clone!(state => move |_: MouseLeaveEvent| {
+                    state.hover_info.set_neq(false);
                 }))
 
                 .children(&mut [

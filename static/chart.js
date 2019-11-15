@@ -552,7 +552,10 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__cargo_web_snippet_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
+                "__cargo_web_snippet_05a27a55a494fd5964d28e50fdae41f4515e715f": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "mouseleave") | 0;
+            },
+            "__cargo_web_snippet_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof CSSStyleRule) | 0;
             },
             "__cargo_web_snippet_08d3579ce78218a65f6c5f85e9e7b5709a526dda": function($0) {
@@ -614,6 +617,9 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             },
             "__cargo_web_snippet_307cb0b9c64887c558be26bdc6920a7881724978": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);var timer=($0);clearTimeout(timer.id);timer.callback.drop();
+            },
+            "__cargo_web_snippet_33c9ffa61a585b5eccd2ff272475014b5c29e82e": function($0) {
+                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "mouseenter") | 0;
             },
             "__cargo_web_snippet_351b27505bc97d861c3914c20421b6277babb53b": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Node) | 0;
