@@ -719,6 +719,14 @@ impl Port {
 }
 
 
+pub fn round_to_hour(date: f64) -> f64 {
+    js!(
+        var date = new Date(@{date});
+        date.setUTCMinutes(0, 0, 0);
+        return date.getTime();
+    ).try_into().unwrap()
+}
+
 pub fn subtract_days(date: f64, days: u32) -> f64 {
     js!(
         var date = new Date(@{date});

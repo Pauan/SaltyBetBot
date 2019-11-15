@@ -961,12 +961,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn calculate(&mut self, record: &Record, bet: &Bet) {
-        if self.is_tournament_boundary(record) {
-            self.sum += self.tournament_sum;
-            self.tournament_sum = TOURNAMENT_BALANCE;
-        }
-
+    pub fn skip(&mut self, record: &Record) {
         match record.mode {
             Mode::Matchmaking => {
                 self.in_tournament = false;
@@ -977,6 +972,15 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
                 self.tournament_date = Some(record.date);
             },
         }
+    }
+
+    pub fn calculate(&mut self, record: &Record, bet: &Bet) {
+        if self.is_tournament_boundary(record) {
+            self.sum += self.tournament_sum;
+            self.tournament_sum = TOURNAMENT_BALANCE;
+        }
+
+        self.skip(record);
 
         let increase = match bet {
             Bet::Left(bet_amount) => match record.winner {

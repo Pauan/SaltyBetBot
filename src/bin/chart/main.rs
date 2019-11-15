@@ -13,8 +13,8 @@ extern crate futures_signals;
 
 use std::f64::INFINITY;
 use std::rc::Rc;
-use std::collections::BTreeSet;
-use salty_bet_bot::{records_get_all, spawn, subtract_days, add_days, decimal, Loading, set_panic_hook, find_starting_index};
+use std::collections::{BTreeSet, BTreeMap};
+use salty_bet_bot::{records_get_all, spawn, subtract_days, decimal, Loading, set_panic_hook, find_starting_index, round_to_hour};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, GENETIC_STRATEGY, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
@@ -23,7 +23,7 @@ use stdweb::spawn_local;
 use stdweb::web::{document, set_timeout, Date, wait};
 use stdweb::web::error::Error;
 use stdweb::web::html_element::{InputElement, SelectElement};
-use stdweb::web::event::{ClickEvent, ChangeEvent, MouseMoveEvent, MouseEnterEvent, MouseLeaveEvent};
+use stdweb::web::event::{ClickEvent, ChangeEvent};
 use stdweb::unstable::TryInto;
 use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
@@ -42,9 +42,19 @@ lazy_static! {
 
 #[allow(dead_code)]
 enum ChartMode<A> {
-    SimulateTournament { strategy: A, reset_money: bool },
-    SimulateMatchmaking { strategy: A, reset_money: bool },
-    RealData { days: Option<u32> },
+    SimulateTournament {
+        strategy: A,
+        reset_money: bool,
+        extra_data: bool,
+    },
+    SimulateMatchmaking {
+        strategy: A,
+        reset_money: bool,
+        extra_data: bool,
+    },
+    RealData {
+        days: Option<u32>,
+    },
 }
 
 
@@ -65,6 +75,13 @@ fn range_inclusive(percentage: f64, low: f64, high: f64) -> f64 {
 }
 
 
+#[derive(Debug, Clone)]
+struct Hourly {
+    date: f64,
+    bettors: f64,
+    bet_amount: f64,
+}
+
 #[derive(Debug)]
 struct Match {
     date: f64,
@@ -78,8 +95,6 @@ struct Match {
     odds: Option<f64>,
     odds_winner: Option<Result<f64, f64>>,
     bet: Bet,
-    bettors: f64,
-    bet_amount: f64,
 }
 
 #[derive(Debug)]
@@ -94,14 +109,83 @@ enum RecordInformation {
 }
 
 impl RecordInformation {
-    fn calculate<A: Strategy>(state: &State, mut simulation: Simulation<A, A>, records: &[Record], mode: ChartMode<A>, extra_data: bool) -> Vec<Self> {
-        let days_shown = state.days_shown.get();
+    fn is_tournament(&self) -> bool {
+        match *self {
+            RecordInformation::TournamentFinal { .. } => true,
+            RecordInformation::Match(_) => false,
+        }
+    }
+
+    fn date(&self) -> f64 {
+        match *self {
+            RecordInformation::TournamentFinal { date, .. } => date,
+            RecordInformation::Match(Match { date, .. }) => date,
+        }
+    }
+
+    fn old_sum(&self) -> f64 {
+        match *self {
+            RecordInformation::TournamentFinal { old_sum, .. } => old_sum,
+            RecordInformation::Match(Match { old_sum, .. }) => old_sum,
+        }
+    }
+
+    fn new_sum(&self) -> f64 {
+        match *self {
+            RecordInformation::TournamentFinal { new_sum, .. } => new_sum,
+            RecordInformation::Match(Match { new_sum, .. }) => new_sum,
+        }
+    }
+}
+
+
+#[derive(Debug)]
+struct Information {
+    is_tournament: bool,
+    records: Vec<RecordInformation>,
+    hourly: Vec<Hourly>,
+    statistics: Statistics,
+}
+
+impl Information {
+    fn new<A: Strategy>(records: &[Record], mode: ChartMode<A>, days_shown: Option<u32>) -> Self {
+        fn add_hourly(rounded: &mut BTreeMap<u64, Hourly>, record: &Record) {
+            let rounded_date = round_to_hour(record.date);
+
+            // TODO verify that the `as 64` is correct
+            let hourly = rounded.entry(rounded_date as u64).or_insert_with(|| Hourly {
+                date: rounded_date,
+                bettors: 0.0,
+                bet_amount: 0.0,
+            });
+
+            hourly.bettors += record.left.bettors() + record.right.bettors();
+            hourly.bet_amount += record.left.bet_amount + record.right.bet_amount;
+        }
+
+
+        let mut simulation: Simulation<A, A> = Simulation::new();
+
+
+        let starting_date = days_shown.map(|days_shown| subtract_days(*CURRENT_DATE, days_shown));
+
+
+        let is_tournament = match mode {
+            ChartMode::SimulateTournament { .. } => true,
+            _ => false,
+        };
+
+
         let mut output: Vec<RecordInformation> = vec![];
+
+        let mut hourly = BTreeMap::new();
+
+        let mut total_len = 0.0;
 
         //simulation.sum = PERCENTAGE_THRESHOLD;
 
         match mode {
-            ChartMode::SimulateTournament { strategy, reset_money } => {
+            ChartMode::SimulateTournament { strategy, reset_money, extra_data } => {
                 simulation.tournament_strategy = Some(strategy);
 
                 if extra_data {
@@ -110,81 +194,97 @@ impl RecordInformation {
                     }
                 }
 
-                let mut date_cutoff: Option<f64> = None;
+                if reset_money {
+                    simulation.sum = TOURNAMENT_BALANCE;
+                }
+
+                //let mut date_cutoff: Option<f64> = None;
 
                 for record in records {
-                    // TODO code duplication
-                    if reset_money {
-                        if let Some(old_date) = date_cutoff {
-                            if record.date > old_date {
-                                simulation.sum = TOURNAMENT_BALANCE;
-                                date_cutoff = Some(add_days(old_date, days_shown));
-                            }
-
-                        // TODO implement this more efficiently
-                        } else {
-                            let mut ending_date = state.starting_date();
-
-                            while ending_date > record.date {
-                                ending_date = subtract_days(ending_date, days_shown);
-                            }
-
-                            date_cutoff = Some(add_days(ending_date, days_shown));
-                        }
+                    if let Mode::Tournament = record.mode {
+                        total_len += 1.0;
                     }
 
-                    let old_sum = simulation.sum;
-                    let old_tournament_sum = simulation.tournament_sum;
+                    if starting_date.map(|starting_date| record.date >= starting_date).unwrap_or(true) {
+                        add_hourly(&mut hourly, record);
 
-                    let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+                        // TODO code duplication
+                        /*if reset_money {
+                            if let Some(starting_date) = starting_date {
+                                if let Some(old_date) = date_cutoff {
+                                    if record.date > old_date {
+                                        simulation.sum = TOURNAMENT_BALANCE;
+                                        date_cutoff = Some(add_days(old_date, days_shown));
+                                    }
 
-                    let tournament_profit = simulation.tournament_profit(&record);
+                                // TODO implement this more efficiently
+                                } else {
+                                    let mut ending_date = starting_date;
 
-                    let bet = if let Mode::Tournament = record.mode {
-                        simulation.bet(&record)
+                                    while ending_date > record.date {
+                                        ending_date = subtract_days(ending_date, days_shown);
+                                    }
+
+                                    date_cutoff = Some(add_days(ending_date, days_shown));
+                                }
+                            }
+                        }*/
+
+                        let old_sum = simulation.sum;
+                        let old_tournament_sum = simulation.tournament_sum;
+
+                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+
+                        let tournament_profit = simulation.tournament_profit(&record);
+
+                        let bet = if let Mode::Tournament = record.mode {
+                            simulation.bet(&record)
+
+                        } else {
+                            Bet::None
+                        };
+
+                        // TODO should this skip if it's Bet::None ?
+                        simulation.calculate(&record, &bet);
+
+                        let new_sum = simulation.sum;
+                        let new_tournament_sum = simulation.tournament_sum;
+
+                        if let Some(_amount) = bet.amount() {
+                            let date = record.date;
+
+                            let profit = Profit::from_old_new(old_tournament_sum, new_tournament_sum);
+
+                            output.push(RecordInformation::Match(Match {
+                                date,
+                                profit,
+                                old_sum: old_tournament_sum,
+                                new_sum: new_tournament_sum,
+                                match_len,
+                                characters: (record.left.name.clone(), record.right.name.clone()),
+                                mode: record.mode,
+                                won: record.won(&bet),
+                                odds: record.odds(&bet),
+                                odds_winner: record.odds_winner(&bet),
+                                bet,
+                            }));
+                        }
+
+                        if let Some(tournament_profit) = tournament_profit {
+                            let date = record.date;
+
+                            assert_eq!(tournament_profit, (new_sum - old_sum));
+
+                            output.push(RecordInformation::TournamentFinal {
+                                date,
+                                profit: tournament_profit,
+                                old_sum: old_sum,
+                                new_sum: new_sum,
+                            });
+                        }
 
                     } else {
-                        Bet::None
-                    };
-
-                    simulation.calculate(&record, &bet);
-
-                    let new_sum = simulation.sum;
-                    let new_tournament_sum = simulation.tournament_sum;
-
-                    if let Some(_amount) = bet.amount() {
-                        let date = record.date;
-
-                        let profit = Profit::from_old_new(old_tournament_sum, new_tournament_sum);
-
-                        output.push(RecordInformation::Match(Match {
-                            date,
-                            profit,
-                            old_sum: old_tournament_sum,
-                            new_sum: new_tournament_sum,
-                            match_len,
-                            characters: (record.left.name.clone(), record.right.name.clone()),
-                            mode: record.mode,
-                            won: record.won(&bet),
-                            odds: record.odds(&bet),
-                            odds_winner: record.odds_winner(&bet),
-                            bet,
-                            bettors: record.left.bettors() + record.right.bettors(),
-                            bet_amount: record.left.bet_amount + record.right.bet_amount,
-                        }));
-                    }
-
-                    if let Some(tournament_profit) = tournament_profit {
-                        let date = record.date;
-
-                        assert_eq!(tournament_profit, (new_sum - old_sum));
-
-                        output.push(RecordInformation::TournamentFinal {
-                            date,
-                            profit: tournament_profit,
-                            old_sum: old_sum,
-                            new_sum: new_sum,
-                        });
+                        simulation.skip(record);
                     }
 
                     if !extra_data {
@@ -193,7 +293,7 @@ impl RecordInformation {
                 }
             },
 
-            ChartMode::SimulateMatchmaking { strategy, reset_money } => {
+            ChartMode::SimulateMatchmaking { strategy, reset_money, extra_data } => {
                 simulation.matchmaking_strategy = Some(strategy);
 
                 //let mut index: f64 = 0.0;
@@ -204,75 +304,84 @@ impl RecordInformation {
                     }
                 }
 
-                let mut date_cutoff: Option<f64> = None;
+                //let mut date_cutoff: Option<f64> = None;
 
                 if reset_money {
                     simulation.sum = MATCHMAKING_STARTING_MONEY;
                 }
 
                 for record in records {
-                    if reset_money {
-                        if let Some(old_date) = date_cutoff {
-                            if record.date > old_date {
-                                simulation.sum = MATCHMAKING_STARTING_MONEY;
-                                date_cutoff = Some(add_days(old_date, days_shown));
-                            }
-
-                        // TODO implement this more efficiently
-                        } else {
-                            let mut ending_date = state.starting_date();
-
-                            while ending_date > record.date {
-                                ending_date = subtract_days(ending_date, days_shown);
-                            }
-
-                            date_cutoff = Some(add_days(ending_date, days_shown));
-                        }
+                    if let Mode::Matchmaking = record.mode {
+                        total_len += 1.0;
                     }
 
-                    if //simulation.min_matches_len(&record.left.name, &record.right.name) >= 10.0 &&
-                       record.mode == Mode::Matchmaking {
+                    let date = record.date;
 
-                        let old_sum = simulation.sum;
+                    if starting_date.map(|starting_date| date >= starting_date).unwrap_or(true) {
+                        /*if reset_money {
+                            if let Some(starting_date) = starting_date {
+                                if let Some(old_date) = date_cutoff {
+                                    if record.date > old_date {
+                                        simulation.sum = MATCHMAKING_STARTING_MONEY;
+                                        date_cutoff = Some(add_days(old_date, days_shown));
+                                    }
 
-                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+                                // TODO implement this more efficiently
+                                } else {
+                                    let mut ending_date = starting_date;
 
-                        let tournament_profit = simulation.tournament_profit(&record);
+                                    while ending_date > record.date {
+                                        ending_date = subtract_days(ending_date, days_shown);
+                                    }
 
-                        let bet = simulation.bet(&record);
+                                    date_cutoff = Some(add_days(ending_date, days_shown));
+                                }
+                            }
+                        }*/
 
-                        if let Some(_amount) = bet.amount() {
-                            //if amount > 1.0 {
-                                simulation.calculate(&record, &bet);
+                        add_hourly(&mut hourly, record);
 
-                                simulation.sum -= tournament_profit.unwrap_or(0.0);
+                        if //simulation.min_matches_len(&record.left.name, &record.right.name) >= 10.0 &&
+                           record.mode == Mode::Matchmaking {
 
-                                let new_sum = simulation.sum;
+                            let old_sum = simulation.sum;
 
-                                simulation.insert_sum(new_sum);
+                            let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
 
-                                let profit = Profit::from_old_new(old_sum, new_sum);
+                            let tournament_profit = simulation.tournament_profit(&record);
 
-                                let date = record.date;
-                                //let date = index;
-                                //index += 1.0;
+                            let bet = simulation.bet(&record);
 
-                                output.push(RecordInformation::Match(Match {
-                                    date,
-                                    profit,
-                                    old_sum: old_sum,
-                                    new_sum: new_sum,
-                                    match_len,
-                                    characters: (record.left.name.clone(), record.right.name.clone()),
-                                    mode: record.mode,
-                                    won: record.won(&bet),
-                                    odds: record.odds(&bet),
-                                    odds_winner: record.odds_winner(&bet),
-                                    bet,
-                                    bettors: record.left.bettors() + record.right.bettors(),
-                                    bet_amount: record.left.bet_amount + record.right.bet_amount,
-                                }));
-                            //}
+                            if let Some(_amount) = bet.amount() {
+                                //if amount > 1.0 {
+                                    simulation.calculate(&record, &bet);
+
+                                    simulation.sum -= tournament_profit.unwrap_or(0.0);
+
+                                    let new_sum = simulation.sum;
+
+                                    simulation.insert_sum(new_sum);
+
+                                    let profit = Profit::from_old_new(old_sum, new_sum);
+
+                                    //let date = index;
+                                    //index += 1.0;
+
+                                    output.push(RecordInformation::Match(Match {
+                                        date,
+                                        profit,
+                                        old_sum: old_sum,
+                                        new_sum: new_sum,
+                                        match_len,
+                                        characters: (record.left.name.clone(), record.right.name.clone()),
+                                        mode: record.mode,
+                                        won: record.won(&bet),
+                                        odds: record.odds(&bet),
+                                        odds_winner: record.odds_winner(&bet),
+                                        bet,
+                                    }));
+                                //}
+                            }
                         }
                     }
 
@@ -291,6 +400,8 @@ impl RecordInformation {
                 //let input: Vec<&Record> = input.into_iter().filter(|record| record.mode == Mode::Matchmaking).collect();
 
                 for record in records {
+                    total_len += 1.0;
+
                     let date = record.date;
 
                     if record.sum != -1.0 {
@@ -303,6 +414,8 @@ impl RecordInformation {
                             },
                         }
                     }
+
+                    add_hourly(&mut hourly, record);
 
                     if days.map(|days| date >= days).unwrap_or(true) {
                         let old_sum = simulation.sum;
@@ -349,8 +462,6 @@ impl RecordInformation {
                                         odds: record.odds(&bet),
                                         odds_winner: record.odds_winner(&bet),
                                         bet,
-                                        bettors: record.left.bettors() + record.right.bettors(),
-                                        bet_amount: record.left.bet_amount + record.right.bet_amount,
                                     }));
                                 }
                             //}
@@ -365,35 +476,38 @@ impl RecordInformation {
             },
         }
 
-        output
-    }
+        let hourly: Vec<Hourly> = hourly.values().cloned().collect();
 
-    fn is_tournament(&self) -> bool {
-        match *self {
-            RecordInformation::TournamentFinal { .. } => true,
-            RecordInformation::Match { .. } => false,
+        Information {
+            is_tournament,
+            statistics: Statistics::new(&hourly, &output, is_tournament, total_len),
+            records: output,
+            hourly: hourly,
         }
     }
 
-    fn date(&self) -> f64 {
-        match *self {
-            RecordInformation::TournamentFinal { date, .. } => date,
-            RecordInformation::Match(Match { date, .. }) => date,
-        }
+    fn starting_money(&self) -> f64 {
+        self.records.iter().find(|x| {
+            if self.is_tournament {
+                x.is_tournament()
+            } else {
+                true
+            }
+        }).map(|x| x.old_sum()).unwrap_or(0.0)
     }
 
-    fn old_sum(&self) -> f64 {
-        match *self {
-            RecordInformation::TournamentFinal { old_sum, .. } => old_sum,
-            RecordInformation::Match(Match { old_sum, .. }) => old_sum,
-        }
+    fn final_money(&self) -> f64 {
+        self.records.iter().rfind(|x| {
+            if self.is_tournament {
+                x.is_tournament()
+            } else {
+                true
+            }
+        }).map(|x| x.new_sum()).unwrap_or(0.0)
     }
 
-    fn new_sum(&self) -> f64 {
-        match *self {
-            RecordInformation::TournamentFinal { new_sum, .. } => new_sum,
-            RecordInformation::Match(Match { new_sum, .. }) => new_sum,
-        }
+    fn total_gains(&self) -> f64 {
+        self.final_money() - self.starting_money()
     }
 }
 
@@ -459,6 +573,7 @@ impl RangeBuilder {
 #[derive(Debug, Clone)]
 struct Statistics {
     len: f64,
+    total_len: f64,
     wins: f64,
     upsets: f64,
 
@@ -484,13 +599,13 @@ struct Statistics {
 }
 
 impl Statistics {
-    fn new(information: &[RecordInformation], date: Range, is_tournament: bool) -> Self {
+    fn new(hourly: &[Hourly], records: &[RecordInformation], is_tournament: bool, total_len: f64) -> Self {
         let mut matches_len: f64 = 0.0;
         let mut len: f64 = 0.0;
         let mut wins: f64 = 0.0;
         let mut upsets: f64 = 0.0;
 
-        let mut seen_characters: BTreeSet<&str> = BTreeSet::new();
+        let mut seen_characters = BTreeSet::new();
         let mut number_of_characters: usize = 0;
 
         let mut average_odds: f64 = 0.0;
@@ -504,16 +619,21 @@ impl Statistics {
 
         let mut average_bet: f64 = 0.0;
 
+        let mut date = RangeBuilder::new();
         let mut bet = RangeBuilder::new();
         let mut money = RangeBuilder::new();
         let mut match_len = RangeBuilder::new();
         let mut bettors = RangeBuilder::new();
         let mut bet_amount = RangeBuilder::new();
 
-        for record in information {
-            //let date = record.date();
-            //let old_sum = record.old_sum();
-            //let new_sum = record.new_sum();
+        for hourly in hourly {
+            date.set(hourly.date);
+            bettors.set(hourly.bettors);
+            bet_amount.set(hourly.bet_amount);
+        }
+
+        for record in records {
+            date.set(record.date());
 
             match record {
                 RecordInformation::TournamentFinal { profit, old_sum, new_sum, .. } => {
@@ -528,9 +648,6 @@ impl Statistics {
                     len += 1.0;
                 },
                 RecordInformation::Match(m) => {
-                    bettors.set(m.bettors);
-                    bet_amount.set(m.bet_amount);
-
                     if !is_tournament {
                         money.set(m.old_sum);
                         money.set(m.new_sum);
@@ -595,8 +712,6 @@ impl Statistics {
             }
         }
 
-        //let len = information.len() as f64;
-
         Self {
             average_odds: average_odds / matches_len,
             odds_gain: odds_gain / matches_len,
@@ -604,98 +719,20 @@ impl Statistics {
             average_bet: average_bet / matches_len,
             wins: wins / matches_len,
             upsets: upsets / matches_len,
-            number_of_characters,
-            max_odds_loss, max_odds_gain, len, max_gain, max_loss,
+            number_of_characters: number_of_characters,
+            max_odds_loss: max_odds_loss,
+            max_odds_gain: max_odds_gain,
+            total_len: total_len,
+            len: len,
+            max_gain: max_gain,
+            max_loss: max_loss,
             bet: bet.into_range(0.0),
             money: money.into_range(0.0),
             match_len: match_len.into_range(0.0),
             bettors: bettors.into_range(0.0),
             bet_amount: bet_amount.into_range(0.0),
-            date,
+            date: date.into_range(0.0),
         }
-    }
-
-    /*fn merge(&self, other: &Self) -> Self {
-        Self {
-            max_gain: self.max_gain.max(other.max_gain),
-            max_loss: self.max_loss.max(other.max_loss),
-            max_bet: self.max_bet.max(other.max_bet),
-            min_bet: self.min_bet.min(other.min_bet),
-            max_money: self.max_money.max(other.max_money),
-            min_money: self.min_money.min(other.min_money),
-            lowest_date: self.lowest_date.min(other.lowest_date),
-            highest_date: self.highest_date.max(other.highest_date),
-        }
-    }*/
-}
-
-
-#[derive(Debug)]
-struct Information {
-    record_information: Vec<RecordInformation>,
-    recent_statistics: Statistics,
-    total_statistics: Statistics,
-}
-
-impl Information {
-    fn recent_information(state: &State, mut record_information: Vec<RecordInformation>) -> Vec<RecordInformation> {
-        let cutoff_date = state.starting_date();
-
-        // TODO is this faster than using filter ?
-        record_information.retain(|x| {
-            x.date() >= cutoff_date
-        });
-
-        record_information
-    }
-
-    fn new(state: &State, records: &[Record], record_information: Vec<RecordInformation>, is_tournament: bool, show_only_recent_data: bool) -> Self {
-        // TODO is this `false` correct ?
-        let total_statistics = Statistics::new(&record_information,
-            Range::new(records.first().map(|x| x.date).unwrap_or(0.0), *CURRENT_DATE),
-            is_tournament);
-
-        if show_only_recent_data {
-            let record_information = Self::recent_information(state, record_information);
-            let recent_statistics = Statistics::new(&record_information, Range::new(state.starting_date(), *CURRENT_DATE), is_tournament);
-
-            Self {
-                record_information,
-                recent_statistics,
-                total_statistics,
-            }
-
-        } else {
-            Self {
-                record_information,
-                recent_statistics: total_statistics.clone(),
-                total_statistics,
-            }
-        }
-    }
-
-    fn starting_money(record_information: &[RecordInformation], is_tournament: bool) -> f64 {
-        record_information.iter().find(|x| {
-            if is_tournament {
-                x.is_tournament()
-            } else {
-                true
-            }
-        }).map(|x| x.old_sum()).unwrap_or(0.0)
-    }
-
-    fn final_money(record_information: &[RecordInformation], is_tournament: bool) -> f64 {
-        record_information.iter().rfind(|x| {
-            if is_tournament {
-                x.is_tournament()
-            } else {
-                true
-            }
-        }).map(|x| x.new_sum()).unwrap_or(0.0)
-    }
-
-    fn total_gains(record_information: &[RecordInformation], is_tournament: bool) -> f64 {
-        Self::final_money(record_information, is_tournament) - Self::starting_money(record_information, is_tournament)
     }
 }
 
@@ -788,12 +825,10 @@ enum SimulationType {
 
 struct State {
     simulation_type: Mutable<Rc<SimulationType>>,
-    days_shown: Mutable<u32>,
+    days_shown: Mutable<Option<u32>>,
     money_type: Mutable<MoneyStrategy>,
-    hover_info: Mutable<bool>,
     hover_percentage: Mutable<Option<f64>>,
     average_sums: Mutable<bool>,
-    show_only_recent_data: Mutable<bool>,
     round_to_magnitude: Mutable<bool>,
     scale_by_matches: Mutable<bool>,
     scale_by_money: Mutable<bool>,
@@ -808,12 +843,10 @@ impl State {
     fn new(records: Vec<Record>) -> Self {
         let this = Self {
             simulation_type: Mutable::new(Rc::new(SimulationType::RealData)),
-            days_shown: Mutable::new(DEFAULT_DAYS_SHOWN),
+            days_shown: Mutable::new(Some(DEFAULT_DAYS_SHOWN)),
             money_type: Mutable::new(MoneyStrategy::Fixed),
-            hover_info: Mutable::new(false),
             hover_percentage: Mutable::new(None),
             average_sums: Mutable::new(false),
-            show_only_recent_data: Mutable::new(false),
             round_to_magnitude: Mutable::new(false),
             scale_by_matches: Mutable::new(false),
             scale_by_money: Mutable::new(false),
@@ -843,10 +876,10 @@ impl State {
         self.money_type.set_neq(strategy.money);
         self.average_sums.set_neq(strategy.average_sums);
 
-        self.show_only_recent_data.set_neq(if let Mode::Matchmaking = mode {
-            true
+        self.days_shown.set_neq(if let Mode::Matchmaking = mode {
+            Some(DEFAULT_DAYS_SHOWN)
         } else {
-            false
+            None
         });
 
         self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
@@ -858,10 +891,6 @@ impl State {
         } else {
             false
         });
-    }
-
-    fn starting_date(&self) -> f64 {
-        subtract_days(*CURRENT_DATE, self.days_shown.get())
     }
 
     fn average_sums(&self) -> bool {
@@ -876,12 +905,12 @@ impl State {
     async fn find_best(&self) {
         let reset_money = self.reset_money.get();
         let extra_data = self.extra_data.get();
-        let show_only_recent_data =  self.show_only_recent_data.get();
 
         let average_sums = self.average_sums();
         let scale_by_matches = self.scale_by_matches.get();
         let scale_by_money = self.scale_by_money.get();
         let round_to_magnitude = self.round_to_magnitude.get();
+        let simulation_mode = self.simulation_mode.get();
 
         let mut strategies = vec![];
 
@@ -901,36 +930,27 @@ impl State {
         let mut results = Vec::with_capacity(strategies.len());
 
         // TODO pre-calculate up to the recent data
-        let simulation = Simulation::new();
-
         for strategy in strategies {
-            let information = RecordInformation::calculate(
-                self,
-                simulation.clone(),
+            let information = Information::new(
                 &self.records,
-                match self.simulation_mode.get() {
+                match simulation_mode {
                     Mode::Matchmaking => ChartMode::SimulateMatchmaking {
                         reset_money,
+                        extra_data,
                         // TODO figure out a way to avoid this clone
                         strategy: strategy.clone(),
                     },
                     Mode::Tournament => ChartMode::SimulateTournament {
                         reset_money,
+                        extra_data,
                         // TODO figure out a way to avoid this clone
                         strategy: strategy.clone(),
                     },
                 },
-                extra_data
+                self.days_shown.get(),
             );
 
-            let information = if show_only_recent_data {
-                Information::recent_information(self, information)
-
-            } else {
-                information
-            };
-
-            let total_gains = Information::total_gains(&information, self.simulation_mode.get() == Mode::Tournament);
+            let total_gains = information.total_gains();
 
             results.push((total_gains, strategy));
 
@@ -959,7 +979,11 @@ impl State {
         let information = match **self.simulation_type.lock_ref() {
             SimulationType::RealData => {
                 let real: ChartMode<()> = ChartMode::RealData { days: None };
-                RecordInformation::calculate(self, Simulation::new(), &self.records, real, false)
+                Information::new(
+                    &self.records,
+                    real,
+                    self.days_shown.get(),
+                )
             },
 
             SimulationType::BetStrategy(ref bet_strategy) => {
@@ -973,21 +997,21 @@ impl State {
                     bet: bet_strategy.clone(),
                 };
 
-                RecordInformation::calculate(
-                    self,
-                    Simulation::new(),
+                Information::new(
                     &self.records,
                     match self.simulation_mode.get() {
                         Mode::Matchmaking => ChartMode::SimulateMatchmaking {
                             reset_money: self.reset_money.get(),
+                            extra_data: self.extra_data.get(),
                             strategy,
                         },
                         Mode::Tournament => ChartMode::SimulateTournament {
                             reset_money: self.reset_money.get(),
+                            extra_data: self.extra_data.get(),
                             strategy,
                         },
                     },
-                    self.extra_data.get()
+                    self.days_shown.get(),
                 )
             },
         //ChartMode::RealData { days: Some(7), matches: None }
@@ -996,7 +1020,7 @@ impl State {
         //ChartMode::SimulateMatchmaking(matchmaking_strategy())
         };
 
-        self.information.set(Some(Rc::new(Information::new(self, &self.records, information, self.simulation_mode.get() == Mode::Tournament, self.show_only_recent_data.get()))));
+        self.information.set(Some(Rc::new(information)));
     }
 
     fn show_options(&self) -> impl Signal<Item = bool> {
@@ -1028,7 +1052,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             .attribute("preserveAspectRatio", "none")
 
             .with_element(|dom, element| {
-                dom.global_event(clone!(state => move |e: MouseMoveEvent| {
+                dom.global_event(clone!(state => move |e: ClickEvent| {
                     // TODO don't hardcode this
                     let x = (e.client_x() as f64) - 5.0;
                     // TODO use get_bounding_client_rect instead
@@ -1042,7 +1066,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
             .children_signal_vec(state.information.signal_cloned().map(|information| {
                 if let Some(information) = information {
-                    let statistics = &information.recent_statistics;
+                    let statistics = &information.statistics;
 
                     let mut d_gains = vec![];
                     let mut d_losses = vec![];
@@ -1070,7 +1094,13 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                     let mut smooth_sums = vec![];
 
-                    for (_index, record) in information.record_information.iter().enumerate() {
+                    for hourly in information.hourly.iter() {
+                        let x = statistics.date.normalize(hourly.date) * 100.0;
+                        d_bettors.push(format!("L{},{}", x, statistics.bettors.reverse().normalize(hourly.bettors) * 100.0));
+                        d_bet_amount.push(format!("L{},{}", x, statistics.bet_amount.reverse().normalize(hourly.bet_amount) * 100.0));
+                    }
+
+                    for (_index, record) in information.records.iter().enumerate() {
                         let date = record.date();
 
                         //let x = normalize(index as f64, 0.0, len) * 100.0;
@@ -1085,9 +1115,6 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             },
                             RecordInformation::Match(m) => {
                                 if let Mode::Matchmaking = m.mode {
-                                    d_bettors.push(format!("L{},{}", x, statistics.bettors.reverse().normalize(m.bettors) * 100.0));
-                                    d_bet_amount.push(format!("L{},{}", x, statistics.bet_amount.reverse().normalize(m.bet_amount) * 100.0));
-
                                     d_match_len.push(format!("M{},{}L{},{}",
                                         x,
                                         100.0,
@@ -1246,7 +1273,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 .style("top", "0px")
                 .style("width", "1px")
                 .style("height", "100%")
-                .style("z-index", "1")
+                .style("z-index", "3")
                 .style("background-color", "white")
                 .style("pointer-events", "none")
             };
@@ -1272,10 +1299,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 })
             }))
 
-            .visible_signal(and(
-                state.hover_percentage.signal().map(|percentage| percentage.is_some()),
-                not(state.hover_info.signal())
-            ))
+            .visible_signal(state.hover_percentage.signal().map(|percentage| percentage.is_some()))
 
             .children(&mut [
                 html!("div", {
@@ -1308,29 +1332,35 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         let information = state.information.signal_cloned() => {
                             if let Some(percentage) = percentage {
                                 if let Some(information) = information {
-                                    let first_date = information.record_information.first().map(|x| x.date()).unwrap_or(0.0);
-                                    let last_date = information.record_information.last().map(|x| x.date()).unwrap_or(0.0);
+                                    let first_date = information.records.first().map(|x| x.date()).unwrap_or(0.0);
+                                    let last_date = information.records.last().map(|x| x.date()).unwrap_or(0.0);
 
                                     let date = range_inclusive(*percentage, first_date, last_date);
 
-                                    let mut index = 0;
+                                    let mut index = None;
                                     let mut difference = INFINITY;
 
                                     // TODO rewrite this with combinators ?
                                     // TODO make this more efficient
-                                    for (i, record) in information.record_information.iter().enumerate() {
+                                    for (i, record) in information.records.iter().enumerate() {
                                         let diff = (record.date() - date).abs();
 
                                         if diff < difference {
                                             difference = diff;
-                                            index = i;
+                                            index = Some(i);
                                         }
                                     }
 
-                                    //let index = information.record_information.binary_search_by(|a| a.date().partial_cmp(&date).unwrap());
+                                    //let index = information.binary_search_by(|a| a.date().partial_cmp(&date).unwrap());
 
-                                    let record = &information.record_information[index];
-                                    format!("{}\n{:#?}", index, record)
+                                    if let Some(index) = index {
+                                        let record = &information.records[index];
+                                        format!("{}\n{:#?}", index, record)
+
+                                    } else {
+                                        "".to_string()
+                                    }
+
                                     //format!("{}\n{:#?}\n{:#?}\n{:#?}\n{:#?}\n{:#?}", information.record_information.len(), first_date, date, percentage, index, difference)
 
                                 } else {
@@ -1362,51 +1392,51 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         html!("div", {
             .class(&*CLASS)
 
-            .text_signal(map_ref! {
-                let information = state.information.signal_cloned(),
-                let simulation_mode = state.simulation_mode.signal_cloned() => {
-                    if let Some(information) = information {
-                        let statistics = &information.recent_statistics;
-                        let starting_money = Information::starting_money(&information.record_information, *simulation_mode == Mode::Tournament);
-                        let final_money = Information::final_money(&information.record_information, *simulation_mode == Mode::Tournament);
+            .text_signal(state.information.signal_cloned().map(|information| {
+                if let Some(information) = information {
+                    let statistics = &information.statistics;
+                    let starting_money = information.starting_money();
+                    let final_money = information.final_money();
 
-                        let total_gains = final_money - starting_money;
-                        let average_gains = total_gains / statistics.len;
+                    let total_gains = final_money - starting_money;
+                    let average_gains = total_gains / statistics.len;
 
-                        format!("\
-                            Minimum: {min_money}\n\
-                            Maximum: {max_money}\n\
-                            Starting money: {starting_money}\n\
-                            Final money: {final_money}\n\
-                            Total gains: {total_gains}\n\
-                            Average gains: {average_gains}\n\
-                            Maximum gain: {max_gain}\n\
-                            Matches: {matches} (out of {total_matches})\n\
-                            Number of characters: {characters}\n\
-                            Average odds: {average_odds}\n\
-                            Average bet: {average_bet}\n\
-                            Winrate: {winrate}%\n\
-                            Upsets: {upsets}%",
-                            min_money = salty_bet_bot::money(statistics.money.min),
-                            max_money = salty_bet_bot::money(statistics.money.max),
-                            starting_money = salty_bet_bot::money(starting_money),
-                            final_money = salty_bet_bot::money(final_money),
-                            total_gains = salty_bet_bot::money(total_gains),
-                            average_gains = salty_bet_bot::money(average_gains),
-                            max_gain = salty_bet_bot::money(statistics.max_gain),
-                            matches = decimal(statistics.len),
-                            total_matches = decimal(information.total_statistics.len),
-                            characters = statistics.number_of_characters,
-                            average_odds = statistics.average_odds,
-                            average_bet = salty_bet_bot::money(statistics.average_bet),
-                            winrate = statistics.wins * 100.0,
-                            upsets = statistics.upsets * 100.0)
+                    format!("\
+                        Minimum: {min_money}\n\
+                        Maximum: {max_money}\n\
+                        Starting money: {starting_money}\n\
+                        Final money: {final_money}\n\
+                        Total gains: {total_gains}\n\
+                        Average gains: {average_gains}\n\
+                        Maximum gain: {max_gain}\n\
+                        Matches: {matches} (out of {total_matches})\n\
+                        Number of characters: {characters}\n\
+                        Average odds: {average_odds}\n\
+                        Average bet: {average_bet}\n\
+                        Winrate: {winrate}%\n\
+                        Upsets: {upsets}%",
+                        min_money = salty_bet_bot::money(statistics.money.min),
+                        max_money = salty_bet_bot::money(statistics.money.max),
+                        starting_money = salty_bet_bot::money(starting_money),
+                        final_money = salty_bet_bot::money(final_money),
+                        total_gains = salty_bet_bot::money(total_gains),
+                        average_gains = salty_bet_bot::money(average_gains),
+                        max_gain = salty_bet_bot::money(statistics.max_gain),
 
-                    } else {
-                        "".to_string()
-                    }
+                        // TODO are these correct ?
+                        matches = decimal(statistics.len),
+                        total_matches = decimal(statistics.total_len),
+
+                        characters = statistics.number_of_characters,
+                        average_odds = statistics.average_odds,
+                        average_bet = salty_bet_bot::money(statistics.average_bet),
+                        winrate = statistics.wins * 100.0,
+                        upsets = statistics.upsets * 100.0)
+
+                } else {
+                    "".to_string()
                 }
-            })
+            }))
         })
     }
 
@@ -1556,7 +1586,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
         .class(&*CLASS_ROOT)
 
         .children(&mut [
-            //make_info_popup(state.clone()),
+            make_info_popup(state.clone()),
 
             svg_root(state.clone()),
 
@@ -1564,12 +1594,8 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 .class(&*CLASS_ROW)
                 .class(&*CLASS_INFO)
 
-                .event(clone!(state => move |_: MouseEnterEvent| {
-                    state.hover_info.set_neq(true);
-                }))
-
-                .event(clone!(state => move |_: MouseLeaveEvent| {
-                    state.hover_info.set_neq(false);
+                .event(clone!(state => move |_: ClickEvent| {
+                    state.hover_percentage.set_neq(None);
                 }))
 
                 .children(&mut [
@@ -1686,7 +1712,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     .attribute("step", "1")
 
                                     .property_signal("value", state.days_shown.signal()
-                                        .map(|x| x.to_string()))
+                                        .map(|x| {
+                                            x.map(|x| x.to_string()).unwrap_or_else(|| "".to_string())
+                                        }))
 
                                     .style("width", "55px")
                                     .style("height", "20px")
@@ -1696,22 +1724,27 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                                     .with_element(|dom, element| {
                                         dom.event(clone!(state => move |_: ChangeEvent| {
-                                            if let Ok(days) = element.raw_value().parse() {
-                                                if days > 0 {
-                                                    state.days_shown.set(days);
-                                                    return;
+                                            let value = element.raw_value();
+                                            let value = value.trim();
+
+                                            if value == "" {
+                                                state.days_shown.set(None);
+
+                                            } else {
+                                                if let Ok(days) = value.parse() {
+                                                    state.days_shown.set(Some(days));
+
+                                                } else {
+                                                    // TODO hacky, should have an `invalidate` method or similar
+                                                    state.days_shown.set(state.days_shown.get());
                                                 }
                                             }
-
-                                            // TODO hacky, should have an `invalidate` method or similar
-                                            state.days_shown.set(state.days_shown.get());
                                         }))
                                     })
                                 }),
                                 text(" days shown"),
                             ]),
 
-                            make_checkbox("Show only recent data", state.show_only_recent_data.clone(), always(true)),
                             make_checkbox("Use average for current money", state.average_sums.clone(), and(state.show_options(), not(state.is_tournament()))),
                             make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone(), state.show_options()),
                             make_checkbox("Scale by match length", state.scale_by_matches.clone(), state.show_options()),

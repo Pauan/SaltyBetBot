@@ -832,6 +832,12 @@ fn main() {
 
     log!("Initializing...");
 
+    js! {
+        // Same as Twitch chat
+        document.body.style.fontFamily = "Roobert, Helvetica Neue, Helvetica, Arial, sans-serif";
+        document.getElementById("sbettorswrapper").style.fontFamily = "monospace";
+    }
+
     let container = Rc::new(InfoContainer::new());
 
     wait_until_defined(|| query("#iframeplayer"), clone!(container => move |video: Element| {

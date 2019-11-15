@@ -552,10 +552,7 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
     return {
         imports: {
             env: {
-                "__cargo_web_snippet_05a27a55a494fd5964d28e50fdae41f4515e715f": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "mouseleave") | 0;
-            },
-            "__cargo_web_snippet_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
+                "__cargo_web_snippet_083355932727e223f4e97ad2821c57acddf89e7a": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof CSSStyleRule) | 0;
             },
             "__cargo_web_snippet_08d3579ce78218a65f6c5f85e9e7b5709a526dda": function($0) {
@@ -594,9 +591,6 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__cargo_web_snippet_2034053b7b6771271a2dad3e5416b045a74488a1": function($0, $1, $2, $3) {
                 Module.STDWEB_PRIVATE.acquire_js_reference( $0 ).setTimeout( function() {Module.STDWEB_PRIVATE.dyncall( 'vi', $1, [$2] );}, $3 );
             },
-            "__cargo_web_snippet_216c7045bad0aa79bff1f8b10b0e7a61cd417ecb": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "mousemove") | 0;
-            },
             "__cargo_web_snippet_22aaca68a56a4b4a743abb901247462808b823f8": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return($1).style.getPropertyValue(($2));})());
             },
@@ -621,17 +615,14 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__cargo_web_snippet_307cb0b9c64887c558be26bdc6920a7881724978": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);var timer=($0);clearTimeout(timer.id);timer.callback.drop();
             },
-            "__cargo_web_snippet_33c9ffa61a585b5eccd2ff272475014b5c29e82e": function($0) {
-                var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof MouseEvent && o.type === "mouseenter") | 0;
-            },
             "__cargo_web_snippet_351b27505bc97d861c3914c20421b6277babb53b": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Node) | 0;
             },
             "__cargo_web_snippet_352943ae98b2eeb817e36305c3531d61c7e1a52b": function($0) {
                 var o = Module.STDWEB_PRIVATE.acquire_js_reference( $0 );return (o instanceof Element) | 0;
             },
-            "__cargo_web_snippet_3937d807c34cbb8802d5da3d2b10b48558fb47de": function($0, $1, $2) {
-                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var date=new Date(($1));date.setUTCDate(date.getUTCDate()+($2));return date.getTime();})());
+            "__cargo_web_snippet_3b9365b80826a439e2ef4ae0ef2dc374ac0c4ce8": function($0, $1) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var date=new Date(($1));date.setUTCMinutes(0,0,0);return date.getTime();})());
             },
             "__cargo_web_snippet_3f33f89cefa183d643abf13f4521e5f40cc8e897": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);($0).style.display="none";
@@ -686,6 +677,9 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             },
             "__cargo_web_snippet_7ba9f102925446c90affc984f921f414615e07dd": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return($1).body;})());
+            },
+            "__cargo_web_snippet_7d0d9521b76e89cd2d63668341ff0f953cb5c743": function($0, $1) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0).classList.remove(($1));
             },
             "__cargo_web_snippet_80d6d56760c65e49b7be8b6b01c1ea861b046bf0": function($0) {
                 Module.STDWEB_PRIVATE.decrement_refcount( $0 );
