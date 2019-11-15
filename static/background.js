@@ -567,9 +567,6 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__cargo_web_snippet_1952cd663a71ff1f0beadbba9c6260bc3b79a8c6": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);($0).createObjectStore("records",{autoIncrement:true});
             },
-            "__cargo_web_snippet_19601976d5e4c44471064101006a11259c11bce4": function($0) {
-                Module.STDWEB_PRIVATE.from_js($0, (function(){return new Promise(function(resolve,reject){chrome.tabs.create({url:"https://www.twitch.tv/embed/saltybet/chat?darkpopout",active:false},function(tab){if(chrome.runtime.lastError !=null){reject(new Error(chrome.runtime.lastError.message));}else{resolve();}});});})());
-            },
             "__cargo_web_snippet_199d5eb25dfe761687bcd487578eb7e636bd9650": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);console.log(($0));
             },
@@ -602,6 +599,9 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             },
             "__cargo_web_snippet_65ad0053508f714b2a5210912d57d5a760f9e4ea": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){var callback=($1);function listener(message,_sender,reply){callback(message,reply);return true;}chrome.runtime.onMessage.addListener(listener);return function(){chrome.runtime.onMessage.removeListener(listener);callback.drop();};})());
+            },
+            "__cargo_web_snippet_6d20fd36f091c6068e953266e1c3c66c10546ed5": function($0) {
+                $0 = Module.STDWEB_PRIVATE.to_js($0);($0).disconnect();
             },
             "__cargo_web_snippet_6fd941849f61c0b1fd850b2fc81d59c82aebe0e8": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var upgrade_needed=($1);return new Promise(function(resolve,reject){var request=indexedDB.open("",($2));request.onupgradeneeded=function(event){upgrade_needed(event.target.result,event.oldVersion,event.newVersion);};request.onsuccess=function(event){upgrade_needed.drop();resolve(event.target.result);};request.onblocked=function(){upgrade_needed.drop();reject(new Error("Database is blocked"));};request.onerror=function(event){upgrade_needed.drop();reject(event);};});})());

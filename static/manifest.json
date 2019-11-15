@@ -32,13 +32,13 @@
     "all_frames": false
   }, {
     "matches": [
-      "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
+      "https://*.twitch.tv/embed/saltybet/chat?darkpopout"
     ],
     "js": [
       "twitch_chat.js"
     ],
     "run_at": "document_start",
-    "all_frames": false
+    "all_frames": true
   }],
   "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",
   "web_accessible_resources": [

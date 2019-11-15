@@ -14,13 +14,14 @@ extern crate futures_signals;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, create_tab, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
+use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
 use stdweb::spawn_local;
 use stdweb::web::{set_timeout, INode, Node, NodeList, Element};
 use stdweb::web::error::Error;
+use futures_core::Stream;
 use futures_util::stream::StreamExt;
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
 use dominator::{Dom, HIGHEST_ZINDEX};
@@ -245,7 +246,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
 
 
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
-pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
+pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Stream<Item = Vec<WaifuMessage>> + 'static {
     let mut old_closed: Option<WaifuBetsClosed> = None;
     let mut mode_switch: Option<f64> = None;
 
@@ -451,7 +452,7 @@ pub fn observe_changes(state: Rc<RefCell<State>>, port: Port) {
     };
 
     spawn_local(
-        port.messages().for_each(move |messages| {
+        messages.for_each(move |messages| {
             process_messages(messages);
             async {}
         })
@@ -762,6 +763,10 @@ impl InfoContainer {
 async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
     let port = Port::connect("saltybet");
 
+    // TODO wait until after records are received before it starts queueing messages
+    //      (but it still has to listen to on_disconnect before receiving the records)
+    let messages = port.messages();
+
     let records = records_get_all().await?;
     //let matches = migrate_records(matches);
 
@@ -795,7 +800,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
         info_container: container,
     }));
 
-    observe_changes(state.clone(), port);
+    observe_changes(state.clone(), messages);
 
     fn loop_bet(state: Rc<RefCell<State>>) {
         lookup_bet(&state);
@@ -816,15 +821,6 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
 }
 
 
-async fn initialize_tab() -> Result<(), Error> {
-    create_tab().await?;
-
-    log!("Tab created");
-
-    Ok(())
-}
-
-
 fn main() {
     stdweb::initialize();
 
@@ -832,11 +828,13 @@ fn main() {
 
     log!("Initializing...");
 
-    js! {
-        // Same as Twitch chat
-        document.body.style.fontFamily = "Roobert, Helvetica Neue, Helvetica, Arial, sans-serif";
-        document.getElementById("sbettorswrapper").style.fontFamily = "monospace";
-    }
+    wait_until_defined(|| query("#sbettorswrapper"), move |wrapper: Element| {
+        js! {
+            // Same as Twitch chat
+            document.body.style.fontFamily = "Roobert, Helvetica Neue, Helvetica, Arial, sans-serif";
+            @{wrapper}.style.fontFamily = "monospace";
+        }
+    });
 
     let container = Rc::new(InfoContainer::new());
 
@@ -937,8 +935,6 @@ fn main() {
     });*/
 
     spawn(initialize_state(container));
-
-    spawn(initialize_tab());
 
     // Reloads the page every 24 hours, just in case something screwed up on saltybet.com
     // Normally this doesn't happen, because it reloads the page at the start of exhibitions

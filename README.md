@@ -17,14 +17,10 @@ Before you install this extension, make sure that you have [Git](https://git-scm
 
 6. You can now go to [saltybet.com](http://www.saltybet.com/) and it will start to bet automatically.
 
-7. It will automatically open up a second twitch.tv tab, keep it open! It is necessary for *both* tabs to be open in order for the extension to work.
-
-   If you accidentally close the twitch.tv tab, just refresh the saltybet.com tab and it will re-open it.
-
 How to upgrade
 ==============
 
-1. Make sure that all of the SaltyBet and Twitch.tv tabs are closed.
+1. Make sure that all of the SaltyBet tabs are closed.
 
 2. Click on the square "S" button in the upper-right corner, and then Export your match records (just in case something goes wrong with the upgrade process).
 
@@ -34,7 +30,7 @@ How to upgrade
 
 5. Find "Salty Bet Bot" in the extensions list, and then click the reload button (it looks like a circular arrow).
 
-6. Wait for 10 seconds (this gives it time to read the new data).
+6. Wait for 10 seconds (this gives it time to read the new data). It will merge the new data with your existing data.
 
 7. Re-open the [saltybet.com](http://www.saltybet.com/) website.
 

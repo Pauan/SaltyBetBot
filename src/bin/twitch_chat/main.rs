@@ -26,8 +26,13 @@ extern crate lazy_static;
 extern crate salty_bet_bot;
 #[macro_use]
 extern crate stdweb;
+#[macro_use]
+extern crate dominator;
 
 use std::iter::Iterator;
+use std::rc::Rc;
+use std::cell::RefCell;
+use discard::DiscardOnDrop;
 use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook, reload_page, Debouncer};
 use algorithm::record::{Tier, Mode, Winner};
 use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode};
@@ -242,7 +247,7 @@ pub fn observe_changes() {
 
     let port = Port::connect("twitch_chat");
 
-    let observer = MutationObserver::new(move |records, _| {
+    let observer = MutationObserver::new(clone!(port => move |records, _| {
         let now: f64 = Date::now();
 
         let messages: Vec<WaifuMessage> = records.into_iter().filter_map(|record| {
@@ -264,7 +269,13 @@ pub fn observe_changes() {
         if messages.len() != 0 {
             port.send_message(&messages);
         }
-    });
+    }));
+
+    let observer = Rc::new(RefCell::new(Some(observer)));
+
+    DiscardOnDrop::leak(port.on_disconnect(clone!(observer => move |_| {
+        *observer.borrow_mut() = None;
+    })));
 
     /*wait_until_defined(|| query("body"), move |body| {
         js! { @(no_return)
@@ -275,20 +286,22 @@ pub fn observe_changes() {
     });*/
 
     wait_until_defined(|| query("[data-a-target='chat-welcome-message']"), move |welcome| {
-        observer.observe(&welcome.parent_node().unwrap(), MutationObserverInit {
-            child_list: true,
-            attributes: false,
-            character_data: false,
-            subtree: false,
-            attribute_old_value: false,
-            character_data_old_value: false,
-            attribute_filter: None,
-        }).unwrap();
+        if let Some(observer) = observer.borrow().as_ref() {
+            observer.observe(&welcome.parent_node().unwrap(), MutationObserverInit {
+                child_list: true,
+                attributes: false,
+                character_data: false,
+                subtree: false,
+                attribute_old_value: false,
+                character_data_old_value: false,
+                attribute_filter: None,
+            }).unwrap();
 
-        // TODO use observer.leak()
-        std::mem::forget(observer);
+            log!("Observer initialized");
 
-        log!("Observer initialized");
+        } else {
+            log!("Port disconnected");
+        }
     });
 }
 

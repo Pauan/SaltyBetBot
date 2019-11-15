@@ -15,12 +15,11 @@ use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{set_panic_hook, spawn, get_added_records, Message, Tab, Port, on_message, WaifuMessage};
+use salty_bet_bot::{set_panic_hook, spawn, get_added_records, Message, Tab, Port, Listener, on_message, WaifuMessage};
 use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 use futures_util::try_future::{try_join, try_join_all};
-use futures_util::stream::StreamExt;
 
 
 // TODO cancellation
@@ -34,24 +33,6 @@ fn fetch(url: &str) -> PromiseFuture<String> {
         // TODO check HTTP status codes ?
         }).then(function (response) {
             return response.text();
-        });
-    ).try_into().unwrap()
-}
-
-fn create_twitch_tab() -> PromiseFuture<()> {
-    js!(
-        return new Promise(function (resolve, reject) {
-            chrome.tabs.create({
-                url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout",
-                active: false
-            }, function (tab) {
-                if (chrome.runtime.lastError != null) {
-                    reject(new Error(chrome.runtime.lastError.message));
-
-                } else {
-                    resolve();
-                }
-            });
         });
     ).try_into().unwrap()
 }
@@ -226,25 +207,13 @@ impl Db {
 }
 
 
-fn remove_value<A>(vec: &mut Vec<A>, value: A) -> bool where A: PartialEq {
-    if let Some(index) = vec.iter().position(|x| *x == value) {
+fn remove_value<A, F>(vec: &mut Vec<A>, f: F) -> bool where F: FnMut(&A) -> bool {
+    if let Some(index) = vec.iter().position(f) {
         vec.swap_remove(index);
         true
 
     } else {
         false
-    }
-}
-
-fn remove_ports(ports: &mut Vec<Port>) -> impl Future<Output = Result<(), Error>> {
-    let tabs: Vec<Tab> = ports.drain(..).map(|port| port.tab().unwrap()).collect();
-
-    async move {
-        if tabs.len() > 0 {
-            remove_tabs(&tabs).await?;
-        }
-
-        Ok(())
     }
 }
 
@@ -358,11 +327,6 @@ async fn main_future() -> Result<(), Error> {
                 Message::DeleteAllRecords => reply_result!({
                     db.delete_all_records().await?;
                 }),
-                Message::OpenTwitchChat => reply_result!({
-                    // TODO maybe this is okay ?
-                    //remove_twitch_tabs().await?;
-                    create_twitch_tab().await?;
-                }),
                 Message::ServerLog(message) => reply!({
                     console!(log, message);
                 }),
@@ -370,9 +334,37 @@ async fn main_future() -> Result<(), Error> {
         })
     }));
 
+
+    struct SaltyBet {
+        port: Port,
+        _on_disconnect: DiscardOnDrop<Listener>,
+    }
+
+    impl Drop for SaltyBet {
+        #[inline]
+        fn drop(&mut self) {
+            self.port.disconnect();
+        }
+    }
+
+
+    struct TwitchChat {
+        port: Port,
+        _on_message: DiscardOnDrop<Listener>,
+        _on_disconnect: DiscardOnDrop<Listener>,
+    }
+
+    impl Drop for TwitchChat {
+        #[inline]
+        fn drop(&mut self) {
+            self.port.disconnect();
+        }
+    }
+
+
     struct State {
-        salty_bet_ports: Vec<Port>,
-        twitch_chat_ports: Vec<Port>,
+        salty_bet_ports: Vec<SaltyBet>,
+        twitch_chat_ports: Vec<TwitchChat>,
     }
 
     let state = Rc::new(RefCell::new(State {
@@ -385,63 +377,63 @@ async fn main_future() -> Result<(), Error> {
     DiscardOnDrop::leak(Port::on_connect(move |port| {
         match port.name().as_str() {
             "saltybet" => spawn(clone!(state => async move {
-                let a = {
+                {
                     let mut lock = state.borrow_mut();
 
-                    let future = remove_ports(&mut lock.salty_bet_ports);
+                    let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
 
-                    lock.salty_bet_ports.push(port.clone());
+                    let future = async move {
+                        if tabs.len() > 0 {
+                            remove_tabs(&tabs).await?;
+                        }
+
+                        Ok(())
+                    };
+
+                    let on_disconnect = port.on_disconnect(clone!(state => move |port| {
+                        let mut lock = state.borrow_mut();
+
+                        assert!(remove_value(&mut lock.salty_bet_ports, |x| x.port == port));
+                    }));
+
+                    lock.salty_bet_ports.push(SaltyBet {
+                        port,
+                        _on_disconnect: on_disconnect,
+                    });
 
                     future
-                };
-
-                DiscardOnDrop::leak(port.on_disconnect(move |port| {
-                    let mut lock = state.borrow_mut();
-
-                    if remove_value(&mut lock.salty_bet_ports, port) {
-                        if lock.salty_bet_ports.len() == 0 {
-                            spawn(remove_ports(&mut lock.twitch_chat_ports));
-                        }
-                    }
-                }));
-
-                a.await
+                }.await
             })),
 
             "twitch_chat" => spawn(clone!(state => async move {
-                let a = {
+                let mut lock = state.borrow_mut();
+
+                lock.twitch_chat_ports.clear();
+
+                let on_message = port.on_message(clone!(state => move |message: Vec<WaifuMessage>| {
+                    let lock = state.borrow();
+
+                    assert!(lock.salty_bet_ports.len() <= 1);
+                    assert_eq!(lock.twitch_chat_ports.len(), 1);
+
+                    for x in lock.salty_bet_ports.iter() {
+                        x.port.send_message(&message);
+                    }
+                }));
+
+                let on_disconnect = port.on_disconnect(clone!(state => move |port| {
                     let mut lock = state.borrow_mut();
 
-                    let future = remove_ports(&mut lock.twitch_chat_ports);
+                    assert!(remove_value(&mut lock.twitch_chat_ports, |x| x.port == port));
+                }));
 
-                    lock.twitch_chat_ports.push(port.clone());
+                lock.twitch_chat_ports.push(TwitchChat {
+                    port,
+                    _on_message: on_message,
+                    _on_disconnect: on_disconnect,
+                });
 
-                    future
-                };
-
-                DiscardOnDrop::leak(port.on_disconnect(clone!(state => move |port| {
-                    let mut lock = state.borrow_mut();
-
-                    remove_value(&mut lock.twitch_chat_ports, port);
-                })));
-
-                let b = async {
-                    port.messages().for_each(|message: Vec<WaifuMessage>| {
-                        let lock = state.borrow();
-
-                        assert!(lock.salty_bet_ports.len() <= 1);
-
-                        for port in lock.salty_bet_ports.iter() {
-                            port.send_message(&message);
-                        }
-
-                        async {}
-                    }).await;
-
-                    Ok(())
-                };
-
-                try_join(a, b).await.map(|_| {})
+                Ok(())
             })),
 
             name => {

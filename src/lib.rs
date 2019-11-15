@@ -305,12 +305,7 @@ pub enum Message {
 
     InsertRecords(Vec<Record>),
     DeleteAllRecords,
-    OpenTwitchChat,
     ServerLog(String),
-}
-
-pub async fn create_tab() -> Result<(), Error> {
-    send_message_result(&Message::OpenTwitchChat).await
 }
 
 pub async fn records_get_all() -> Result<Vec<Record>, Error> {
@@ -634,6 +629,13 @@ impl Port {
         js!( return @{self}.sender.tab; ).try_into().unwrap()
     }
 
+    #[inline]
+    pub fn disconnect(&self) {
+        js! { @(no_return)
+            @{self}.disconnect();
+        }
+    }
+
     // TODO lazy initialization ?
     // TODO verify that dropping/cleanup/disconnect is handled correctly
     pub fn messages<A>(&self) -> impl Stream<Item = A> where A: DeserializeOwned + 'static {
@@ -655,15 +657,20 @@ impl Port {
 
         PortMessages {
             receiver,
-            _listener: self.on_message(move |message, _port| {
-                sender.unbounded_send(serde_json::from_str(&message).unwrap()).unwrap();
+            _listener: self.on_message(move |message| {
+                sender.unbounded_send(message).unwrap();
             }),
         }
     }
 
     #[inline]
-    fn on_message<A>(&self, f: A) -> DiscardOnDrop<Listener>
-        where A: FnMut(String, Self) + 'static {
+    pub fn on_message<A, F>(&self, mut f: F) -> DiscardOnDrop<Listener>
+        where A: DeserializeOwned,
+              F: FnMut(A) + 'static {
+
+        let f = move |message: String, _port: Port| {
+            f(serde_json::from_str(&message).unwrap());
+        };
 
         Listener::new(js!(
             var self = @{self};
