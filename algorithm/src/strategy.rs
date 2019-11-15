@@ -12,7 +12,8 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: true,
     scale_by_money: true,
-    money: MoneyStrategy::Fixed,
+    scale_by_time: false,
+    money: MoneyStrategy::Fixed(FIXED_BET_AMOUNT),
     bet: BetStrategy::UpsetsElo,
 };
 
@@ -29,17 +30,18 @@ pub const TOURNAMENT_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: false,
     scale_by_money: false,
+    scale_by_time: false,
     money: MoneyStrategy::Tournament,
     bet: BetStrategy::Elo,
 };
 
 
-lazy_static! {
+/*lazy_static! {
     pub static ref GENETIC_STRATEGY: Box<NeuralNetwork> = {
         let result: FitnessResult<CustomStrategy> = serde_json::from_str(&include_str!("../../strategies/2019-07-30T11.20.23 0 (matchmaking)")).unwrap();
         Box::new(result.creature.bet.unwrap_genetic().clone())
     };
-}
+}*/
 
 
 pub trait Permutate {
@@ -55,7 +57,7 @@ impl Permutate for bool {
 
 
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
-pub(crate) const FIXED_BET_AMOUNT: f64 = 70_000.0;
+pub const FIXED_BET_AMOUNT: f64 = 140_000.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 5.0;   // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 50.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
@@ -126,54 +128,6 @@ fn range_inclusive(percentage: f64, low: f64, high: f64) -> f64 {
     low + (percentage * (high - low))
 }
 
-fn bet_amount<A: Simulator>(simulation: &A, left: &str, right: &str, bet_amount: f64, round_to_magnitude: bool, scale_by_matches: bool, scale_by_money: bool) -> f64 {
-    let current_money = simulation.current_money();
-
-    if simulation.is_in_mines() {
-        current_money
-
-    } else {
-        // Bet high when at low money, to try and get out of mines faster
-        // When at low money, bet high. When at high money, bet at most MAXIMUM_BET_PERCENTAGE of current money
-        // TODO maybe tweak this
-        let bet_amount = if scale_by_money && current_money < PERCENTAGE_THRESHOLD {
-            return current_money * (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE);
-
-        } else {
-            // TODO verify that this is correct
-            if round_to_magnitude {
-                round_to_order_of_magnitude(bet_amount)
-
-            } else {
-                bet_amount
-            }
-        };
-
-        // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
-        let bet_amount = if scale_by_matches {
-            bet_amount * normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING)
-
-        } else {
-            bet_amount
-        };
-
-        // TODO is this necessary ?
-        let bet_amount = if scale_by_money {
-            bet_amount.min(current_money * MAXIMUM_BET_PERCENTAGE)
-
-        } else {
-            bet_amount
-        };
-
-        /*if current_money > MINIMUM_BET_AMOUNT / MAXIMUM_BET_PERCENTAGE && bet_amount < MINIMUM_BET_AMOUNT {
-            0.0
-
-        } else {*/
-            bet_amount
-        //}
-    }
-}
-
 fn weighted<A, F>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64, mut f: F) -> (f64, f64)
     where A: Simulator,
           F: FnMut(Vec<&Record>, &str, f64) -> f64 {
@@ -224,7 +178,7 @@ pub enum MoneyStrategy {
     BetDifference,
     BetDifferenceWinner,
     Percentage,
-    Fixed,
+    Fixed(f64),
     AllIn,
     Tournament,
 }
@@ -236,7 +190,7 @@ impl Permutate for MoneyStrategy {
         f(MoneyStrategy::BetDifference);
         f(MoneyStrategy::BetDifferenceWinner);
         f(MoneyStrategy::Percentage);
-        f(MoneyStrategy::Fixed);
+        f(MoneyStrategy::Fixed(FIXED_BET_AMOUNT));
         f(MoneyStrategy::AllIn);
         f(MoneyStrategy::Tournament);
     }
@@ -275,7 +229,7 @@ impl MoneyStrategy {
             MoneyStrategy::BetDifference => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::bet(records, name, bet))),
             MoneyStrategy::BetDifferenceWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
             MoneyStrategy::Percentage => (percentage, percentage),
-            MoneyStrategy::Fixed => (FIXED_BET_AMOUNT, FIXED_BET_AMOUNT),
+            MoneyStrategy::Fixed(x) => (*x, *x),
             MoneyStrategy::AllIn => (current_money, current_money),
             MoneyStrategy::Tournament => {
                 let bet = range_inclusive(normalize(current_money, 100_000.0, 60_000.0), 1.0 / 4.0, 1.0) * current_money;
@@ -339,7 +293,7 @@ impl Permutate for BetStrategy {
         f(BetStrategy::UpsetsElo);
         f(BetStrategy::Tournament);
         //f(BetStrategy::Random);
-        f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
+        //f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
     }
 }
 
@@ -478,8 +432,66 @@ pub struct CustomStrategy {
     pub scale_by_matches: bool,
     pub round_to_magnitude: bool,
     pub scale_by_money: bool,
+    pub scale_by_time: bool,
     pub money: MoneyStrategy,
     pub bet: BetStrategy,
+}
+
+impl CustomStrategy {
+    fn modify_bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, date: f64, bet_amount: f64) -> f64 {
+        let current_money = simulation.current_money();
+
+        if simulation.is_in_mines() {
+            current_money
+
+        } else {
+            // Bet high when at low money, to try and get out of mines faster
+            // When at low money, bet high. When at high money, bet at most MAXIMUM_BET_PERCENTAGE of current money
+            // TODO maybe tweak this
+            let bet_amount = if self.scale_by_money && current_money < PERCENTAGE_THRESHOLD {
+                return current_money * (SALT_MINE_AMOUNT / current_money).min(1.0).max(MAXIMUM_BET_PERCENTAGE);
+
+            } else {
+                // TODO verify that this is correct
+                if self.round_to_magnitude {
+                    round_to_order_of_magnitude(bet_amount)
+
+                } else {
+                    bet_amount
+                }
+            };
+
+            // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
+            let bet_amount = if self.scale_by_matches {
+                bet_amount * normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING)
+
+            } else {
+                bet_amount
+            };
+
+            let bet_amount = if self.scale_by_time {
+                range_inclusive(simulation.get_hourly_ratio(date), 0.5, 1.0) * bet_amount
+
+            } else {
+                bet_amount
+            };
+
+            // TODO is this necessary ?
+            let bet_amount = if self.scale_by_money {
+                bet_amount.min(current_money * MAXIMUM_BET_PERCENTAGE)
+
+            } else {
+                bet_amount
+            };
+
+            /*if current_money > MINIMUM_BET_AMOUNT / MAXIMUM_BET_PERCENTAGE && bet_amount < MINIMUM_BET_AMOUNT {
+                0.0
+
+            } else {*/
+                bet_amount
+            //}
+        }
+    }
 }
 
 impl Permutate for CustomStrategy {
@@ -488,9 +500,11 @@ impl Permutate for CustomStrategy {
             Permutate::each(|scale_by_matches| {
                 Permutate::each(|round_to_magnitude| {
                     Permutate::each(|scale_by_money| {
-                        Permutate::each(|money| {
-                            Permutate::each(|bet| {
-                                f(Self { average_sums, scale_by_matches, round_to_magnitude, scale_by_money, money, bet });
+                        Permutate::each(|scale_by_time| {
+                            Permutate::each(|money| {
+                                Permutate::each(|bet| {
+                                    f(Self { average_sums, scale_by_matches, round_to_magnitude, scale_by_money, scale_by_time, money, bet });
+                                });
                             });
                         });
                     });
@@ -512,8 +526,8 @@ impl Strategy for CustomStrategy {
         //let right_bet = right_bet.min(MAXIMUM_BET_AMOUNT);
 
         (
-            simulation.clamp(bet_amount(simulation, left, right, left_bet, self.round_to_magnitude, self.scale_by_matches, self.scale_by_money)),
-            simulation.clamp(bet_amount(simulation, left, right, right_bet, self.round_to_magnitude, self.scale_by_matches, self.scale_by_money)),
+            simulation.clamp(self.modify_bet_amount(simulation, left, right, date, left_bet)),
+            simulation.clamp(self.modify_bet_amount(simulation, left, right, date, right_bet)),
         )
     }
 

@@ -53,6 +53,7 @@ impl Bet {
 
 
 pub trait Simulator {
+    fn get_hourly_ratio(&self, date: f64) -> f64;
     fn elo(&self, name: &str) -> Elo;
     fn average_sum(&self) -> f64;
     fn clamp(&self, bet_amount: f64) -> f64;
@@ -871,17 +872,6 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn get_hourly_ratio(&self, record: &Record) -> f64 {
-        let date = Utc.timestamp_millis(record.date as i64);
-        let hour = date.hour() as usize;
-
-        let hourly = self.bettors_by_hour[hour];
-        // TODO make this more efficient ?
-        let min = self.bettors_by_hour.iter().min().unwrap();
-        let max = self.bettors_by_hour.iter().max().unwrap();
-        normalize(hourly as f64, *min as f64, *max as f64)
-    }
-
     // TODO figure out a way to remove the clones
     pub fn insert_record(&mut self, record: &Record) {
         {
@@ -1123,6 +1113,17 @@ fn average<A: Iterator<Item = f64>>(iter: A, default: f64) -> f64 {
 }
 
 impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
+    fn get_hourly_ratio(&self, date: f64) -> f64 {
+        let date = Utc.timestamp_millis(date as i64);
+        let hour = date.hour() as usize;
+
+        let hourly = self.bettors_by_hour[hour];
+        // TODO make this more efficient ?
+        let min = self.bettors_by_hour.iter().min().unwrap();
+        let max = self.bettors_by_hour.iter().max().unwrap();
+        normalize(hourly as f64, *min as f64, *max as f64)
+    }
+
     fn elo(&self, name: &str) -> Elo {
         match self.characters.get(name) {
             Some(x) => x.elo,

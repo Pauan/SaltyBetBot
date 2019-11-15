@@ -9,6 +9,7 @@
     "average_sums": false,
     "scale_by_matches": true,
     "scale_by_money": true,
+    "scale_by_time": false,
     "round_to_magnitude": false,
     "money": "Fixed",
     "bet": {

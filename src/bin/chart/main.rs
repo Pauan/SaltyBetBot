@@ -17,7 +17,7 @@ use std::collections::{BTreeSet, BTreeMap};
 use salty_bet_bot::{records_get_all, spawn, subtract_days, decimal, Loading, set_panic_hook, find_starting_index, round_to_hour};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE};
-use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, GENETIC_STRATEGY, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY};
+use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, FIXED_BET_AMOUNT};
 use stdweb::traits::*;
 use stdweb::spawn_local;
 use stdweb::web::{document, set_timeout, Date, wait};
@@ -476,8 +476,6 @@ impl Information {
             },
         }
 
-        log!("{:#?}", simulation.bettors_by_hour);
-
         let hourly: Vec<Hourly> = hourly.values().cloned().collect();
 
         Information {
@@ -836,6 +834,7 @@ struct State {
     round_to_magnitude: Mutable<bool>,
     scale_by_matches: Mutable<bool>,
     scale_by_money: Mutable<bool>,
+    scale_by_time: Mutable<bool>,
     extra_data: Mutable<bool>,
     reset_money: Mutable<bool>,
     simulation_mode: Mutable<Mode>,
@@ -848,7 +847,7 @@ impl State {
         let this = Self {
             simulation_type: Mutable::new(Rc::new(SimulationType::RealData)),
             days_shown: Mutable::new(Some(DEFAULT_DAYS_SHOWN)),
-            money_type: Mutable::new(MoneyStrategy::Fixed),
+            money_type: Mutable::new(MoneyStrategy::AllIn),
             hover_percentage: Mutable::new(None),
             hover_info: Mutable::new(false),
             hover_popup: Mutable::new(false),
@@ -856,6 +855,7 @@ impl State {
             round_to_magnitude: Mutable::new(false),
             scale_by_matches: Mutable::new(false),
             scale_by_money: Mutable::new(false),
+            scale_by_time: Mutable::new(false),
             extra_data: Mutable::new(false),
             reset_money: Mutable::new(false),
             simulation_mode: Mutable::new(Mode::Matchmaking),
@@ -891,6 +891,7 @@ impl State {
         self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
         self.scale_by_matches.set_neq(strategy.scale_by_matches);
         self.scale_by_money.set_neq(strategy.scale_by_money);
+        self.scale_by_time.set_neq(strategy.scale_by_time);
 
         self.reset_money.set_neq(if let Mode::Matchmaking = mode {
             true
@@ -915,6 +916,7 @@ impl State {
         let average_sums = self.average_sums();
         let scale_by_matches = self.scale_by_matches.get();
         let scale_by_money = self.scale_by_money.get();
+        let scale_by_time = self.scale_by_time.get();
         let round_to_magnitude = self.round_to_magnitude.get();
         let simulation_mode = self.simulation_mode.get();
 
@@ -926,6 +928,7 @@ impl State {
                     average_sums,
                     scale_by_matches,
                     scale_by_money,
+                    scale_by_time,
                     round_to_magnitude,
                     bet,
                     money,
@@ -973,6 +976,7 @@ impl State {
             self.average_sums.set_neq(strategy.average_sums);
             self.scale_by_matches.set_neq(strategy.scale_by_matches);
             self.scale_by_money.set_neq(strategy.scale_by_money);
+            self.scale_by_time.set_neq(strategy.scale_by_time);
             self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
             self.money_type.set_neq(strategy.money);
             self.simulation_type.set_neq(Rc::new(SimulationType::BetStrategy(strategy.bet)));
@@ -981,52 +985,72 @@ impl State {
         }
     }
 
-    fn update(&self) {
-        let information = match **self.simulation_type.lock_ref() {
+    fn get_custom_strategy(&self) -> Option<CustomStrategy> {
+        match **self.simulation_type.lock_ref() {
             SimulationType::RealData => {
-                let real: ChartMode<()> = ChartMode::RealData { days: None };
-                Information::new(
-                    &self.records,
-                    real,
-                    self.days_shown.get(),
-                )
+                None
             },
 
             SimulationType::BetStrategy(ref bet_strategy) => {
-                let strategy = CustomStrategy {
+                Some(CustomStrategy {
                     average_sums: self.average_sums(),
                     scale_by_matches: self.scale_by_matches.get(),
                     scale_by_money: self.scale_by_money.get(),
+                    scale_by_time: self.scale_by_time.get(),
                     round_to_magnitude: self.round_to_magnitude.get(),
                     money: self.money_type.get(),
                     // TODO figure out a way to avoid this clone ?
                     bet: bet_strategy.clone(),
-                };
-
-                Information::new(
-                    &self.records,
-                    match self.simulation_mode.get() {
-                        Mode::Matchmaking => ChartMode::SimulateMatchmaking {
-                            reset_money: self.reset_money.get(),
-                            extra_data: self.extra_data.get(),
-                            strategy,
-                        },
-                        Mode::Tournament => ChartMode::SimulateTournament {
-                            reset_money: self.reset_money.get(),
-                            extra_data: self.extra_data.get(),
-                            strategy,
-                        },
-                    },
-                    self.days_shown.get(),
-                )
+                })
             },
+        }
+    }
+
+    fn calculate_custom_strategy(&self, strategy: CustomStrategy) -> f64 {
+        let information = Information::new(
+            &self.records,
+            match self.simulation_mode.get() {
+                Mode::Matchmaking => ChartMode::SimulateMatchmaking {
+                    reset_money: self.reset_money.get(),
+                    extra_data: self.extra_data.get(),
+                    strategy,
+                },
+                Mode::Tournament => ChartMode::SimulateTournament {
+                    reset_money: self.reset_money.get(),
+                    extra_data: self.extra_data.get(),
+                    strategy,
+                },
+            },
+            self.days_shown.get(),
+        );
+
+        let gains = information.total_gains();
+
+        self.information.set(Some(Rc::new(information)));
+
+        gains
+    }
+
+    fn update(&self) {
+        if let Some(strategy) = self.get_custom_strategy() {
+            self.calculate_custom_strategy(strategy);
+
+        } else {
+            let real: ChartMode<()> = ChartMode::RealData { days: None };
+
+            let information = Information::new(
+                &self.records,
+                real,
+                self.days_shown.get(),
+            );
+
+            self.information.set(Some(Rc::new(information)));
+        }
+
         //ChartMode::RealData { days: Some(7), matches: None }
         //ChartMode::RealData { days: None }
         //ChartMode::SimulateMatchmaking(EarningsStrategy { expected_profit, winrate, bet_difference: false, winrate_difference: false, use_percentages })
         //ChartMode::SimulateMatchmaking(matchmaking_strategy())
-        };
-
-        self.information.set(Some(Rc::new(information)));
     }
 
     fn show_options(&self) -> impl Signal<Item = bool> {
@@ -1108,11 +1132,11 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                     let mut smooth_sums = vec![];
 
-                    for hourly in information.hourly.iter() {
+                    /*for hourly in information.hourly.iter() {
                         let x = statistics.date.normalize(hourly.date) * 100.0;
                         d_bettors.push(format!("L{},{}", x, statistics.bettors.reverse().normalize(hourly.bettors) * 100.0));
                         d_bet_amount.push(format!("L{},{}", x, statistics.bet_amount.reverse().normalize(hourly.bet_amount) * 100.0));
-                    }
+                    }*/
 
                     for (_index, record) in information.records.iter().enumerate() {
                         let date = record.date();
@@ -1423,11 +1447,11 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                     let average_gains = total_gains / statistics.len;
 
                     format!("\
+                        Total gains: {total_gains}\n\
                         Minimum: {min_money}\n\
                         Maximum: {max_money}\n\
                         Starting money: {starting_money}\n\
                         Final money: {final_money}\n\
-                        Total gains: {total_gains}\n\
                         Average gains: {average_gains}\n\
                         Maximum gain: {max_gain}\n\
                         Matches: {matches} (out of {total_matches})\n\
@@ -1566,6 +1590,24 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                 loading.hide();
             }));
         })};
+
+        window.calculate_custom_strategy = @{clone!(state, loading => move |strategy: String| {
+            loading.show();
+
+            set_timeout(clone!(loading, state => move || {
+                let strategy: CustomStrategy = serde_json::from_str(&strategy).unwrap();
+                console!(log, salty_bet_bot::money(state.calculate_custom_strategy(strategy)));
+
+                // TODO handle this better
+                loading.hide();
+            }), 0);
+        })};
+
+        window.get_custom_strategy = @{clone!(state => move || {
+            if let Some(strategy) = state.get_custom_strategy() {
+                console!(log, serde_json::to_string_pretty(&strategy).unwrap());
+            }
+        })};
     }
 
     lazy_static! {
@@ -1663,7 +1705,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     "Percentage" => MoneyStrategy::Percentage,
                                     "BetDifference" => MoneyStrategy::BetDifference,
                                     "BetDifferenceWinner" => MoneyStrategy::BetDifferenceWinner,
-                                    "Fixed" => MoneyStrategy::Fixed,
+                                    "Fixed" => MoneyStrategy::Fixed(FIXED_BET_AMOUNT),
                                     "AllIn" => MoneyStrategy::AllIn,
                                     "Tournament" => MoneyStrategy::Tournament,
                                     a => panic!("Invalid value {}", a),
@@ -1672,7 +1714,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
 
                             make_dropdown(state.simulation_type.clone(), always(true), &[
                                 "RealData",
-                                "Genetic",
+                                //"Genetic",
                                 "ExpectedBetWinner",
                                 "ExpectedBet",
                                 "BetDifference",
@@ -1701,7 +1743,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     "RealData" => SimulationType::RealData,
                                     a => SimulationType::BetStrategy(match a {
                                         // TODO avoid the clone somehow
-                                        "Genetic" => BetStrategy::Genetic(GENETIC_STRATEGY.clone()),
+                                        //"Genetic" => BetStrategy::Genetic(GENETIC_STRATEGY.clone()),
                                         "ExpectedBetWinner" => BetStrategy::ExpectedBetWinner,
                                         "ExpectedBet" => BetStrategy::ExpectedBet,
                                         "BetDifference" => BetStrategy::BetDifference,
@@ -1774,6 +1816,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone(), state.show_options()),
                             make_checkbox("Scale by match length", state.scale_by_matches.clone(), state.show_options()),
                             make_checkbox("Scale by money", state.scale_by_money.clone(), state.show_options()),
+                            make_checkbox("Scale by time", state.scale_by_time.clone(), state.show_options()),
                             make_checkbox("Reset money at regular intervals", state.reset_money.clone(), state.show_options()),
                             make_checkbox("Simulate extra data", state.extra_data.clone(), state.show_options()),
 
