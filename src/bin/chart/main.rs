@@ -29,8 +29,7 @@ use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
 
 
-// 84 days
-const DEFAULT_DAYS_SHOWN: u32 = 84;
+const DEFAULT_DAYS_SHOWN: u32 = 365;
 
 const MATCHMAKING_STARTING_MONEY: f64 = 10_000_000.0;
 
@@ -834,7 +833,6 @@ struct State {
     round_to_magnitude: Mutable<bool>,
     scale_by_matches: Mutable<bool>,
     scale_by_money: Mutable<bool>,
-    scale_by_time: Mutable<bool>,
     extra_data: Mutable<bool>,
     reset_money: Mutable<bool>,
     simulation_mode: Mutable<Mode>,
@@ -855,7 +853,6 @@ impl State {
             round_to_magnitude: Mutable::new(false),
             scale_by_matches: Mutable::new(false),
             scale_by_money: Mutable::new(false),
-            scale_by_time: Mutable::new(false),
             extra_data: Mutable::new(false),
             reset_money: Mutable::new(false),
             simulation_mode: Mutable::new(Mode::Matchmaking),
@@ -891,7 +888,6 @@ impl State {
         self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
         self.scale_by_matches.set_neq(strategy.scale_by_matches);
         self.scale_by_money.set_neq(strategy.scale_by_money);
-        self.scale_by_time.set_neq(strategy.scale_by_time);
 
         self.reset_money.set_neq(if let Mode::Matchmaking = mode {
             true
@@ -916,7 +912,6 @@ impl State {
         let average_sums = self.average_sums();
         let scale_by_matches = self.scale_by_matches.get();
         let scale_by_money = self.scale_by_money.get();
-        let scale_by_time = self.scale_by_time.get();
         let round_to_magnitude = self.round_to_magnitude.get();
         let simulation_mode = self.simulation_mode.get();
 
@@ -928,7 +923,7 @@ impl State {
                     average_sums,
                     scale_by_matches,
                     scale_by_money,
-                    scale_by_time,
+                    scale_by_time: None,
                     round_to_magnitude,
                     bet,
                     money,
@@ -976,7 +971,6 @@ impl State {
             self.average_sums.set_neq(strategy.average_sums);
             self.scale_by_matches.set_neq(strategy.scale_by_matches);
             self.scale_by_money.set_neq(strategy.scale_by_money);
-            self.scale_by_time.set_neq(strategy.scale_by_time);
             self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
             self.money_type.set_neq(strategy.money);
             self.simulation_type.set_neq(Rc::new(SimulationType::BetStrategy(strategy.bet)));
@@ -996,7 +990,7 @@ impl State {
                     average_sums: self.average_sums(),
                     scale_by_matches: self.scale_by_matches.get(),
                     scale_by_money: self.scale_by_money.get(),
-                    scale_by_time: self.scale_by_time.get(),
+                    scale_by_time: None,
                     round_to_magnitude: self.round_to_magnitude.get(),
                     money: self.money_type.get(),
                     // TODO figure out a way to avoid this clone ?
@@ -1595,8 +1589,14 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
             loading.show();
 
             set_timeout(clone!(loading, state => move || {
-                let strategy: CustomStrategy = serde_json::from_str(&strategy).unwrap();
-                console!(log, salty_bet_bot::money(state.calculate_custom_strategy(strategy)));
+                match serde_json::from_str(&strategy) {
+                    Ok(strategy) => {
+                        console!(log, salty_bet_bot::money(state.calculate_custom_strategy(strategy)));
+                    },
+                    Err(e) => {
+                        console!(error, e.to_string());
+                    },
+                }
 
                 // TODO handle this better
                 loading.hide();
@@ -1697,7 +1697,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "BetDifferenceWinner",
                                 "Fixed",
                                 "AllIn",
+                                "Matchmaking",
                                 "Tournament",
+                                "UpsetsElo",
                             ], |value| {
                                 match value.as_str() {
                                     "ExpectedBetWinner" => MoneyStrategy::ExpectedBetWinner,
@@ -1707,7 +1709,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                     "BetDifferenceWinner" => MoneyStrategy::BetDifferenceWinner,
                                     "Fixed" => MoneyStrategy::Fixed(FIXED_BET_AMOUNT),
                                     "AllIn" => MoneyStrategy::AllIn,
+                                    "Matchmaking" => MoneyStrategy::Matchmaking { max_bet: FIXED_BET_AMOUNT },
                                     "Tournament" => MoneyStrategy::Tournament,
+                                    "UpsetsElo" => MoneyStrategy::UpsetsElo { max_bet: FIXED_BET_AMOUNT },
                                     a => panic!("Invalid value {}", a),
                                 }
                             }),
@@ -1737,7 +1741,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                 "Random",
                                 "Elo",
                                 "UpsetsElo",
+                                "Matchmaking",
                                 "Tournament",
+                                "Money",
                             ], |value| {
                                 Rc::new(match value.as_str() {
                                     "RealData" => SimulationType::RealData,
@@ -1766,7 +1772,9 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                                         "Random" => BetStrategy::Random,
                                         "Elo" => BetStrategy::Elo,
                                         "UpsetsElo" => BetStrategy::UpsetsElo,
+                                        "Matchmaking" => BetStrategy::Matchmaking,
                                         "Tournament" => BetStrategy::Tournament,
+                                        "Money" => BetStrategy::Money,
                                         a => panic!("Invalid value {}", a),
                                     }),
                                 })
@@ -1816,7 +1824,6 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                             make_checkbox("Round to nearest magnitude", state.round_to_magnitude.clone(), state.show_options()),
                             make_checkbox("Scale by match length", state.scale_by_matches.clone(), state.show_options()),
                             make_checkbox("Scale by money", state.scale_by_money.clone(), state.show_options()),
-                            make_checkbox("Scale by time", state.scale_by_time.clone(), state.show_options()),
                             make_checkbox("Reset money at regular intervals", state.reset_money.clone(), state.show_options()),
                             make_checkbox("Simulate extra data", state.extra_data.clone(), state.show_options()),
 

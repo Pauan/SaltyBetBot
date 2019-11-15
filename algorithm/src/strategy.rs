@@ -12,9 +12,9 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: true,
     scale_by_money: true,
-    scale_by_time: false,
-    money: MoneyStrategy::Fixed(FIXED_BET_AMOUNT),
-    bet: BetStrategy::UpsetsElo,
+    scale_by_time: None,
+    money: MoneyStrategy::Matchmaking { max_bet: 350000.0 },
+    bet: BetStrategy::Matchmaking,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -30,7 +30,7 @@ pub const TOURNAMENT_STRATEGY: CustomStrategy = CustomStrategy {
     round_to_magnitude: false,
     scale_by_matches: false,
     scale_by_money: false,
-    scale_by_time: false,
+    scale_by_time: None,
     money: MoneyStrategy::Tournament,
     bet: BetStrategy::Elo,
 };
@@ -181,6 +181,8 @@ pub enum MoneyStrategy {
     Fixed(f64),
     AllIn,
     Tournament,
+    UpsetsElo { max_bet: f64 },
+    Matchmaking { max_bet: f64 },
 }
 
 impl Permutate for MoneyStrategy {
@@ -193,6 +195,8 @@ impl Permutate for MoneyStrategy {
         f(MoneyStrategy::Fixed(FIXED_BET_AMOUNT));
         f(MoneyStrategy::AllIn);
         f(MoneyStrategy::Tournament);
+        f(MoneyStrategy::UpsetsElo { max_bet: FIXED_BET_AMOUNT });
+        f(MoneyStrategy::Matchmaking { max_bet: FIXED_BET_AMOUNT });
     }
 }
 
@@ -235,6 +239,35 @@ impl MoneyStrategy {
                 let bet = range_inclusive(normalize(current_money, 100_000.0, 60_000.0), 1.0 / 4.0, 1.0) * current_money;
                 (bet, bet)
             },
+            MoneyStrategy::UpsetsElo { max_bet } => {
+                let left = simulation.elo(left).upsets;
+                let right = simulation.elo(right).upsets;
+                let amount = normalize((left.value - right.value).abs(), 0.0, 1.0) * max_bet;
+                (amount, amount)
+            },
+            MoneyStrategy::Matchmaking { max_bet } => {
+                fn expected_winrate(left: &glicko2::GlickoRating, right: &glicko2::GlickoRating) -> f64 {
+                    fn g(rd: f64) -> f64 {
+                        use std::f64::consts::PI;
+                        let q = 10.0f64.ln() / 400.0;
+                        (1.0 + (3.0 * q * q) * (rd * rd) / (PI * PI)).sqrt().recip()
+                    }
+
+                    let ld = left.deviation * left.deviation;
+                    let rd = right.deviation * right.deviation;
+                    (1.0 + 10.0f64.powf(-(g((ld + rd).sqrt()) * ((left.value - right.value) / 400.0)))).recip()
+                }
+
+                let left = simulation.elo(left).upsets;
+                let right = simulation.elo(right).upsets;
+
+                let expected = expected_winrate(&left.into(), &right.into());
+
+                let left = expected;
+                let right = 1.0 - expected;
+
+                (normalize(left, 0.40, 1.0) * max_bet, normalize(right, 0.40, 1.0) * max_bet)
+            },
         }
     }
 }
@@ -264,7 +297,9 @@ pub enum BetStrategy {
     Random,
     Elo,
     UpsetsElo,
+    Matchmaking,
     Tournament,
+    Money,
     Genetic(Box<NeuralNetwork>),
 }
 
@@ -291,7 +326,9 @@ impl Permutate for BetStrategy {
         f(BetStrategy::Right);
         f(BetStrategy::Elo);
         f(BetStrategy::UpsetsElo);
+        f(BetStrategy::Matchmaking);
         f(BetStrategy::Tournament);
+        f(BetStrategy::Money);
         //f(BetStrategy::Random);
         //f(BetStrategy::Genetic(GENETIC_STRATEGY.clone()));
     }
@@ -327,6 +364,7 @@ impl BetStrategy {
             } else {
                 (0.0, 1.0)
             },
+            BetStrategy::Money => (left_bet, right_bet),
             BetStrategy::Elo => {
                 let left = simulation.elo(left).wins;
                 let right = simulation.elo(right).wins;
@@ -377,6 +415,41 @@ impl BetStrategy {
                 } else {
                     (0.0, 0.0)
                 }
+            },
+            BetStrategy::Matchmaking => {
+                let left_win = simulation.elo(left).wins.value;
+                let right_win = simulation.elo(right).wins.value;
+
+                /*{
+                    let x: glicko2::GlickoRating = simulation.elo(left).upsets.into();
+                    let y: glicko2::GlickoRating = simulation.elo(right).upsets.into();
+                    // (simulation.elo(left).upsets.value - simulation.elo(right).upsets.value).abs()
+                    console!(log, x.value, y.value, x.deviation, y.deviation, simulation.elo(left).upsets.value, simulation.elo(left).upsets.deviation);
+                }*/
+
+                let left = simulation.elo(left).upsets;
+                let right = simulation.elo(right).upsets;
+
+                let diff_upsets = (left.value - right.value).abs();
+
+                if diff_upsets > 0.01 {
+                    // If the other player has ~260 more win ELO, don't bet
+                    if left.value > right.value && right_win < left_win + 1.3 {
+                        (1.0, 0.0)
+
+                    // If the other player has ~260 more win ELO, don't bet
+                    } else if right.value > left.value && left_win < right_win + 1.3 {
+                        (0.0, 1.0)
+
+                    } else {
+                        (0.0, 0.0)
+                    }
+
+                } else {
+                    (left_win, right_win)
+                }
+
+                //(left.value, right.value)
             },
             BetStrategy::Tournament => {
                 let (left_winrate, right_winrate) = winrates(simulation, left, right);
@@ -432,7 +505,7 @@ pub struct CustomStrategy {
     pub scale_by_matches: bool,
     pub round_to_magnitude: bool,
     pub scale_by_money: bool,
-    pub scale_by_time: bool,
+    pub scale_by_time: Option<f64>,
     pub money: MoneyStrategy,
     pub bet: BetStrategy,
 }
@@ -469,8 +542,8 @@ impl CustomStrategy {
                 bet_amount
             };
 
-            let bet_amount = if self.scale_by_time {
-                range_inclusive(simulation.get_hourly_ratio(date), 0.5, 1.0) * bet_amount
+            let bet_amount = if let Some(minimum) = self.scale_by_time {
+                range_inclusive(simulation.get_hourly_ratio(date), minimum, 1.0) * bet_amount
 
             } else {
                 bet_amount
@@ -500,11 +573,9 @@ impl Permutate for CustomStrategy {
             Permutate::each(|scale_by_matches| {
                 Permutate::each(|round_to_magnitude| {
                     Permutate::each(|scale_by_money| {
-                        Permutate::each(|scale_by_time| {
-                            Permutate::each(|money| {
-                                Permutate::each(|bet| {
-                                    f(Self { average_sums, scale_by_matches, round_to_magnitude, scale_by_money, scale_by_time, money, bet });
-                                });
+                        Permutate::each(|money| {
+                            Permutate::each(|bet| {
+                                f(Self { average_sums, scale_by_matches, round_to_magnitude, scale_by_money, scale_by_time: None, money, bet });
                             });
                         });
                     });

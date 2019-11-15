@@ -5,13 +5,12 @@ extern crate rayon;
 extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
-#[macro_use]
-extern crate lazy_static;
 extern crate arrayvec;
 
 //#[macro_use]
 //extern crate stdweb;
 
+//pub mod glicko;
 pub mod random;
 pub mod genetic;
 pub mod record;
