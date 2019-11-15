@@ -309,12 +309,12 @@ pub enum Message {
     ServerLog(String),
 }
 
+const CHUNK_SIZE: u32 = 10000;
+
 pub async fn records_get_all() -> Result<Vec<Record>, Error> {
     let mut records = vec![];
 
     let mut index = 0;
-
-    const CHUNK_SIZE: u32 = 10000;
 
     let id: u32 = send_message_result(&Message::RecordsNew).await?;
 
@@ -338,11 +338,13 @@ pub async fn records_get_all() -> Result<Vec<Record>, Error> {
 pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
     // TODO more idiomatic check
     if records.len() > 0 {
-        send_message_result(&Message::InsertRecords(records)).await
-
-    } else {
-        Ok(())
+        for chunk in records.chunks(CHUNK_SIZE as usize) {
+            // TODO can this be made more efficient ?
+            send_message_result(&Message::InsertRecords(chunk.into_iter().cloned().collect())).await?;
+        }
     }
+
+    Ok(())
 }
 
 pub async fn records_delete_all() -> Result<(), Error> {
