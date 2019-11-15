@@ -62,7 +62,8 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 
         let right_button = query("#player2:enabled").and_then(to_input_element);
 
-        let in_tournament = query("#balance.purpletext").is_some();
+        // TODO is the `tournament-note` correct ?
+        let in_tournament = query("#balance.purpletext").is_some() || query("#tournament-note").is_some();
 
         // TODO gross
         // TODO figure out a way to avoid the clone
@@ -253,6 +254,12 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
     let mut process_messages = move |messages: Vec<WaifuMessage>| {
         for message in messages {
             match message {
+                // This will only happen if the Twitch chat stops receiving messages for 15 minutes
+                WaifuMessage::ReloadPage => {
+                    reload_page();
+                    return;
+                },
+
                 WaifuMessage::BetsOpen(open) => {
                     let mut state = state.borrow_mut();
 
@@ -828,11 +835,11 @@ fn main() {
 
     log!("Initializing...");
 
-    wait_until_defined(|| query("#sbettorswrapper"), move |wrapper: Element| {
+    wait_until_defined(|| query("#sbettorswrapper"), move |_wrapper: Element| {
         js! {
             // Same as Twitch chat
             document.body.style.fontFamily = "Roobert, Helvetica Neue, Helvetica, Arial, sans-serif";
-            @{wrapper}.style.fontFamily = "monospace";
+            //@{wrapper}.style.fontFamily = "monospace";
         }
     });
 

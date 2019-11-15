@@ -645,9 +645,6 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__cargo_web_snippet_565d7eb22cf4eeaca6c2215540351851e1420489": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return($1).success})());
             },
-            "__cargo_web_snippet_5b705af5f3f2f38c5d106c07b5e92175e3b42ecb": function($0) {
-                $0 = Module.STDWEB_PRIVATE.to_js($0);document.body.style.fontFamily="Roobert, Helvetica Neue, Helvetica, Arial, sans-serif";($0).style.fontFamily="monospace";
-            },
             "__cargo_web_snippet_614a3dd2adb7e9eac4a0ec6e59d37f87e0521c3b": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return($1).error;})());
             },
@@ -725,6 +722,9 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             },
             "__cargo_web_snippet_b0ab5796360e92146e2f660f3f717ccb97ea0870": function($0, $1, $2) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){var stylesheet=($1);var length=stylesheet.cssRules.length;stylesheet.insertRule(($2)+"{}",length);return stylesheet.cssRules[length];})());
+            },
+            "__cargo_web_snippet_b46ae578ddff4d7487c3953d5c5ef72678e03075": function() {
+                document.body.style.fontFamily="Roobert, Helvetica Neue, Helvetica, Arial, sans-serif";
             },
             "__cargo_web_snippet_c26ddf75f581148e029dfcd95c037bb50d502e43": function($0, $1) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);$1 = Module.STDWEB_PRIVATE.to_js($1);($0).value=($1);

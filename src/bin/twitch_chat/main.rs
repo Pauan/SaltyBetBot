@@ -35,7 +35,7 @@ use std::cell::RefCell;
 use discard::DiscardOnDrop;
 use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook, reload_page, Debouncer};
 use algorithm::record::{Tier, Mode, Winner};
-use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode, CloneKind};
+use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode, CloneKind, set_timeout};
 use stdweb::unstable::TryInto;
 
 
@@ -244,11 +244,18 @@ pub fn observe_changes() {
 
     log!("Initializing...");
 
-    let debounce = Debouncer::new(REFRESH_TIME, || {
-        reload_page();
-    });
-
     let port = Port::connect("twitch_chat");
+
+    let debounce = Debouncer::new(REFRESH_TIME, clone!(port => move || {
+        // This will cause the SaltyBet tab to reload
+        port.send_message(&vec![WaifuMessage::ReloadPage]);
+
+        // This is an extra precaution in case the SaltyBet tab doesn't reload
+        set_timeout(move || {
+            reload_page();
+        // 5 minutes
+        }, 1000 * 60 * 5);
+    }));
 
     let observer = MutationObserver::new(clone!(port => move |records, _| {
         let now: f64 = Date::now();
