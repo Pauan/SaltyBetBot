@@ -35,7 +35,7 @@ use std::cell::RefCell;
 use discard::DiscardOnDrop;
 use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook, reload_page, Debouncer};
 use algorithm::record::{Tier, Mode, Winner};
-use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode};
+use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode, CloneKind};
 use stdweb::unstable::TryInto;
 
 
@@ -208,6 +208,9 @@ fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
 
 fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
     let node: Element = node.try_into().unwrap();
+
+    // This is to avoid mutating the DOM of the chat
+    let node = node.clone_node(CloneKind::Deep).unwrap();
 
     // This removes the Twitch badges
     // TODO quite hacky, make this more robust

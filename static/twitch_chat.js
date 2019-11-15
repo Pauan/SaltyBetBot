@@ -645,6 +645,9 @@ Module.STDWEB_PRIVATE.acquire_tmp = function( dummy ) {
             "__cargo_web_snippet_690311d2f9134ac0983620c38a9e6460d4165607": function($0, $1) {
                 $1 = Module.STDWEB_PRIVATE.to_js($1);Module.STDWEB_PRIVATE.from_js($0, (function(){return($1).nextSibling;})());
             },
+            "__cargo_web_snippet_6bc2fd17ec363ef98d2b51edf91a221b12c51bab": function($0, $1, $2) {
+                $1 = Module.STDWEB_PRIVATE.to_js($1);$2 = Module.STDWEB_PRIVATE.to_js($2);Module.STDWEB_PRIVATE.from_js($0, (function(){return($1).cloneNode(($2));})());
+            },
             "__cargo_web_snippet_6d20fd36f091c6068e953266e1c3c66c10546ed5": function($0) {
                 $0 = Module.STDWEB_PRIVATE.to_js($0);($0).disconnect();
             },
