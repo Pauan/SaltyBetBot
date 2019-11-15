@@ -277,6 +277,7 @@ async fn main_future() -> Result<(), Error> {
             "records/SaltyBet Records 0.json",
             "records/SaltyBet Records 1.json",
             "records/SaltyBet Records 2.json",
+            "records/SaltyBet Records 3.json",
         ]);
 
         let old_records = async {
