@@ -98,7 +98,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                             simulation.sum = current_balance;
 
                             match simulation.matchmaking_strategy {
-                                Some(ref a) => simulation.pick_winner(a, &open.tier, &open.left, &open.right),
+                                Some(ref a) => simulation.pick_winner(a, &open.tier, &open.left, &open.right, open.date),
                                 None => Bet::None,
                             }
                         }
@@ -111,13 +111,13 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                         simulation.tournament_sum = current_balance;
 
                         match simulation.tournament_strategy {
-                            Some(ref a) => simulation.pick_winner(a, &open.tier, &open.left, &open.right),
+                            Some(ref a) => simulation.pick_winner(a, &open.tier, &open.left, &open.right, open.date),
                             None => Bet::None,
                         }
                     },
                 };
 
-                state.update_info_container(&open.mode, &open.tier, &open.left, &open.right);
+                state.update_info_container(&open.mode, &open.tier, &open.left, &open.right, open.date);
 
                 match bet {
                     Bet::Left(amount) => {
@@ -469,7 +469,7 @@ pub struct State {
 }
 
 impl State {
-    fn update_info_container(&self, mode: &Mode, tier: &Tier, left: &str, right: &str) {
+    fn update_info_container(&self, mode: &Mode, tier: &Tier, left: &str, right: &str, date: f64) {
         self.info_container.clear();
 
         // TODO avoid the to_string somehow
@@ -496,8 +496,8 @@ impl State {
         self.info_container.right.needed_odds.set(Some(right_needed_odds));
 
         let (left_bet, right_bet) = match *mode {
-            Mode::Matchmaking => self.simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right),
-            Mode::Tournament => self.simulation.tournament_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right),
+            Mode::Matchmaking => self.simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right, date),
+            Mode::Tournament => self.simulation.tournament_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right, date),
         };
 
         self.info_container.left.bet_amount.set(Some(left_bet));

@@ -111,7 +111,7 @@ fn weight(_percentage: f64, general: f64, _specific: f64) -> f64 {
     general + specific*/
 }
 
-fn normalize(value: f64, min: f64, max: f64) -> f64 {
+pub fn normalize(value: f64, min: f64, max: f64) -> f64 {
     // TODO is this correct ?
     if min == max {
         0.0
@@ -344,7 +344,7 @@ impl Permutate for BetStrategy {
 }
 
 impl BetStrategy {
-    fn bet_value<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64, average_sums: bool) -> (f64, f64) {
+    fn bet_value<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64, date: f64, average_sums: bool) -> (f64, f64) {
         let current_money = MoneyStrategy::current_money(simulation, average_sums);
         let percentage = MoneyStrategy::bet_percentage(current_money);
 
@@ -501,7 +501,7 @@ impl Permutate for CustomStrategy {
 }
 
 impl Strategy for CustomStrategy {
-    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> (f64, f64) {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str, date: f64) -> (f64, f64) {
         let (left_bet, right_bet) = self.money.bet_amount(simulation, left, right, self.average_sums);
 
         // TODO are these needed ?
@@ -517,14 +517,14 @@ impl Strategy for CustomStrategy {
         )
     }
 
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
-        let (left_bet, right_bet) = self.bet_amount(simulation, tier, left, right);
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, date: f64) -> Bet {
+        let (left_bet, right_bet) = self.bet_amount(simulation, tier, left, right, date);
 
         assert_not_nan(left_bet);
         assert_not_nan(right_bet);
 
         // TODO add in a bias so that it will prefer Left unless Right is much greater than Left
-        let (left_value, right_value) = self.bet.bet_value(simulation, tier, left, right, left_bet, right_bet, self.average_sums);
+        let (left_value, right_value) = self.bet.bet_value(simulation, tier, left, right, left_bet, right_bet, date, self.average_sums);
 
         assert_not_nan(left_value);
         assert_not_nan(right_value);
@@ -556,15 +556,15 @@ impl Strategy for CustomStrategy {
 pub struct AllInStrategy;
 
 impl Strategy for AllInStrategy {
-    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, _left: &str, _right: &str, _date: f64) -> (f64, f64) {
         let bet_amount = simulation.current_money();
         (bet_amount, bet_amount)
     }
 
     // TODO use ELO instead of winrate
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, date: f64) -> Bet {
         // TODO a tiny bit hacky
-        let bet_amount = self.bet_amount(simulation, tier, left, right).0;
+        let bet_amount = self.bet_amount(simulation, tier, left, right, date).0;
 
         let (left_winrate, right_winrate) = winrates(simulation, left, right);
 

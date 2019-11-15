@@ -86,8 +86,8 @@ impl State {
 
                     // TODO code duplication with bin/saltybet
                     let (left_bet, right_bet) = match record.mode {
-                        Mode::Matchmaking => simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&simulation,&record.tier, &record.left.name, &record.right.name),
-                        Mode::Tournament => simulation.tournament_strategy.as_ref().unwrap().bet_amount(&simulation, &record.tier, &record.left.name, &record.right.name),
+                        Mode::Matchmaking => simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&simulation,&record.tier, &record.left.name, &record.right.name, record.date),
+                        Mode::Tournament => simulation.tournament_strategy.as_ref().unwrap().bet_amount(&simulation, &record.tier, &record.left.name, &record.right.name, record.date),
                     };
 
                     // TODO code duplication with bin/saltybet

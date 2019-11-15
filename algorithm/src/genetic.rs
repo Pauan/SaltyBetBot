@@ -1038,14 +1038,14 @@ impl Creature for FormulaStrategy {
 }
 
 impl Strategy for FormulaStrategy {
-    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> (f64, f64) {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, _date: f64) -> (f64, f64) {
         (
             self.money_strategy.calculate(simulation, tier, left, right),
             self.money_strategy.calculate(simulation, tier, right, left),
         )
     }
 
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet {
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, _date: f64) -> Bet {
         if self.bet_strategy.calculate(simulation, tier, left, right) {
             let p_left = self.prediction_strategy.calculate(simulation, tier, left, right);
             let p_right = self.prediction_strategy.calculate(simulation, tier, right, left);
@@ -1099,7 +1099,7 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
             let mut sum = 0.0;
 
             for record in settings.records {
-                if let Some(odds) = record.odds_winner(&simulation.pick_winner(&creature, &record.tier, &record.left.name, &record.right.name)) {
+                if let Some(odds) = record.odds_winner(&simulation.pick_winner(&creature, &record.tier, &record.left.name, &record.right.name, record.date)) {
                     len += 1.0;
 
                     match odds {

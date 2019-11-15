@@ -152,7 +152,7 @@ impl Information {
         fn add_hourly(rounded: &mut BTreeMap<u64, Hourly>, record: &Record) {
             let rounded_date = round_to_hour(record.date);
 
-            // TODO verify that the `as 64` is correct
+            // TODO verify that the `as u64` is correct
             let hourly = rounded.entry(rounded_date as u64).or_insert_with(|| Hourly {
                 date: rounded_date,
                 bettors: 0.0,
@@ -476,6 +476,8 @@ impl Information {
             },
         }
 
+        log!("{:#?}", simulation.bettors_by_hour);
+
         let hourly: Vec<Hourly> = hourly.values().cloned().collect();
 
         Information {
@@ -786,7 +788,7 @@ impl Statistics {
             simulation.sum = money;
 
             match simulation.matchmaking_strategy {
-                Some(ref a) => simulation.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
+                Some(ref a) => simulation.pick_winner(a, &record.tier, &record.left.name, &record.right.name, record.date),
                 None => Bet::None,
             }
         },
@@ -796,7 +798,7 @@ impl Statistics {
             simulation.tournament_sum = money;
 
             match simulation.tournament_strategy {
-                Some(ref a) => simulation.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
+                Some(ref a) => simulation.pick_winner(a, &record.tier, &record.left.name, &record.right.name, record.date),
                 None => Bet::None,
             }
         },

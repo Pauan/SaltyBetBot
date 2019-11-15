@@ -3,7 +3,8 @@ use std::collections::{ HashMap };
 use crate::record::{ Record, Mode, Winner, Tier };
 use crate::genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
 use crate::types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
-use crate::strategy::FIXED_BET_AMOUNT;
+use crate::strategy::normalize;
+use chrono::{Utc, TimeZone, Timelike};
 
 
 // TODO this should take into account the user's real limit
@@ -65,17 +66,17 @@ pub trait Simulator {
 
 
 pub trait Strategy: Sized + std::fmt::Debug {
-    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> (f64, f64);
-    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> Bet;
+    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, date: f64) -> (f64, f64);
+    fn bet<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, date: f64) -> Bet;
 }
 
 
 impl Strategy for () {
-    fn bet_amount<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> (f64, f64) {
+    fn bet_amount<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str, _date: f64) -> (f64, f64) {
         (0.0, 0.0)
     }
 
-    fn bet<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str) -> Bet {
+    fn bet<A: Simulator>(&self, _simulation: &A, _tier: &Tier, _left: &str, _right: &str, _date: f64) -> Bet {
         Bet::None
     }
 }
@@ -830,6 +831,9 @@ pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub max_character_len: usize,
     pub sums: Vec<f64>,
     pub characters: HashMap<String, Character>,
+
+    // TODO is u32 correct ?
+    pub bettors_by_hour: [u32; 24],
 }
 
 impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
@@ -847,7 +851,9 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             upsets: 0.0,
             max_character_len: 0,
             sums: vec![],
-            characters: HashMap::new()
+            characters: HashMap::new(),
+
+            bettors_by_hour: [0; 24],
         }
     }
 
@@ -865,8 +871,28 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
+    pub fn get_hourly_ratio(&self, record: &Record) -> f64 {
+        let date = Utc.timestamp_millis(record.date as i64);
+        let hour = date.hour() as usize;
+
+        let hourly = self.bettors_by_hour[hour];
+        // TODO make this more efficient ?
+        let min = self.bettors_by_hour.iter().min().unwrap();
+        let max = self.bettors_by_hour.iter().max().unwrap();
+        normalize(hourly as f64, *min as f64, *max as f64)
+    }
+
     // TODO figure out a way to remove the clones
     pub fn insert_record(&mut self, record: &Record) {
+        {
+            let date = Utc.timestamp_millis(record.date as i64);
+            let hour = date.hour() as usize;
+
+            // TODO is this `as u32` correct ?
+            self.bettors_by_hour[hour] += (record.left.bettors() + record.right.bettors()) as u32;
+        }
+
+
         let left = record.left.name.clone();
         let right = record.right.name.clone();
 
@@ -902,9 +928,9 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     }
 
     // TODO in exhibitions it should always bet $1
-    pub fn pick_winner<C>(&self, strategy: &C, tier: &Tier, left: &str, right: &str) -> Bet where C: Strategy {
+    pub fn pick_winner<C>(&self, strategy: &C, tier: &Tier, left: &str, right: &str, date: f64) -> Bet where C: Strategy {
         if left != right {
-            match strategy.bet(self, tier, left, right) {
+            match strategy.bet(self, tier, left, right, date) {
                 Bet::Left(bet_amount) => return Bet::Left(self.clamp(bet_amount)),
                 Bet::Right(bet_amount) => return Bet::Right(self.clamp(bet_amount)),
                 Bet::None => {},
@@ -935,11 +961,11 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     pub fn bet(&self, record: &Record) -> Bet {
         match record.mode {
             Mode::Matchmaking => match self.matchmaking_strategy {
-                Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
+                Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name, record.date),
                 None => Bet::None,
             },
             Mode::Tournament => match self.tournament_strategy {
-                Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name),
+                Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name, record.date),
                 None => Bet::None,
             },
         }
