@@ -431,8 +431,18 @@ impl BetStrategy {
                 let right = simulation.elo(right).upsets;
 
                 let diff_upsets = (left.value - right.value).abs();
+                let diff_wins = (left_win - right_win).abs();
 
-                if diff_upsets > 0.01 {
+                // If the win difference is significantly bigger than the upsets difference
+                if diff_wins > diff_upsets + 0.8 {
+                    if diff_wins > 0.005 {
+                        (left_win, right_win)
+
+                    } else {
+                        (0.0, 0.0)
+                    }
+
+                    /*
                     // If the other player has ~260 more win ELO, don't bet
                     if left.value > right.value && right_win < left_win + 1.3 {
                         (1.0, 0.0)
@@ -443,10 +453,15 @@ impl BetStrategy {
 
                     } else {
                         (0.0, 0.0)
-                    }
+                    }*/
 
                 } else {
-                    (left_win, right_win)
+                    if diff_upsets > 0.005 {
+                        (left.value, right.value)
+
+                    } else {
+                        (0.0, 0.0)
+                    }
                 }
 
                 //(left.value, right.value)
