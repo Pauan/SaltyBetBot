@@ -154,93 +154,113 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
         .map(|x| x == "Bets are locked until the next match.")
         .unwrap_or(false);
 
-    if status &&
-       query("#sbettors1 > span.redtext > span.counttext").is_some() &&
-       query("#sbettors2 > span.bluetext > span.counttext").is_some() {
-
-        // TODO a bit of code duplication with lookup_bet
-        let current_balance = query("#balance")
+    if status {
+        let left_count = query("#sbettors1 > span.redtext > span.counttext")
             .and_then(get_text_content)
             .and_then(|x| parse_f64(&x));
 
-        // TODO detect whether the player is Illuminati or not ?
-        let name = query("#header span.navbar-text")
+        let right_count = query("#sbettors2 > span.bluetext > span.counttext")
             .and_then(get_text_content)
-            .and_then(|x| parse_name(&x));
+            .and_then(|x| parse_f64(&x));
 
-        if let Some(current_balance) = current_balance {
-            if let Some(name) = name {
-                let mut matched_left = false;
-                let mut matched_right = false;
+        if let Some(left_count) = left_count {
+            if let Some(right_count) = right_count {
+                // TODO a bit of code duplication with lookup_bet
+                let current_balance = query("#balance")
+                    .and_then(get_text_content)
+                    .and_then(|x| parse_f64(&x));
 
-                fn filtered_len(list: NodeList, name: &str, matched: &mut bool) -> f64 {
-                    let mut len = 0.0;
+                // TODO detect whether the player is Illuminati or not ?
+                let name = query("#header span.navbar-text")
+                    .and_then(get_text_content)
+                    .and_then(|x| parse_name(&x));
 
-                    for bettor in list {
-                        if let Some(bettor) = get_text_content(bettor) {
-                            if bettor != name {
-                                len += 1.0;
+                if let Some(current_balance) = current_balance {
+                    if let Some(name) = name {
+                        log!("{:#?} {:#?} {:#?}", name, left_count, right_count);
 
-                            } else {
-                                assert!(!*matched);
-                                *matched = true;
+                        let is_illuminati = query("#header span.navbar-text > .goldtext").is_some();
+
+                        let mut matched_left = false;
+                        let mut matched_right = false;
+
+                        fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> f64 {
+                            let mut len = 0.0;
+
+                            for bettor in list {
+                                let bettor = get_text_content(bettor).unwrap();
+
+                                if bettor == name {
+                                    assert!(!*matched);
+                                    assert!(illuminati_check);
+                                    *matched = true;
+
+                                } else {
+                                    len += 1.0;
+                                }
                             }
+
+                            len
                         }
+
+                        let left_bettors_illuminati = filtered_len(query_all("#bettors1 > p.bettor-line > strong.goldtext"), &name, &mut matched_left, is_illuminati);
+                        let right_bettors_illuminati = filtered_len(query_all("#bettors2 > p.bettor-line > strong.goldtext"), &name, &mut matched_right, is_illuminati);
+
+                        let left_bettors_normal = filtered_len(query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_left, !is_illuminati);
+                        let right_bettors_normal = filtered_len(query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_right, !is_illuminati);
+
+                        let left_bet = query("#lastbet > span:first-of-type.redtext")
+                            .and_then(get_text_content)
+                            .and_then(|x| parse_money(&x));
+
+                        let right_bet = query("#lastbet > span:first-of-type.bluetext")
+                            .and_then(get_text_content)
+                            .and_then(|x| parse_money(&x));
+
+                        state.borrow_mut().information = Some(Information {
+                            left_bettors_illuminati,
+                            right_bettors_illuminati,
+                            left_bettors_normal,
+                            right_bettors_normal,
+                            bet: match left_bet {
+                                Some(left) => match right_bet {
+                                    None => {
+                                        assert!(matched_left);
+                                        assert!(!matched_right);
+                                        assert_eq!(left_bettors_illuminati + left_bettors_normal + 1.0, left_count);
+                                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
+                                        Bet::Left(left)
+                                    },
+                                    Some(_) => unreachable!(),
+                                },
+                                None => match right_bet {
+                                    Some(right) => {
+                                        assert!(!matched_left);
+                                        assert!(matched_right);
+                                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
+                                        assert_eq!(right_bettors_illuminati + right_bettors_normal + 1.0, right_count);
+                                        Bet::Right(right)
+                                    },
+                                    None => {
+                                        assert!(!matched_left);
+                                        assert!(!matched_right);
+                                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
+                                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
+                                        Bet::None
+                                    },
+                                },
+                            },
+                            sum: current_balance,
+                        });
+
+                    }  else {
+                        server_log!("Unknown name");
                     }
 
-                    len
+                }  else {
+                    server_log!("Unknown current balance");
                 }
-
-                let left_bettors_illuminati = filtered_len(query_all("#bettors1 > p.bettor-line > strong.goldtext"), &name, &mut matched_left);
-                let right_bettors_illuminati = filtered_len(query_all("#bettors2 > p.bettor-line > strong.goldtext"), &name, &mut matched_right);
-
-                let left_bettors_normal = filtered_len(query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_left);
-                let right_bettors_normal = filtered_len(query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_right);
-
-                let left_bet = query("#lastbet > span:first-of-type.redtext")
-                    .and_then(get_text_content)
-                    .and_then(|x| parse_money(&x));
-
-                let right_bet = query("#lastbet > span:first-of-type.bluetext")
-                    .and_then(get_text_content)
-                    .and_then(|x| parse_money(&x));
-
-                state.borrow_mut().information = Some(Information {
-                    left_bettors_illuminati,
-                    right_bettors_illuminati,
-                    left_bettors_normal,
-                    right_bettors_normal,
-                    bet: match left_bet {
-                        Some(left) => match right_bet {
-                            None => {
-                                assert!(matched_left);
-                                assert!(!matched_right);
-                                Bet::Left(left)
-                            },
-                            Some(_) => unreachable!(),
-                        },
-                        None => match right_bet {
-                            Some(right) => {
-                                assert!(!matched_left);
-                                assert!(matched_right);
-                                Bet::Right(right)
-                            },
-                            None => {
-                                assert!(!matched_left);
-                                assert!(!matched_right);
-                                Bet::None
-                            },
-                        },
-                    },
-                    sum: current_balance,
-                });
-
-            }  else {
-                server_log!("Unknown name");
             }
-
-        }  else {
-            server_log!("Unknown current balance");
         }
     }
 }
