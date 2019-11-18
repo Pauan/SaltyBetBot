@@ -144,7 +144,10 @@ impl Db {
     }
 
     pub async fn get_all_records(&self) -> Result<Vec<Record>, Error> {
-        self.get_all_records_raw().await.map(|records| records.into_iter().map(|x| Record::deserialize(&x)).collect())
+        let records = self.get_all_records_raw().await?;
+        let mut records: Vec<Record> = records.into_iter().map(|x| Record::deserialize(&x)).collect();
+        records.sort_by(Record::sort_date);
+        Ok(records)
     }
 
     fn insert_records_raw(&self, records: Vec<String>) -> PromiseFuture<()> {

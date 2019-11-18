@@ -14,7 +14,7 @@ extern crate futures_signals;
 use std::f64::INFINITY;
 use std::rc::Rc;
 use std::collections::{BTreeSet, BTreeMap};
-use salty_bet_bot::{records_get_all, spawn, subtract_days, decimal, Loading, set_panic_hook, find_starting_index, round_to_hour};
+use salty_bet_bot::{records_get_all, spawn, subtract_days, decimal, Loading, set_panic_hook, find_first_index, round_to_hour};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, FIXED_BET_AMOUNT};
@@ -1209,7 +1209,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         let date_start = date - half_range;
                         let date_end = date + half_range;
 
-                        let index = find_starting_index(smooth_sums, |(_, date, _)| date.partial_cmp(&date_start).unwrap());
+                        let index = find_first_index(smooth_sums, |(_, date, _)| date.partial_cmp(&date_start).unwrap());
 
                         let mut sum = 0.0;
                         let mut len = 0.0;
@@ -1864,9 +1864,7 @@ async fn main_future() -> Result<(), Error> {
 
     document().body().unwrap().append_child(loading.element());
 
-    let mut records = records_get_all().await?;
-
-    records.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
+    let records = records_get_all().await?;
 
     dominator::append_dom(&dominator::body(), display_records(records, loading.clone()));
 

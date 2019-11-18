@@ -113,6 +113,12 @@ impl Character {
     pub fn bettors(&self) -> f64 {
         self.illuminati_bettors + self.normal_bettors
     }
+
+    // The bet_amount, illuminati_bettors, and normal_bettors are too unreliable
+    fn is_duplicate(&self, other: &Self) -> bool {
+        self.name == other.name &&
+        self.win_streak == other.win_streak
+    }
 }
 
 
@@ -175,8 +181,17 @@ impl Record {
         }
     }
 
-    pub fn sort_date(left: &Self, right: &Self) -> Ordering {
-        left.date.partial_cmp(&right.date).unwrap()
+    pub fn sort_date(x: &Self, y: &Self) -> Ordering {
+        x.date.partial_cmp(&y.date).unwrap()
+    }
+
+    // The duration and date are too unreliable
+    pub fn is_duplicate(&self, other: &Self) -> bool {
+        self.left.is_duplicate(&other.left) &&
+        self.right.is_duplicate(&other.right) &&
+        self.winner == other.winner &&
+        self.tier == other.tier &&
+        self.mode == other.mode
     }
 
     pub fn odds_left(&self, bet_amount: f64) -> f64 {

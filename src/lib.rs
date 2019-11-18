@@ -1,5 +1,7 @@
 #![recursion_limit="256"]
 
+#![feature(is_sorted)]
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -356,7 +358,7 @@ pub fn server_log(message: String) {
 }
 
 
-pub fn find_starting_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) -> Ordering {
+pub fn find_first_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) -> Ordering {
     slice.binary_search_by(|value| {
         match f(value) {
             Ordering::Equal => Ordering::Greater,
@@ -365,10 +367,18 @@ pub fn find_starting_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(
     }).unwrap_err()
 }
 
+pub fn find_last_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) -> Ordering {
+    slice.binary_search_by(|value| {
+        match f(value) {
+            Ordering::Equal => Ordering::Less,
+            a => a,
+        }
+    }).unwrap_err()
+}
 
-pub fn get_added_records(mut old_records: Vec<Record>, mut new_records: Vec<Record>) -> Vec<Record> {
-    old_records.sort_by(Record::sort_date);
-    new_records.sort_by(Record::sort_date);
+
+pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>) -> Vec<Record> {
+    assert!(old_records.is_sorted_by(|x, y| Some(Record::sort_date(x, y))));
 
     let mut added_records = vec![];
 
@@ -377,7 +387,7 @@ pub fn get_added_records(mut old_records: Vec<Record>, mut new_records: Vec<Reco
         let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
         let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
 
-        let index = find_starting_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
+        let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
 
         let mut found = false;
 
@@ -385,22 +395,7 @@ pub fn get_added_records(mut old_records: Vec<Record>, mut new_records: Vec<Reco
             assert!(old_record.date >= start_date);
 
             if old_record.date <= end_date {
-                // TODO are the bet_amount, illuminati_bettors, and normal_bettors reliable enough to be used ?
-                // TODO compare left and right directly, rather than using the fields ?
-                // TODO move this into Record ?
-                if old_record.left.name                == new_record.left.name &&
-                   old_record.left.bet_amount          == new_record.left.bet_amount &&
-                   old_record.left.win_streak          == new_record.left.win_streak &&
-                   old_record.left.illuminati_bettors  == new_record.left.illuminati_bettors &&
-                   old_record.left.normal_bettors      == new_record.left.normal_bettors &&
-                   old_record.right.name               == new_record.right.name &&
-                   old_record.right.bet_amount         == new_record.right.bet_amount &&
-                   old_record.right.win_streak         == new_record.right.win_streak &&
-                   old_record.right.illuminati_bettors == new_record.right.illuminati_bettors &&
-                   old_record.right.normal_bettors     == new_record.right.normal_bettors &&
-                   old_record.winner                   == new_record.winner &&
-                   old_record.tier                     == new_record.tier &&
-                   old_record.mode                     == new_record.mode {
+                if old_record.is_duplicate(&new_record) {
                     found = true;
                     break;
                 }
@@ -411,6 +406,9 @@ pub fn get_added_records(mut old_records: Vec<Record>, mut new_records: Vec<Reco
         }
 
         if !found {
+            let new_index = find_last_index(&old_records, |x| Record::sort_date(x, &new_record));
+            old_records.insert(new_index, new_record.clone());
+
             added_records.push(new_record);
         }
     }
