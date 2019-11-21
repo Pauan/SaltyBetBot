@@ -722,49 +722,6 @@ async fn main_future() -> Result<(), Error> {
 
     let records = records_get_all().await?;
 
-
-    /*{
-        use std::collections::HashMap;
-        use algorithm::record::Character;
-
-        let mut seen = HashMap::new();
-
-        fn get(a: &Character) -> (&str, i32) {
-            (&a.name, a.win_streak as i32)
-        }
-
-        /*fn get(a: &Character) -> (&str, u32, u32, u32, u32) {
-            (&a.name, a.bet_amount as u32, a.win_streak as u32, a.illuminati_bettors as u32, a.normal_bettors as u32)
-        }*/
-
-        for record in &records {
-            /*if record.left.name == "Temtan" || record.right.name == "Temtan" {
-                log!("{:#?}", record);
-            }*/
-            let key = (record.winner, record.tier, record.mode, get(&record.left), get(&record.right));
-
-            let entry = seen.entry(key).or_insert_with(|| vec![]);
-
-            entry.push(record);
-
-            /*if seen.contains(&key) {
-                log!("{:#?}", record);
-
-            } else {
-                seen.insert(key);
-            }*/
-        }
-
-        for (_, value) in seen {
-            if value.len() > 1 {
-                log!("{:#?}", value);
-            }
-        }
-
-        //log!("{:#?}", seen);
-    }*/
-
-
     dominator::append_dom(&dominator::body(), display_records(records));
 
     loading.hide();

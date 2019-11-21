@@ -47,31 +47,33 @@ pub struct Information {
 
 
 fn lookup_bet(state: &Rc<RefCell<State>>) {
-    let mut state = state.borrow_mut();
+    fn lookup(state: &mut State) -> Option<()> {
+        if !state.did_bet &&
+           query("#betconfirm").is_none() {
 
-    if !state.did_bet &&
-       query("#betconfirm").is_none() {
+            if let Some(_) = state.closed {
+                return None;
+            }
 
-        let current_balance = query("#balance")
-            .and_then(get_text_content)
-            .and_then(|x| parse_f64(&x));
+            if let Some(_) = state.information {
+                return None;
+            }
 
-        let wager_box = query("#wager").and_then(to_input_element);
+            let open = state.open.as_ref()?;
 
-        let left_button = query("#player1:enabled").and_then(to_input_element);
+            let current_balance = query("#balance")
+                .and_then(get_text_content)
+                .and_then(|x| parse_f64(&x))?;
 
-        let right_button = query("#player2:enabled").and_then(to_input_element);
+            let wager_box = query("#wager").and_then(to_input_element)?;
 
-        // TODO is the `tournament-note` correct ?
-        let in_tournament = query("#balance.purpletext").is_some() || query("#tournament-note").is_some();
+            let left_button = query("#player1:enabled").and_then(to_input_element)?;
 
-        // TODO gross
-        // TODO figure out a way to avoid the clone
-        if let Some(open) = state.open.clone() {
-        if let Some(current_balance) = current_balance {
-        if let Some(wager_box) = wager_box {
-        if let Some(left_button) = left_button {
-        if let Some(right_button) = right_button {
+            let right_button = query("#player2:enabled").and_then(to_input_element)?;
+
+            // TODO is the `tournament-note` correct ?
+            let in_tournament = query("#balance.purpletext").is_some() || query("#tournament-note").is_some();
+
             let left_name = get_value(&left_button);
             let right_name = get_value(&right_button);
 
@@ -126,149 +128,162 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                         if !amount.is_nan() {
                             wager_box.set_raw_value(&amount.to_string());
                             click(&left_button);
-                            return;
+                            return Some(());
                         }
                     },
                     Bet::Right(amount) => {
                         if !amount.is_nan() {
                             wager_box.set_raw_value(&amount.to_string());
                             click(&right_button);
-                            return;
+                            return Some(());
                         }
                     },
                     Bet::None => {
-                        return;
+                        return Some(());
                     },
                 }
             }
 
             server_log!("Invalid state: {:#?} {:#?} {:#?} {:#?} {:#?}", current_balance, open, left_name, right_name, in_tournament);
-        }}}}}
+        }
+
+        None
     }
+
+    lookup(&mut state.borrow_mut());
 }
 
 
 fn lookup_information(state: &Rc<RefCell<State>>) {
-    let status = query("#betstatus")
-        .and_then(get_text_content)
-        .map(|x| x == "Bets are locked until the next match.")
-        .unwrap_or(false);
+    fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> f64 {
+        let mut len = 0.0;
 
-    if status {
+        for bettor in list {
+            let bettor = get_text_content(bettor).unwrap();
+
+            if bettor == name {
+                assert!(!*matched);
+                assert!(illuminati_check);
+                *matched = true;
+
+            } else {
+                len += 1.0;
+            }
+        }
+
+        len
+    }
+
+    fn lookup(state: &mut State) -> Option<()> {
+        if let Some(_) = state.information {
+            return None;
+        }
+
+        let _open = state.open.as_ref()?;
+        let closed = state.closed.as_ref()?;
+
+        let status = query("#betstatus")
+            .and_then(get_text_content)?;
+
+        if status != "Bets are locked until the next match." {
+            return None;
+        }
+
+        let left_name = query("#sbettors1 > span.redtext > strong")
+            .and_then(get_text_content)?;
+
+        if left_name != closed.left.name {
+            return None;
+        }
+
+        let right_name = query("#sbettors2 > span.bluetext > strong")
+            .and_then(get_text_content)?;
+
+        if right_name != closed.right.name {
+            return None;
+        }
+
         let left_count = query("#sbettors1 > span.redtext > span.counttext")
             .and_then(get_text_content)
-            .and_then(|x| parse_f64(&x));
+            .and_then(|x| parse_f64(&x))?;
 
         let right_count = query("#sbettors2 > span.bluetext > span.counttext")
             .and_then(get_text_content)
-            .and_then(|x| parse_f64(&x));
+            .and_then(|x| parse_f64(&x))?;
 
-        if let Some(left_count) = left_count {
-            if let Some(right_count) = right_count {
-                // TODO a bit of code duplication with lookup_bet
-                let current_balance = query("#balance")
-                    .and_then(get_text_content)
-                    .and_then(|x| parse_f64(&x));
+        // TODO a bit of code duplication with lookup_bet
+        let current_balance = query("#balance")
+            .and_then(get_text_content)
+            .and_then(|x| parse_f64(&x))?;
 
-                // TODO detect whether the player is Illuminati or not ?
-                let name = query("#header span.navbar-text")
-                    .and_then(get_text_content)
-                    .and_then(|x| parse_name(&x));
+        let name = query("#header span.navbar-text")
+            .and_then(get_text_content)
+            .and_then(|x| parse_name(&x))?;
 
-                if let Some(current_balance) = current_balance {
-                    if let Some(name) = name {
-                        log!("{:#?} {:#?} {:#?}", name, left_count, right_count);
+        let is_illuminati = query("#header span.navbar-text > .goldtext").is_some();
 
-                        let is_illuminati = query("#header span.navbar-text > .goldtext").is_some();
+        let mut matched_left = false;
+        let mut matched_right = false;
 
-                        let mut matched_left = false;
-                        let mut matched_right = false;
+        let left_bettors_illuminati = filtered_len(query_all("#bettors1 > p.bettor-line > strong.goldtext"), &name, &mut matched_left, is_illuminati);
+        let right_bettors_illuminati = filtered_len(query_all("#bettors2 > p.bettor-line > strong.goldtext"), &name, &mut matched_right, is_illuminati);
 
-                        fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> f64 {
-                            let mut len = 0.0;
+        let left_bettors_normal = filtered_len(query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_left, !is_illuminati);
+        let right_bettors_normal = filtered_len(query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_right, !is_illuminati);
 
-                            for bettor in list {
-                                let bettor = get_text_content(bettor).unwrap();
+        let left_bet = query("#lastbet > span:first-of-type.redtext")
+            .and_then(get_text_content)
+            .and_then(|x| parse_money(&x));
 
-                                if bettor == name {
-                                    assert!(!*matched);
-                                    assert!(illuminati_check);
-                                    *matched = true;
+        let right_bet = query("#lastbet > span:first-of-type.bluetext")
+            .and_then(get_text_content)
+            .and_then(|x| parse_money(&x));
 
-                                } else {
-                                    len += 1.0;
-                                }
-                            }
+        state.information = Some(Information {
+            left_bettors_illuminati,
+            right_bettors_illuminati,
+            left_bettors_normal,
+            right_bettors_normal,
+            bet: match left_bet {
+                Some(left) => match right_bet {
+                    None => {
+                        assert!(matched_left);
+                        assert!(!matched_right);
+                        assert_eq!(left_bettors_illuminati + left_bettors_normal + 1.0, left_count);
+                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
+                        Bet::Left(left)
+                    },
+                    Some(_) => unreachable!(),
+                },
+                None => match right_bet {
+                    Some(right) => {
+                        assert!(!matched_left);
+                        assert!(matched_right);
+                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
+                        assert_eq!(right_bettors_illuminati + right_bettors_normal + 1.0, right_count);
+                        Bet::Right(right)
+                    },
+                    None => {
+                        assert!(!matched_left);
+                        assert!(!matched_right);
+                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
+                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
+                        Bet::None
+                    },
+                },
+            },
+            sum: current_balance,
+        });
 
-                            len
-                        }
-
-                        let left_bettors_illuminati = filtered_len(query_all("#bettors1 > p.bettor-line > strong.goldtext"), &name, &mut matched_left, is_illuminati);
-                        let right_bettors_illuminati = filtered_len(query_all("#bettors2 > p.bettor-line > strong.goldtext"), &name, &mut matched_right, is_illuminati);
-
-                        let left_bettors_normal = filtered_len(query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_left, !is_illuminati);
-                        let right_bettors_normal = filtered_len(query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_right, !is_illuminati);
-
-                        let left_bet = query("#lastbet > span:first-of-type.redtext")
-                            .and_then(get_text_content)
-                            .and_then(|x| parse_money(&x));
-
-                        let right_bet = query("#lastbet > span:first-of-type.bluetext")
-                            .and_then(get_text_content)
-                            .and_then(|x| parse_money(&x));
-
-                        state.borrow_mut().information = Some(Information {
-                            left_bettors_illuminati,
-                            right_bettors_illuminati,
-                            left_bettors_normal,
-                            right_bettors_normal,
-                            bet: match left_bet {
-                                Some(left) => match right_bet {
-                                    None => {
-                                        assert!(matched_left);
-                                        assert!(!matched_right);
-                                        assert_eq!(left_bettors_illuminati + left_bettors_normal + 1.0, left_count);
-                                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
-                                        Bet::Left(left)
-                                    },
-                                    Some(_) => unreachable!(),
-                                },
-                                None => match right_bet {
-                                    Some(right) => {
-                                        assert!(!matched_left);
-                                        assert!(matched_right);
-                                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
-                                        assert_eq!(right_bettors_illuminati + right_bettors_normal + 1.0, right_count);
-                                        Bet::Right(right)
-                                    },
-                                    None => {
-                                        assert!(!matched_left);
-                                        assert!(!matched_right);
-                                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
-                                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
-                                        Bet::None
-                                    },
-                                },
-                            },
-                            sum: current_balance,
-                        });
-
-                    }  else {
-                        server_log!("Unknown name");
-                    }
-
-                }  else {
-                    server_log!("Unknown current balance");
-                }
-            }
-        }
+        Some(())
     }
+
+    lookup(&mut state.borrow_mut());
 }
 
 
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
 pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Stream<Item = Vec<WaifuMessage>> + 'static {
-    let mut old_closed: Option<WaifuBetsClosed> = None;
     let mut mode_switch: Option<f64> = None;
 
     let mut process_messages = move |messages: Vec<WaifuMessage>| {
@@ -287,7 +302,7 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
 
                     state.did_bet = false;
                     state.open = Some(open);
-                    old_closed = None;
+                    state.closed = None;
                     mode_switch = None;
                     state.information = None;
                 },
@@ -306,12 +321,12 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
                                duration <= MAX_BET_TIME_LIMIT &&
                                open.left == closed.left.name &&
                                open.right == closed.right.name &&
-                               old_closed.is_none() {
-                                old_closed = Some(closed);
+                               state.closed.is_none() {
+                                state.closed = Some(closed);
                                 continue;
 
                             } else {
-                                server_log!("Invalid messages: {:#?} {:#?}", open, closed);
+                                server_log!("Invalid data: {:#?} {:#?}", open, closed);
                             }
                         },
                         None => {},
@@ -320,7 +335,7 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
                     state.clear_info_container();
 
                     state.open = None;
-                    old_closed = None;
+                    state.closed = None;
                 },
 
                 WaifuMessage::ModeSwitch { date, is_exhibition } => {
@@ -333,21 +348,21 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
                         }, 900000);
                     }
 
-                    let state = state.borrow();
+                    let mut state = state.borrow_mut();
 
                     match state.open {
-                        Some(ref open) => match old_closed {
+                        Some(ref open) => match state.closed {
                             Some(_) => {
                                 if mode_switch.is_none() {
                                     mode_switch = Some(date);
                                     continue;
 
                                 } else {
-                                    server_log!("Invalid messages: {:#?} {:#?} {:#?}", open, mode_switch, message);
+                                    server_log!("Duplicate mode switch: {:#?} {:#?} {:#?}", open, mode_switch, message);
                                 }
                             },
                             None => {
-                                server_log!("Invalid messages: {:#?} {:#?}", open, message);
+                                server_log!("Missing closed: {:#?} {:#?}", open, message);
                             },
                         },
                         None => {},
@@ -355,124 +370,114 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
 
                     state.clear_info_container();
 
-                    // TODO should this also reset open and old_closed ?
+                    state.open = None;
+                    state.closed = None;
                     mode_switch = None;
                 },
 
                 WaifuMessage::Winner(winner) => {
-                    let record = {
-                        let state = state.borrow();
+                    let state: &mut State = &mut state.borrow_mut();
 
-                        match state.open {
-                            Some(ref open) => match old_closed {
-                                Some(ref mut closed) => match state.information {
-                                    Some(ref information) => {
-                                        let date = match mode_switch {
-                                            Some(date) => date,
-                                            None => winner.date,
-                                        };
+                    match state.open {
+                        Some(ref open) => match state.closed {
+                            Some(ref mut closed) => match state.information {
+                                Some(ref information) => {
+                                    let date = match mode_switch {
+                                        Some(date) => date,
+                                        None => winner.date,
+                                    };
 
-                                        let duration = date - closed.date;
+                                    let duration = date - closed.date;
 
-                                        let is_winner_correct = match winner.side {
-                                            Winner::Left => winner.name == closed.left.name,
-                                            Winner::Right => winner.name == closed.right.name,
-                                        };
+                                    let is_winner_correct = match winner.side {
+                                        Winner::Left => winner.name == closed.left.name,
+                                        Winner::Right => winner.name == closed.right.name,
+                                    };
 
-                                        if is_winner_correct &&
-                                           duration >= 0.0 &&
-                                           duration <= MAX_MATCH_TIME_LIMIT {
+                                    if is_winner_correct &&
+                                       duration >= 0.0 &&
+                                       duration <= MAX_MATCH_TIME_LIMIT {
 
-                                            // TODO figure out a way to avoid the clone
-                                            let information = information.clone();
+                                        // TODO figure out a way to avoid the clone
+                                        let information = information.clone();
 
-                                            match information.bet {
-                                                Bet::Left(amount) => {
-                                                    closed.left.bet_amount -= amount;
+                                        match information.bet {
+                                            Bet::Left(amount) => {
+                                                closed.left.bet_amount -= amount;
+                                            },
+                                            Bet::Right(amount) => {
+                                                closed.right.bet_amount -= amount;
+                                            },
+                                            Bet::None => {},
+                                        }
+
+                                        if closed.left.bet_amount > 0.0 &&
+                                           closed.right.bet_amount > 0.0 &&
+                                           (information.left_bettors_illuminati + information.left_bettors_normal) > 0.0 &&
+                                           (information.right_bettors_illuminati + information.right_bettors_normal) > 0.0 {
+
+                                            // TODO figure out a way to avoid clone
+                                            let record = Record {
+                                                left: Character {
+                                                    name: closed.left.name.clone(),
+                                                    bet_amount: closed.left.bet_amount,
+                                                    win_streak: closed.left.win_streak,
+                                                    illuminati_bettors: information.left_bettors_illuminati,
+                                                    normal_bettors: information.left_bettors_normal,
                                                 },
-                                                Bet::Right(amount) => {
-                                                    closed.right.bet_amount -= amount;
+                                                right: Character {
+                                                    name: closed.right.name.clone(),
+                                                    bet_amount: closed.right.bet_amount,
+                                                    win_streak: closed.right.win_streak,
+                                                    illuminati_bettors: information.right_bettors_illuminati,
+                                                    normal_bettors: information.right_bettors_normal,
                                                 },
-                                                Bet::None => {},
+                                                winner: winner.side,
+                                                tier: open.tier.clone(),
+                                                mode: open.mode.clone(),
+                                                bet: information.bet.clone(),
+                                                duration,
+                                                date,
+                                                sum: information.sum,
+                                            };
+
+                                            if let Mode::Matchmaking = record.mode {
+                                                state.simulation.insert_sum(record.sum);
                                             }
 
-                                            if closed.left.bet_amount > 0.0 &&
-                                               closed.right.bet_amount > 0.0 &&
-                                               (information.left_bettors_illuminati + information.left_bettors_normal) > 0.0 &&
-                                               (information.right_bettors_illuminati + information.right_bettors_normal) > 0.0 {
+                                            state.simulation.insert_record(&record);
 
-                                                // TODO figure out a way to avoid clone
-                                                Some(Record {
-                                                    left: Character {
-                                                        name: closed.left.name.clone(),
-                                                        bet_amount: closed.left.bet_amount,
-                                                        win_streak: closed.left.win_streak,
-                                                        illuminati_bettors: information.left_bettors_illuminati,
-                                                        normal_bettors: information.left_bettors_normal,
-                                                    },
-                                                    right: Character {
-                                                        name: closed.right.name.clone(),
-                                                        bet_amount: closed.right.bet_amount,
-                                                        win_streak: closed.right.win_streak,
-                                                        illuminati_bettors: information.right_bettors_illuminati,
-                                                        normal_bettors: information.right_bettors_normal,
-                                                    },
-                                                    winner: winner.side,
-                                                    tier: open.tier.clone(),
-                                                    mode: open.mode.clone(),
-                                                    bet: information.bet.clone(),
-                                                    duration,
-                                                    date,
-                                                    sum: information.sum,
-                                                })
+                                            // TODO figure out a way to avoid this clone
+                                            spawn(records_insert(vec![record.clone()]));
 
-                                            } else {
-                                                server_log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
-                                                None
-                                            }
+                                            state.records.push(record);
 
                                         } else {
-                                            server_log!("Invalid messages: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
-                                            None
+                                            server_log!("Invalid bet data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
                                         }
-                                    },
-                                    None => {
-                                        server_log!("Invalid messages: {:#?} {:#?} {:#?}", open, closed, winner);
-                                        None
-                                    },
+
+                                    } else {
+                                        server_log!("Invalid match data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                    }
                                 },
                                 None => {
-                                    server_log!("Invalid messages: {:#?} {:#?}", open, winner);
-                                    None
+                                    server_log!("Missing information: {:#?} {:#?} {:#?}", open, closed, winner);
                                 },
                             },
-                            None => None,
-                        }
-                    };
-
-                    let mut state = state.borrow_mut();
-
-                    if let Some(record) = record {
-                        if let Mode::Matchmaking = record.mode {
-                            state.simulation.insert_sum(record.sum);
-                        }
-
-                        // TODO figure out a way to avoid this clone
-                        state.simulation.insert_record(&record);
-
-                        // TODO figure out a way to avoid this clone
-                        spawn(records_insert(vec![record.clone()]));
-
-                        state.records.push(record);
+                            None => {
+                                server_log!("Missing closed: {:#?} {:#?}", open, winner);
+                            },
+                        },
+                        None => {},
                     }
 
                     state.clear_info_container();
 
                     state.did_bet = false;
                     state.open = None;
-                    old_closed = None;
-                    mode_switch = None;
+                    state.closed = None;
                     state.information = None;
+                    mode_switch = None;
                 },
             }
         }
@@ -490,6 +495,7 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
 pub struct State {
     did_bet: bool,
     open: Option<WaifuBetsOpen>,
+    closed: Option<WaifuBetsClosed>,
     information: Option<Information>,
     simulation: Simulation<CustomStrategy, CustomStrategy>,
     records: Vec<Record>,
@@ -821,6 +827,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
     let state = Rc::new(RefCell::new(State {
         did_bet: false,
         open: None,
+        closed: None,
         information: None,
         simulation: simulation,
         records: records,
@@ -831,7 +838,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
 
     fn loop_bet(state: Rc<RefCell<State>>) {
         lookup_bet(&state);
-        set_timeout(|| loop_bet(state), 500);
+        set_timeout(|| loop_bet(state), 1000);
     }
 
     fn loop_information(state: Rc<RefCell<State>>) {
