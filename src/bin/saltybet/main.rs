@@ -182,25 +182,45 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
         let _open = state.open.as_ref()?;
         let closed = state.closed.as_ref()?;
 
-        let status = query("#betstatus")
-            .and_then(get_text_content)?;
+        {
+            let status = query("#betstatus")
+                .and_then(get_text_content)?;
 
-        if status != "Bets are locked until the next match." {
-            return None;
+            if status != "Bets are locked until the next match." {
+                return None;
+            }
         }
 
-        let left_name = query("#sbettors1 > span.redtext > strong")
-            .and_then(get_text_content)?;
+        {
+            let left_name = query("#sbettors1 > span.redtext > strong")
+                .and_then(get_text_content)?;
 
-        if left_name != closed.left.name {
-            return None;
+            if left_name != closed.left.name {
+                return None;
+            }
+
+            let left_name = query("#odds > span.redtext")
+                .and_then(get_text_content)?;
+
+            if left_name != closed.left.name {
+                return None;
+            }
         }
 
-        let right_name = query("#sbettors2 > span.bluetext > strong")
-            .and_then(get_text_content)?;
+        {
+            let right_name = query("#sbettors2 > span.bluetext > strong")
+                .and_then(get_text_content)?;
 
-        if right_name != closed.right.name {
-            return None;
+            if right_name != closed.right.name {
+                return None;
+            }
+
+            let right_name = query("#odds > span.bluetext")
+                .and_then(get_text_content)?;
+
+            if right_name != closed.right.name {
+                return None;
+            }
         }
 
         let left_count = query("#sbettors1 > span.redtext > span.counttext")

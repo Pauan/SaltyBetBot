@@ -95,7 +95,8 @@ pub fn parse_f64(input: &str) -> Option<f64> {
 // TODO make this more efficient
 pub fn remove_newlines(input: &str) -> String {
     lazy_static! {
-        static ref PARSE_NEWLINES: regexp::RegExp = regexp::RegExp::new(r"(?:^[ \n\r]+)|(?:[\n\r]+)|(?:[ \n\r]+$)");
+        // TODO replace all \u{a0} with spaces ?
+        static ref PARSE_NEWLINES: regexp::RegExp = regexp::RegExp::new(r"(?:^[ \u{a0}\n\r]+)|(?:[\n\r]+)|(?:[ \u{a0}\n\r]+$)");
     }
 
     PARSE_NEWLINES.replace(input, "")
