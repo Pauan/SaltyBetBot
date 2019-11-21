@@ -71,6 +71,12 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 
             let right_button = query("#player2:enabled").and_then(to_input_element)?;
 
+            let left_info_name = query("#sbettors1 > span.redtext > strong")
+                .and_then(get_text_content)?;
+
+            let right_info_name = query("#sbettors2 > span.bluetext > strong")
+                .and_then(get_text_content)?;
+
             // TODO is the `tournament-note` correct ?
             let in_tournament = query("#balance.purpletext").is_some() || query("#tournament-note").is_some();
 
@@ -85,6 +91,8 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
             // TODO check the date as well ?
             if left_name == open.left &&
                right_name == open.right &&
+               left_info_name == open.left &&
+               right_info_name == open.right &&
                correct_mode {
 
                 state.did_bet = true;
