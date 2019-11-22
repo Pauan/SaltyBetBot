@@ -15,7 +15,7 @@ use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{set_panic_hook, spawn, get_added_records, Message, Tab, Port, Listener, on_message, WaifuMessage};
+use salty_bet_bot::{set_panic_hook, spawn, sorted_record_index, get_added_records, Message, Tab, Port, Listener, on_message, WaifuMessage};
 use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
@@ -84,6 +84,23 @@ fn remove_tabs(tabs: &[Tab]) -> PromiseFuture<()> {
 
 
 #[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
+#[reference(instance_of = "IDBCursorWithValue")]
+pub struct Cursor(Reference);
+
+impl Cursor {
+    pub fn value(&self) -> String {
+        js!( return @{self}.value; ).try_into().unwrap()
+    }
+
+    pub fn delete(&self) {
+        js! { @(no_return)
+            @{self}.delete();
+        }
+    }
+}
+
+
+#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
 #[reference(instance_of = "IDBDatabase")]
 pub struct Db(Reference);
 
@@ -124,6 +141,38 @@ impl Db {
         js! { @(no_return)
             @{self}.createObjectStore("records", { autoIncrement: true });
         }
+    }
+
+    pub fn for_each<F>(&self, f: F) -> PromiseFuture<()> where F: FnMut(Cursor) + 'static {
+        js!(
+            return new Promise(function (resolve, reject) {
+                var callback = @{f};
+
+                var transaction = @{self}.transaction("records", "readwrite");
+
+                transaction.oncomplete = function () {
+                    callback.drop();
+                    resolve();
+                };
+
+                transaction.onerror = function (event) {
+                    callback.drop();
+                    // TODO is this correct ?
+                    reject(event);
+                };
+
+                var request = transaction.objectStore("records").openCursor();
+
+                request.onsuccess = function (event) {
+                    var cursor = event.target.result;
+
+                    if (cursor) {
+                        callback(cursor);
+                        cursor.continue();
+                    }
+                };
+            });
+        ).try_into().unwrap()
     }
 
     fn get_all_records_raw(&self) -> PromiseFuture<Vec<String>> {
@@ -249,18 +298,63 @@ impl Remote {
 
 
 async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, Error> {
-    let mut output = vec![];
+    let records = time!("Retrieving default records", {
+        let mut output = vec![];
 
-    let files = files.into_iter().map(|file| fetch(file));
+        let files = files.into_iter().map(|file| fetch(file));
 
-    for file in try_join_all(files).await? {
-        let mut records = deserialize_records(&file);
-        output.append(&mut records);
-    }
+        for file in try_join_all(files).await? {
+            let mut records = deserialize_records(&file);
+            output.append(&mut records);
+        }
 
-    log!("Retrieved {} default records", output.len());
+        output
+    });
 
-    Ok(output)
+    log!("Retrieved {} default records", records.len());
+
+    Ok(records)
+}
+
+
+async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, Error> {
+    let state = time!("Deleting duplicate records", {
+        struct State {
+            records: Vec<Record>,
+            deleted: usize,
+        }
+
+        let state = Rc::new(RefCell::new(State {
+            records: vec![],
+            deleted: 0,
+        }));
+
+        db.for_each(clone!(state => move |cursor| {
+            let mut state = state.borrow_mut();
+
+            let record = Record::deserialize(&cursor.value());
+
+            match sorted_record_index(&state.records, &record) {
+                Ok(_) => {
+                    state.deleted += 1;
+                    cursor.delete();
+                },
+                Err(index) => {
+                    state.records.insert(index, record);
+                },
+            }
+        })).await?;
+
+        match Rc::try_unwrap(state) {
+            Ok(state) => state.into_inner(),
+            Err(_) => unreachable!(),
+        }
+    });
+
+    log!("Deleted {} records", state.deleted);
+    log!("Retrieved {} current records", state.records.len());
+
+    Ok(state.records)
 }
 
 
@@ -275,7 +369,9 @@ async fn main_future() -> Result<(), Error> {
         }).await?
     });
 
-    time!("Inserting default records", {
+    {
+        let old_records = delete_duplicate_records(&db);
+
         let new_records = get_static_records(&[
             "records/SaltyBet Records 0.json",
             "records/SaltyBet Records 1.json",
@@ -283,20 +379,16 @@ async fn main_future() -> Result<(), Error> {
             "records/SaltyBet Records 3.json",
         ]);
 
-        let old_records = async {
-            let records = db.get_all_records().await?;
-            log!("Retrieved {} current records", records.len());
-            Ok(records)
-        };
+        let (old_records, new_records) = try_join(old_records, new_records).await?;
 
-        let (new_records, old_records) = try_join(new_records, old_records).await?;
-
-        let added_records = get_added_records(old_records, new_records);
-
-        db.insert_records(added_records.as_slice()).await?;
+        let added_records = time!("Inserting default records", {
+            let added_records = get_added_records(old_records, new_records);
+            db.insert_records(added_records.as_slice()).await?;
+            added_records
+        });
 
         log!("Inserted {} records", added_records.len());
-    });
+    }
 
     // This is necessary because Chrome doesn't allow content scripts to use the tabs API
     DiscardOnDrop::leak(on_message(move |message| {

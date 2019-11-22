@@ -378,6 +378,39 @@ pub fn find_last_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) 
 }
 
 
+pub fn sorted_record_index(old_records: &[Record], new_record: &Record) -> Result<(), usize> {
+    let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
+    let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
+
+    let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
+
+    let mut found = false;
+
+    for old_record in &old_records[index..] {
+        assert!(old_record.date >= start_date);
+
+        if old_record.date <= end_date {
+            if old_record.is_duplicate(&new_record) {
+                found = true;
+                break;
+            }
+
+        } else {
+            break;
+        }
+    }
+
+    if found {
+        // TODO return the index of the duplicate ?
+        Ok(())
+
+    } else {
+        let new_index = find_last_index(&old_records, |x| Record::sort_date(x, &new_record));
+        Err(new_index)
+    }
+}
+
+
 pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>) -> Vec<Record> {
     assert!(old_records.is_sorted_by(|x, y| Some(Record::sort_date(x, y))));
 
@@ -385,31 +418,8 @@ pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>)
 
     // TODO this can be implemented more efficiently (linear rather than quadratic)
     for new_record in new_records {
-        let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
-        let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
-
-        let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
-
-        let mut found = false;
-
-        for old_record in &old_records[index..] {
-            assert!(old_record.date >= start_date);
-
-            if old_record.date <= end_date {
-                if old_record.is_duplicate(&new_record) {
-                    found = true;
-                    break;
-                }
-
-            } else {
-                break;
-            }
-        }
-
-        if !found {
-            let new_index = find_last_index(&old_records, |x| Record::sort_date(x, &new_record));
-            old_records.insert(new_index, new_record.clone());
-
+        if let Err(index) = sorted_record_index(&old_records, &new_record) {
+            old_records.insert(index, new_record.clone());
             added_records.push(new_record);
         }
     }
