@@ -15,7 +15,7 @@ Before you install this extension, make sure that you have [Git](https://git-scm
 
 5. If everything was done correctly, the extension should now be loaded in Chrome, congratulations!
 
-6. You can now go to [saltybet.com](http://www.saltybet.com/) and it will start to bet automatically.
+6. You can now go to [mugen.saltybet.com](http://mugen.saltybet.com/) and it will start to bet automatically.
 
 How to upgrade
 ==============
@@ -30,9 +30,7 @@ How to upgrade
 
 5. Find "Salty Bet Bot" in the extensions list, and then click the reload button (it looks like a circular arrow).
 
-6. Wait for 10 seconds (this gives it time to read the new data). It will merge the new data with your existing data.
-
-7. Re-open the [saltybet.com](http://www.saltybet.com/) website.
+6. Re-open the [mugen.saltybet.com](http://mugen.saltybet.com/) website.
 
 How to build (for programmers only)
 ===================================

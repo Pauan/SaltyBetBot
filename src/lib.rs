@@ -233,30 +233,42 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
 }
 
 pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
-    where A: DeserializeOwned,
+    where A: DeserializeOwned + 'static,
           B: Future<Output = String> + 'static,
           F: FnMut(A) -> B + 'static {
 
+    let (sender, receiver) = unbounded();
+
     let callback = move |message: String, reply: Reference| {
-        let future = f(serde_json::from_str(&message).unwrap());
+        sender.unbounded_send((message, reply)).unwrap();
+    };
 
-        spawn_local(async {
-            let result = future.await;
+    spawn(async move {
+        receiver.for_each(move |(message, reply)| {
+            let message = serde_json::from_str(&message).unwrap();
 
-            // TODO make this more efficient ?
-            js! { @(no_return)
-                try {
-                    @{reply}(@{result});
+            let future = f(message);
 
-                } catch (e) {
-                    // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
-                    if (e.message !== "Attempting to use a disconnected port object") {
-                        throw e;
+            async move {
+                let result = future.await;
+
+                // TODO make this more efficient ?
+                js! { @(no_return)
+                    try {
+                        @{reply}(@{result});
+
+                    } catch (e) {
+                        // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
+                        if (e.message !== "Attempting to use a disconnected port object") {
+                            throw e;
+                        }
                     }
                 }
             }
-        });
-    };
+        }).await;
+
+        Ok(())
+    });
 
     Listener::new(js!(
         var callback = @{callback};

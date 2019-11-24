@@ -20,6 +20,7 @@ use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
 use futures_util::try_future::{try_join, try_join_all};
+use futures_signals::signal::{Mutable, SignalExt};
 
 
 // TODO cancellation
@@ -358,79 +359,7 @@ async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, Error> {
 }
 
 
-async fn main_future() -> Result<(), Error> {
-    set_panic_hook();
-
-    log!("Initializing...");
-
-    let db = time!("Initializing database", {
-        Db::new(2, |db, _old, _new| {
-            db.migrate();
-        }).await?
-    });
-
-    {
-        let old_records = delete_duplicate_records(&db);
-
-        let new_records = get_static_records(&[
-            "records/SaltyBet Records 0.json",
-            "records/SaltyBet Records 1.json",
-            "records/SaltyBet Records 2.json",
-            "records/SaltyBet Records 3.json",
-        ]);
-
-        let (old_records, new_records) = try_join(old_records, new_records).await?;
-
-        let added_records = time!("Inserting default records", {
-            let added_records = get_added_records(old_records, new_records);
-            db.insert_records(added_records.as_slice()).await?;
-            added_records
-        });
-
-        log!("Inserted {} records", added_records.len());
-    }
-
-    // This is necessary because Chrome doesn't allow content scripts to use the tabs API
-    DiscardOnDrop::leak(on_message(move |message| {
-        clone!(db => async move {
-            match message {
-                Message::RecordsNew => reply_result!({
-                    let records = db.get_all_records().await?;
-                    Remote::new(records)
-                }),
-                Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
-                    let from = from as usize;
-                    let to = to as usize;
-
-                    reply!({
-                        let len = records.len();
-
-                        if from >= len {
-                            None
-
-                        } else {
-                            Some(&records[from..(to.min(len))])
-                        }
-                    })
-                }),
-                Message::RecordsDrop(id) => reply!({
-                    Remote::drop::<Vec<Record>>(id);
-                }),
-
-                Message::InsertRecords(records) => reply_result!({
-                    db.insert_records(records.as_slice()).await?;
-                }),
-                Message::DeleteAllRecords => reply_result!({
-                    db.delete_all_records().await?;
-                }),
-                Message::ServerLog(message) => reply!({
-                    console!(log, message);
-                }),
-            }
-        })
-    }));
-
-
+fn listen_to_ports() {
     struct SaltyBet {
         port: Port,
         _on_disconnect: DiscardOnDrop<Listener>,
@@ -468,40 +397,37 @@ async fn main_future() -> Result<(), Error> {
         twitch_chat_ports: vec![],
     }));
 
+
     // This is necessary because Chrome doesn't allow content scripts to directly communicate with other content scripts
     // TODO auto-reload the tabs if they haven't sent a message in a while
     DiscardOnDrop::leak(Port::on_connect(move |port| {
         match port.name().as_str() {
-            "saltybet" => spawn(clone!(state => async move {
-                {
+            "saltybet" => {
+                let mut lock = state.borrow_mut();
+
+                let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
+
+                let on_disconnect = port.on_disconnect(clone!(state => move |port| {
                     let mut lock = state.borrow_mut();
 
-                    let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
+                    assert!(remove_value(&mut lock.salty_bet_ports, |x| x.port == port));
+                }));
 
-                    let future = async move {
-                        if tabs.len() > 0 {
-                            remove_tabs(&tabs).await?;
-                        }
+                lock.salty_bet_ports.push(SaltyBet {
+                    port,
+                    _on_disconnect: on_disconnect,
+                });
 
-                        Ok(())
-                    };
+                spawn(async move {
+                    if tabs.len() > 0 {
+                        remove_tabs(&tabs).await?;
+                    }
 
-                    let on_disconnect = port.on_disconnect(clone!(state => move |port| {
-                        let mut lock = state.borrow_mut();
+                    Ok(())
+                });
+            },
 
-                        assert!(remove_value(&mut lock.salty_bet_ports, |x| x.port == port));
-                    }));
-
-                    lock.salty_bet_ports.push(SaltyBet {
-                        port,
-                        _on_disconnect: on_disconnect,
-                    });
-
-                    future
-                }.await
-            })),
-
-            "twitch_chat" => spawn(clone!(state => async move {
+            "twitch_chat" => {
                 let mut lock = state.borrow_mut();
 
                 lock.twitch_chat_ports.clear();
@@ -528,15 +454,106 @@ async fn main_future() -> Result<(), Error> {
                     _on_message: on_message,
                     _on_disconnect: on_disconnect,
                 });
-
-                Ok(())
-            })),
+            },
 
             name => {
                 panic!("Invalid port name: {}", name);
             },
         }
     }));
+}
+
+
+async fn main_future() -> Result<(), Error> {
+    set_panic_hook();
+
+    log!("Initializing...");
+
+
+    listen_to_ports();
+
+
+    let db = time!("Initializing database", {
+        Db::new(2, |db, _old, _new| {
+            db.migrate();
+        }).await?
+    });
+
+    let loaded = Mutable::new(false);
+
+
+    // This is necessary because Chrome doesn't allow content scripts to use the tabs API
+    DiscardOnDrop::leak(on_message(clone!(db, loaded => move |message| {
+        // TODO is there a better way of doing this ?
+        let done = loaded.signal().wait_for(true);
+
+        clone!(db => async move {
+            done.await;
+
+            match message {
+                Message::RecordsNew => reply_result!({
+                    // TODO this shouldn't pause the message queue
+                    let records = db.get_all_records().await?;
+                    Remote::new(records)
+                }),
+                Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
+                    let from = from as usize;
+                    let to = to as usize;
+
+                    reply!({
+                        let len = records.len();
+
+                        if from >= len {
+                            None
+
+                        } else {
+                            Some(&records[from..(to.min(len))])
+                        }
+                    })
+                }),
+                Message::RecordsDrop(id) => reply!({
+                    Remote::drop::<Vec<Record>>(id);
+                }),
+
+                Message::InsertRecords(records) => reply_result!({
+                    db.insert_records(records.as_slice()).await?;
+                }),
+
+                Message::DeleteAllRecords => reply_result!({
+                    db.delete_all_records().await?;
+                }),
+
+                Message::ServerLog(message) => reply!({
+                    console!(log, message);
+                }),
+            }
+        })
+    })));
+
+
+    {
+        let old_records = delete_duplicate_records(&db);
+
+        let new_records = get_static_records(&[
+            "records/SaltyBet Records 0.json",
+            "records/SaltyBet Records 1.json",
+            "records/SaltyBet Records 2.json",
+            "records/SaltyBet Records 3.json",
+        ]);
+
+        let (old_records, new_records) = try_join(old_records, new_records).await?;
+
+        let added_records = time!("Inserting default records", {
+            let added_records = get_added_records(old_records, new_records);
+            db.insert_records(added_records.as_slice()).await?;
+            added_records
+        });
+
+        log!("Inserted {} records", added_records.len());
+
+        loaded.set(true);
+    }
+
 
     log!("Background page started");
 

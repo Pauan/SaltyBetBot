@@ -476,6 +476,7 @@ pub fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Strea
                                             state.simulation.insert_record(&record);
 
                                             // TODO figure out a way to avoid this clone
+                                            // TODO is this guaranteed to be correctly ordered ?
                                             spawn(records_insert(vec![record.clone()]));
 
                                             state.records.push(record);
