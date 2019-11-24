@@ -129,7 +129,7 @@ impl State {
                     };
 
                     // TODO code duplication with bin/chart
-                    simulation.calculate(&record, &record.bet);
+                    simulation.calculate(&record, &record.bet, 1.0);
 
                     // TODO code duplication with bin/chart
                     if let Mode::Matchmaking = record.mode {

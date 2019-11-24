@@ -1115,7 +1115,8 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
                 }
             }*/
 
-            simulation.simulate(settings.records.to_vec(), true);
+            // TODO use NUMBER_OF_BOTS ?
+            simulation.simulate(settings.records.to_vec(), true, 1.0);
 
             (
                 if simulation.record_len == 0.0 { 0.0 } else { simulation.upsets / simulation.record_len }, // simulation.sum,

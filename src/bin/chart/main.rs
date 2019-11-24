@@ -29,6 +29,9 @@ use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
 
 
+// Number of people using the bot (including self)
+const NUMBER_OF_BOTS: f64 = 5.0;
+
 const DEFAULT_DAYS_SHOWN: u32 = 365;
 
 const MATCHMAKING_STARTING_MONEY: f64 = 10_000_000.0;
@@ -244,7 +247,7 @@ impl Information {
                         };
 
                         // TODO should this skip if it's Bet::None ?
-                        simulation.calculate(&record, &bet);
+                        simulation.calculate(&record, &bet, NUMBER_OF_BOTS);
 
                         let new_sum = simulation.sum;
                         let new_tournament_sum = simulation.tournament_sum;
@@ -353,7 +356,7 @@ impl Information {
 
                             if let Some(_amount) = bet.amount() {
                                 //if amount > 1.0 {
-                                    simulation.calculate(&record, &bet);
+                                    simulation.calculate(&record, &bet, NUMBER_OF_BOTS);
 
                                     simulation.sum -= tournament_profit.unwrap_or(0.0);
 
@@ -440,7 +443,7 @@ impl Information {
 
                         if let Some(_amount) = bet.amount() {
                             //if amount > 1.0 {
-                                simulation.calculate(&record, &bet);
+                                simulation.calculate(&record, &bet, 1.0);
 
                                 if let Mode::Matchmaking = record.mode {
                                     let new_sum = simulation.sum;
@@ -467,7 +470,7 @@ impl Information {
                         }
 
                     } else {
-                        simulation.calculate(&record, &record.bet);
+                        simulation.calculate(&record, &record.bet, 1.0);
                     }
 
                     simulation.insert_record(&record);
@@ -1678,6 +1681,7 @@ fn display_records(records: Vec<Record>, loading: Loading) -> Dom {
                         })))
 
                         .children(&mut [
+                            // TODO move RealData into here
                             make_dropdown(state.simulation_mode.clone(), always(true), &[
                                 "Matchmaking",
                                 "Tournament",

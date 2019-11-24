@@ -990,7 +990,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn calculate(&mut self, record: &Record, bet: &Bet) {
+    pub fn calculate(&mut self, record: &Record, bet: &Bet, number_of_bots: f64) {
         if self.is_tournament_boundary(record) {
             self.sum += self.tournament_sum;
             self.tournament_sum = TOURNAMENT_BALANCE;
@@ -1001,7 +1001,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         let increase = match bet {
             Bet::Left(bet_amount) => match record.winner {
                 Winner::Left => {
-                    let odds = record.right.bet_amount / (record.left.bet_amount + bet_amount);
+                    let odds = record.right.bet_amount / (record.left.bet_amount + (bet_amount * number_of_bots));
                     self.successes += 1.0;
 
                     if odds > 1.0 {
@@ -1019,7 +1019,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
 
             Bet::Right(bet_amount) => match record.winner {
                 Winner::Right => {
-                    let odds = record.left.bet_amount / (record.right.bet_amount + bet_amount);
+                    let odds = record.left.bet_amount / (record.right.bet_amount + (bet_amount * number_of_bots));
                     self.successes += 1.0;
 
                     if odds > 1.0 {
@@ -1054,14 +1054,14 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn simulate(&mut self, records: Vec<Record>, insert_records: bool) {
+    pub fn simulate(&mut self, records: Vec<Record>, insert_records: bool, number_of_bots: f64) {
         for record in records.into_iter() {
             // TODO make this more efficient
             let record = record.shuffle();
 
             let bet = self.bet(&record);
 
-            self.calculate(&record, &bet);
+            self.calculate(&record, &bet, number_of_bots);
 
             if insert_records {
                 self.insert_record(&record);
