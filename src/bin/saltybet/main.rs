@@ -204,6 +204,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                 .and_then(get_text_content)?;
 
             if left_name != closed.left.name {
+                server_log!("Left names do not match: {:#?} {:#?}", left_name, closed.left.name);
                 return None;
             }
 
@@ -211,6 +212,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                 .and_then(get_text_content)?;
 
             if left_name != closed.left.name {
+                server_log!("Middle names do not match: {:#?} {:#?}", left_name, closed.left.name);
                 return None;
             }
         }
@@ -220,6 +222,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                 .and_then(get_text_content)?;
 
             if right_name != closed.right.name {
+                server_log!("Left names do not match: {:#?} {:#?}", right_name, closed.right.name);
                 return None;
             }
 
@@ -227,6 +230,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                 .and_then(get_text_content)?;
 
             if right_name != closed.right.name {
+                server_log!("Middle names do not match: {:#?} {:#?}", right_name, closed.right.name);
                 return None;
             }
         }
