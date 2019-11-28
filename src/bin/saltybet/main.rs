@@ -162,6 +162,19 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 }
 
 
+macro_rules! unwrap_log {
+    ($e:expr, $($message:tt)+) => {
+        match $e {
+            Some(x) => x,
+            None => {
+                server_log!($($message)+);
+                return None;
+            },
+        }
+    }
+}
+
+
 fn lookup_information(state: &Rc<RefCell<State>>) {
     fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> f64 {
         let mut len = 0.0;
@@ -235,23 +248,36 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
             }
         }
 
-        let left_count = query("#sbettors1 > span.redtext > span.counttext")
-            .and_then(get_text_content)
-            .and_then(|x| parse_f64(&x))?;
+        let left_count = unwrap_log!(
+            query("#sbettors1 > span.redtext > span.counttext")
+                .and_then(get_text_content)
+                .and_then(|x| parse_f64(&x)),
+            "Left count does not exist"
+        );
 
-        let right_count = query("#sbettors2 > span.bluetext > span.counttext")
-            .and_then(get_text_content)
-            .and_then(|x| parse_f64(&x))?;
+        let right_count = unwrap_log!(
+            query("#sbettors2 > span.bluetext > span.counttext")
+                .and_then(get_text_content)
+                .and_then(|x| parse_f64(&x)),
+            "Right count does not exist"
+        );
 
         // TODO a bit of code duplication with lookup_bet
-        let current_balance = query("#balance")
-            .and_then(get_text_content)
-            .and_then(|x| parse_f64(&x))?;
+        let current_balance = unwrap_log!(
+            query("#balance")
+                .and_then(get_text_content)
+                .and_then(|x| parse_f64(&x)),
+            "Current balance does not exist"
+        );
 
-        let name = query("#header span.navbar-text")
-            .and_then(get_text_content)
-            .and_then(|x| parse_name(&x))?;
+        let name = unwrap_log!(
+            query("#header span.navbar-text")
+                .and_then(get_text_content)
+                .and_then(|x| parse_name(&x)),
+            "Username does not exist"
+        );
 
+        // TODO verify that the element exists ?
         let is_illuminati = query("#header span.navbar-text > .goldtext").is_some();
 
         let mut matched_left = false;
