@@ -118,9 +118,9 @@ impl NeuralNetwork {
         self.output_layer.calculate(&self.hidden_layers, input)
     }
 
-    pub fn choose<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) {
-        let left_matches = simulation.lookup_character(left);
-        let right_matches = simulation.lookup_character(right);
+    pub fn choose<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) {
+        let left_matches = simulation.lookup_character(left, *tier);
+        let right_matches = simulation.lookup_character(right, *tier);
 
         // NeededOdds
         // Odds

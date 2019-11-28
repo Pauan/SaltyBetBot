@@ -543,22 +543,22 @@ impl State {
         self.info_container.left.name.set(Some(left.to_string()));
         self.info_container.right.name.set(Some(right.to_string()));
 
-        let (left_bettors, right_bettors) = bettors(&self.simulation, left, right);
+        let (left_bettors, right_bettors) = bettors(&self.simulation, left, right, *tier);
         self.info_container.left.bettors.set(Some(left_bettors));
         self.info_container.right.bettors.set(Some(right_bettors));
 
-        let (left_winrate, right_winrate) = winrates(&self.simulation, left, right);
+        let (left_winrate, right_winrate) = winrates(&self.simulation, left, right, *tier);
         self.info_container.left.winrate.set(Some(left_winrate));
         self.info_container.right.winrate.set(Some(right_winrate));
 
-        self.info_container.left.matches_len.set(Some(self.simulation.matches_len(left)));
-        self.info_container.right.matches_len.set(Some(self.simulation.matches_len(right)));
+        self.info_container.left.matches_len.set(Some(self.simulation.matches_len(left, *tier)));
+        self.info_container.right.matches_len.set(Some(self.simulation.matches_len(right, *tier)));
 
-        let specific_matches = self.simulation.specific_matches_len(left, right);
+        let specific_matches = self.simulation.specific_matches_len(left, right, *tier);
         self.info_container.left.specific_matches_len.set(Some(specific_matches));
         self.info_container.right.specific_matches_len.set(Some(specific_matches));
 
-        let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right);
+        let (left_needed_odds, right_needed_odds) = needed_odds(&self.simulation, left, right, *tier);
         self.info_container.left.needed_odds.set(Some(left_needed_odds));
         self.info_container.right.needed_odds.set(Some(right_needed_odds));
 
@@ -570,16 +570,16 @@ impl State {
         self.info_container.left.bet_amount.set(Some(left_bet));
         self.info_container.right.bet_amount.set(Some(right_bet));
 
-        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, left_bet, right_bet);
+        let (left_odds, right_odds) = average_odds(&self.simulation, left, right, *tier, left_bet, right_bet);
         self.info_container.left.odds.set(Some(left_odds));
         self.info_container.right.odds.set(Some(right_odds));
 
-        let (left_profit, right_profit) = expected_profits(&self.simulation, left, right, left_bet, right_bet);
+        let (left_profit, right_profit) = expected_profits(&self.simulation, left, right, *tier, left_bet, right_bet);
         self.info_container.left.expected_profit.set(Some(left_profit));
         self.info_container.right.expected_profit.set(Some(right_profit));
 
-        self.info_container.left.elo.set(Some(self.simulation.elo(left)));
-        self.info_container.right.elo.set(Some(self.simulation.elo(right)));
+        self.info_container.left.elo.set(Some(self.simulation.elo(left, *tier)));
+        self.info_container.right.elo.set(Some(self.simulation.elo(right, *tier)));
     }
 
     fn clear_info_container(&self) {

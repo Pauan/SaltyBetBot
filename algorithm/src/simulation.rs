@@ -7,6 +7,9 @@ use crate::strategy::normalize;
 use chrono::{Utc, TimeZone, Timelike};
 
 
+// Number of people using the bot (including self)
+pub const NUMBER_OF_BOTS: f64 = 5.0;
+
 // TODO this should take into account the user's real limit
 pub const SALT_MINE_AMOUNT: f64 = 4100.0;
 
@@ -54,15 +57,15 @@ impl Bet {
 
 pub trait Simulator {
     fn get_hourly_ratio(&self, date: f64) -> f64;
-    fn elo(&self, name: &str) -> Elo;
+    fn elo(&self, name: &str, tier: Tier) -> Elo;
     fn average_sum(&self) -> f64;
     fn clamp(&self, bet_amount: f64) -> f64;
-    fn matches_len(&self, name: &str) -> usize;
-    fn min_matches_len(&self, left: &str, right: &str) -> f64;
+    fn matches_len(&self, name: &str, tier: Tier) -> usize;
+    fn min_matches_len(&self, left: &str, right: &str, tier: Tier) -> f64;
     fn current_money(&self) -> f64;
     fn is_in_mines(&self) -> bool;
-    fn lookup_character(&self, name: &str) -> Vec<&Record>;
-    fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record>;
+    fn lookup_character(&self, name: &str, tier: Tier) -> Vec<&Record>;
+    fn lookup_specific_character(&self, left: &str, right: &str, tier: Tier) -> Vec<&Record>;
 }
 
 
@@ -704,16 +707,16 @@ impl Gene for LookupSide {
 
 
 impl Calculate<f64> for Lookup {
-    fn calculate<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str) -> f64 {
+    fn calculate<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str) -> f64 {
         match *self {
             Lookup::Sum => simulation.current_money(),
 
             Lookup::Character(ref side, ref filter, ref stat) => match *side {
                 LookupSide::Left =>
-                    filter.lookup(stat, left, right, simulation.lookup_character(left)),
+                    filter.lookup(stat, left, right, simulation.lookup_character(left, *tier)),
 
                 LookupSide::Right =>
-                    filter.lookup(stat, right, left, simulation.lookup_character(right)),
+                    filter.lookup(stat, right, left, simulation.lookup_character(right, *tier)),
             },
         }
     }
@@ -802,16 +805,31 @@ impl Elo {
 
 
 #[derive(Debug, Clone)]
-pub struct Character {
+pub struct CharacterTier {
     elo: Elo,
     matches: Vec<Record>,
+}
+
+impl CharacterTier {
+    fn new() -> Self {
+        Self {
+            elo: Elo::new(),
+            matches: vec![],
+        }
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Character {
+    // TODO make this faster, e.g. using BTreeMap or an Array ?
+    tiers: HashMap<Tier, CharacterTier>,
 }
 
 impl Character {
     fn new() -> Self {
         Self {
-            elo: Elo::new(),
-            matches: vec![],
+            tiers: HashMap::new(),
         }
     }
 }
@@ -861,12 +879,15 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
     fn insert_match(&mut self, name: String, record: Record, won: bool, opponent: &Elo, left: &crate::record::Character, right: &crate::record::Character) {
         let character = self.characters.entry(name).or_insert_with(Character::new);
 
-        character.elo.update(won, opponent, left, right);
+        let tier = character.tiers.entry(record.tier).or_insert_with(CharacterTier::new);
 
-        character.matches.push(record);
+        tier.elo.update(won, opponent, left, right);
 
-        let len = character.matches.len();
+        tier.matches.push(record);
 
+        let len = tier.matches.len();
+
+        // TODO this is wrong
         if len > self.max_character_len {
             self.max_character_len = len;
         }
@@ -889,8 +910,8 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         if left != right {
             self.record_len += 1.0;
 
-            let left_elo = self.elo(&left);
-            let right_elo = self.elo(&right);
+            let left_elo = self.elo(&left, record.tier);
+            let right_elo = self.elo(&right, record.tier);
 
             self.insert_match(left, record.clone(),
                 record.winner == Winner::Left,
@@ -1086,12 +1107,12 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    pub fn winrate(&self, name: &str) -> f64 {
-        lookup::wins(self.lookup_character(name), name)
+    pub fn winrate(&self, name: &str, tier: Tier) -> f64 {
+        lookup::wins(self.lookup_character(name, tier), name)
     }
 
-    pub fn specific_matches_len(&self, left: &str, right: &str) -> usize {
-        self.lookup_specific_character(left, right).len()
+    pub fn specific_matches_len(&self, left: &str, right: &str, tier: Tier) -> usize {
+        self.lookup_specific_character(left, right, tier).len()
     }
 }
 
@@ -1124,9 +1145,12 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
         normalize(hourly as f64, *min as f64, *max as f64)
     }
 
-    fn elo(&self, name: &str) -> Elo {
+    fn elo(&self, name: &str, tier: Tier) -> Elo {
         match self.characters.get(name) {
-            Some(x) => x.elo,
+            Some(x) => match x.tiers.get(&tier)  {
+                Some(x) => x.elo,
+                None => Elo::new()
+            },
             None => Elo::new(),
         }
     }
@@ -1174,14 +1198,14 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn matches_len(&self, name: &str) -> usize {
-        self.lookup_character(name).len()
+    fn matches_len(&self, name: &str, tier: Tier) -> usize {
+        self.lookup_character(name, tier).len()
     }
 
-    fn min_matches_len(&self, left: &str, right: &str) -> f64 {
+    fn min_matches_len(&self, left: &str, right: &str, tier: Tier) -> f64 {
         // TODO these f64 conversions are a little bit gross
-        let left_len = self.matches_len(left) as f64;
-        let right_len = self.matches_len(right) as f64;
+        let left_len = self.matches_len(left, tier) as f64;
+        let right_len = self.matches_len(right, tier) as f64;
         left_len.min(right_len)
     }
 
@@ -1198,19 +1222,19 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    fn lookup_character(&self, name: &str) -> Vec<&Record> {
+    fn lookup_character(&self, name: &str, tier: Tier) -> Vec<&Record> {
         // TODO a bit gross that it returns a Vec and not a &[]
-        self.characters.get(name).map(|x| x.matches.iter().collect()).unwrap_or(vec![])
+        self.characters.get(name).and_then(|x| x.tiers.get(&tier).map(|x| x.matches.iter().collect())).unwrap_or(vec![])
     }
 
-    fn lookup_specific_character(&self, left: &str, right: &str) -> Vec<&Record> {
+    fn lookup_specific_character(&self, left: &str, right: &str, tier: Tier) -> Vec<&Record> {
         if left == right {
-            self.lookup_character(left).into_iter().filter(|record|
+            self.lookup_character(left, tier).into_iter().filter(|record|
                 (record.left.name == right) &&
                 (record.right.name == right)).collect()
 
         } else {
-            self.lookup_character(left).into_iter().filter(|record|
+            self.lookup_character(left, tier).into_iter().filter(|record|
                 (record.left.name == right) ||
                 (record.right.name == right)).collect()
         }

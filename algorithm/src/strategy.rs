@@ -128,14 +128,14 @@ fn range_inclusive(percentage: f64, low: f64, high: f64) -> f64 {
     low + (percentage * (high - low))
 }
 
-fn weighted<A, F>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64, mut f: F) -> (f64, f64)
+fn weighted<A, F>(simulation: &A, left: &str, right: &str, tier: Tier, left_bet: f64, right_bet: f64, mut f: F) -> (f64, f64)
     where A: Simulator,
           F: FnMut(Vec<&Record>, &str, f64) -> f64 {
 
-    let left_general = f(simulation.lookup_character(left), left, left_bet);
-    let right_general = f(simulation.lookup_character(right), right, right_bet);
+    let left_general = f(simulation.lookup_character(left, tier), left, left_bet);
+    let right_general = f(simulation.lookup_character(right, tier), right, right_bet);
 
-    let specific_matches = simulation.lookup_specific_character(left, right);
+    let specific_matches = simulation.lookup_specific_character(left, right, tier);
     // TODO this f64 conversions is a bit gross
     let specific_matches_percentage = weight_percentage(specific_matches.len() as f64, MAXIMUM_WEIGHT);
 
@@ -150,24 +150,24 @@ fn weighted<A, F>(simulation: &A, left: &str, right: &str, left_bet: f64, right_
     )
 }
 
-pub fn winrates<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::wins(records, name))
+pub fn winrates<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, tier, 0.0, 0.0, |records, name, _bet| lookup::wins(records, name))
 }
 
-pub fn average_odds<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds(records.into_iter(), name, bet))
+pub fn average_odds<A>(simulation: &A, left: &str, right: &str, tier: Tier, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, tier, left_bet, right_bet, |records, name, bet| lookup::odds(records.into_iter(), name, bet))
 }
 
-pub fn needed_odds<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::needed_odds(&records, name))
+pub fn needed_odds<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, tier, 0.0, 0.0, |records, name, _bet| lookup::needed_odds(&records, name))
 }
 
-pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet))
+pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, tier: Tier, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, tier, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet))
 }
 
-pub fn bettors<A>(simulation: &A, left: &str, right: &str) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::bettors(records, name))
+pub fn bettors<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64, f64) where A: Simulator {
+    weighted(simulation, left, right, tier, 0.0, 0.0, |records, name, _bet| lookup::bettors(records, name))
 }
 
 
@@ -223,15 +223,15 @@ impl MoneyStrategy {
         current_money * MAXIMUM_BET_PERCENTAGE
     }
 
-    fn bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, average_sums: bool) -> (f64, f64) {
+    fn bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, tier: Tier, average_sums: bool) -> (f64, f64) {
         let current_money = Self::current_money(simulation, average_sums);
         let percentage = Self::bet_percentage(current_money);
 
         match self {
-            MoneyStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet_winner(&records, name, bet))),
-            MoneyStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet(&records, name, bet))),
-            MoneyStrategy::BetDifference => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::bet(records, name, bet))),
-            MoneyStrategy::BetDifferenceWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
+            MoneyStrategy::ExpectedBetWinner => weighted(simulation, left, right, tier, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet_winner(&records, name, bet))),
+            MoneyStrategy::ExpectedBet => weighted(simulation, left, right, tier, percentage, percentage, |records, name, bet| simulation.clamp(lookup::expected_bet(&records, name, bet))),
+            MoneyStrategy::BetDifference => weighted(simulation, left, right, tier, percentage, percentage, |records, name, bet| simulation.clamp(lookup::bet(records, name, bet))),
+            MoneyStrategy::BetDifferenceWinner => weighted(simulation, left, right, tier, percentage, percentage, |records, name, bet| simulation.clamp(lookup::winner_bet(records, name, bet))),
             MoneyStrategy::Percentage => (percentage, percentage),
             MoneyStrategy::Fixed(x) => (*x, *x),
             MoneyStrategy::AllIn => (current_money, current_money),
@@ -240,8 +240,8 @@ impl MoneyStrategy {
                 (bet, bet)
             },
             MoneyStrategy::UpsetsElo { max_bet } => {
-                let left = simulation.elo(left).upsets;
-                let right = simulation.elo(right).upsets;
+                let left = simulation.elo(left, tier).upsets;
+                let right = simulation.elo(right, tier).upsets;
                 let amount = normalize((left.value - right.value).abs(), 0.0, 1.0) * max_bet;
                 (amount, amount)
             },
@@ -258,8 +258,8 @@ impl MoneyStrategy {
                     (1.0 + 10.0f64.powf(-(g((ld + rd).sqrt()) * ((left.value - right.value) / 400.0)))).recip()
                 }
 
-                let left = simulation.elo(left).upsets;
-                let right = simulation.elo(right).upsets;
+                let left = simulation.elo(left, tier).upsets;
+                let right = simulation.elo(right, tier).upsets;
 
                 let expected = expected_winrate(&left.into(), &right.into());
 
@@ -340,23 +340,23 @@ impl BetStrategy {
         let percentage = MoneyStrategy::bet_percentage(current_money);
 
         match self {
-            BetStrategy::ExpectedBetWinner => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
-            BetStrategy::ExpectedBet => weighted(simulation, left, right, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
-            BetStrategy::ExpectedProfit => expected_profits(simulation, left, right, left_bet, right_bet),
-            BetStrategy::BetDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::bet(records, name, bet)),
-            BetStrategy::BetDifferenceWinner => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
-            BetStrategy::Odds => average_odds(simulation, left, right, left_bet, right_bet),
-            BetStrategy::OddsDifference => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),
-            BetStrategy::WinnerOdds => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
-            BetStrategy::Upsets => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
-            BetStrategy::Bettors => bettors(simulation, left, right),
-            BetStrategy::BettorsRatio => weighted(simulation, left, right, 0.0, 0.0, |records, name, _bet| lookup::bettors_ratio(records, name)),
-            BetStrategy::IlluminatiBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
-            BetStrategy::NormalBettors => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
-            BetStrategy::BetAmount => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),
-            BetStrategy::BetPercentage => weighted(simulation, left, right, left_bet, right_bet, |records, name, bet| lookup::bet_percentage(records, name, bet)),
-            BetStrategy::Wins => winrates(simulation, left, right),
-            BetStrategy::Losses => weighted(simulation, left, right, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
+            BetStrategy::ExpectedBetWinner => weighted(simulation, left, right, *tier, percentage, percentage, |records, name, bet| lookup::expected_bet_winner(&records, name, bet)),
+            BetStrategy::ExpectedBet => weighted(simulation, left, right, *tier, percentage, percentage, |records, name, bet| lookup::expected_bet(&records, name, bet)),
+            BetStrategy::ExpectedProfit => expected_profits(simulation, left, right, *tier, left_bet, right_bet),
+            BetStrategy::BetDifference => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::bet(records, name, bet)),
+            BetStrategy::BetDifferenceWinner => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
+            BetStrategy::Odds => average_odds(simulation, left, right, *tier, left_bet, right_bet),
+            BetStrategy::OddsDifference => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),
+            BetStrategy::WinnerOdds => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
+            BetStrategy::Upsets => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
+            BetStrategy::Bettors => bettors(simulation, left, right, *tier),
+            BetStrategy::BettorsRatio => weighted(simulation, left, right, *tier, 0.0, 0.0, |records, name, _bet| lookup::bettors_ratio(records, name)),
+            BetStrategy::IlluminatiBettors => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
+            BetStrategy::NormalBettors => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
+            BetStrategy::BetAmount => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),
+            BetStrategy::BetPercentage => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::bet_percentage(records, name, bet)),
+            BetStrategy::Wins => winrates(simulation, left, right, *tier),
+            BetStrategy::Losses => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
             BetStrategy::Left => (1.0, 0.0),
             BetStrategy::Right => (0.0, 1.0),
             BetStrategy::Random => if random::bool() {
@@ -366,8 +366,8 @@ impl BetStrategy {
             },
             BetStrategy::Money => (left_bet, right_bet),
             BetStrategy::Elo => {
-                let left = simulation.elo(left).wins;
-                let right = simulation.elo(right).wins;
+                let left = simulation.elo(left, *tier).wins;
+                let right = simulation.elo(right, *tier).wins;
 
                 //(left.value, right.value)
 
@@ -389,8 +389,8 @@ impl BetStrategy {
                 }
             },
             BetStrategy::UpsetsElo => {
-                let left_win = simulation.elo(left).wins.value;
-                let right_win = simulation.elo(right).wins.value;
+                let left_win = simulation.elo(left, *tier).wins.value;
+                let right_win = simulation.elo(right, *tier).wins.value;
 
                 /*{
                     let x: glicko2::GlickoRating = simulation.elo(left).upsets.into();
@@ -399,8 +399,8 @@ impl BetStrategy {
                     console!(log, x.value, y.value, x.deviation, y.deviation, simulation.elo(left).upsets.value, simulation.elo(left).upsets.deviation);
                 }*/
 
-                let left = simulation.elo(left).upsets;
-                let right = simulation.elo(right).upsets;
+                let left = simulation.elo(left, *tier).upsets;
+                let right = simulation.elo(right, *tier).upsets;
 
                 //(left.value, right.value)
 
@@ -417,8 +417,8 @@ impl BetStrategy {
                 }
             },
             BetStrategy::Matchmaking => {
-                let left_win = simulation.elo(left).wins.value;
-                let right_win = simulation.elo(right).wins.value;
+                let left_win = simulation.elo(left, *tier).wins.value;
+                let right_win = simulation.elo(right, *tier).wins.value;
 
                 /*{
                     let x: glicko2::GlickoRating = simulation.elo(left).upsets.into();
@@ -427,8 +427,8 @@ impl BetStrategy {
                     console!(log, x.value, y.value, x.deviation, y.deviation, simulation.elo(left).upsets.value, simulation.elo(left).upsets.deviation);
                 }*/
 
-                let left = simulation.elo(left).upsets;
-                let right = simulation.elo(right).upsets;
+                let left = simulation.elo(left, *tier).upsets;
+                let right = simulation.elo(right, *tier).upsets;
 
                 let diff_upsets = (left.value - right.value).abs();
                 let diff_wins = (left_win - right_win).abs();
@@ -467,7 +467,7 @@ impl BetStrategy {
                 //(left.value, right.value)
             },
             BetStrategy::Tournament => {
-                let (left_winrate, right_winrate) = winrates(simulation, left, right);
+                let (left_winrate, right_winrate) = winrates(simulation, left, right, *tier);
 
                 assert_not_nan(left_winrate);
                 assert_not_nan(right_winrate);
@@ -526,7 +526,7 @@ pub struct CustomStrategy {
 }
 
 impl CustomStrategy {
-    fn modify_bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, date: f64, bet_amount: f64) -> f64 {
+    fn modify_bet_amount<A: Simulator>(&self, simulation: &A, left: &str, right: &str, tier: Tier, date: f64, bet_amount: f64) -> f64 {
         let current_money = simulation.current_money();
 
         if simulation.is_in_mines() {
@@ -551,7 +551,7 @@ impl CustomStrategy {
 
             // Scales it so that when it has more match data it bets higher, and when it has less match data it bets lower
             let bet_amount = if self.scale_by_matches {
-                bet_amount * normalize(simulation.min_matches_len(left, right), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING)
+                bet_amount * normalize(simulation.min_matches_len(left, right, tier), MINIMUM_MATCHES_MATCHMAKING - 1.0, MAXIMUM_MATCHES_MATCHMAKING)
 
             } else {
                 bet_amount
@@ -601,8 +601,8 @@ impl Permutate for CustomStrategy {
 }
 
 impl Strategy for CustomStrategy {
-    fn bet_amount<A: Simulator>(&self, simulation: &A, _tier: &Tier, left: &str, right: &str, date: f64) -> (f64, f64) {
-        let (left_bet, right_bet) = self.money.bet_amount(simulation, left, right, self.average_sums);
+    fn bet_amount<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, date: f64) -> (f64, f64) {
+        let (left_bet, right_bet) = self.money.bet_amount(simulation, left, right, *tier, self.average_sums);
 
         // TODO are these needed ?
         let left_bet = left_bet.max(0.0);
@@ -612,8 +612,8 @@ impl Strategy for CustomStrategy {
         //let right_bet = right_bet.min(MAXIMUM_BET_AMOUNT);
 
         (
-            simulation.clamp(self.modify_bet_amount(simulation, left, right, date, left_bet)),
-            simulation.clamp(self.modify_bet_amount(simulation, left, right, date, right_bet)),
+            simulation.clamp(self.modify_bet_amount(simulation, left, right, *tier, date, left_bet)),
+            simulation.clamp(self.modify_bet_amount(simulation, left, right, *tier, date, right_bet)),
         )
     }
 
@@ -666,7 +666,7 @@ impl Strategy for AllInStrategy {
         // TODO a tiny bit hacky
         let bet_amount = self.bet_amount(simulation, tier, left, right, date).0;
 
-        let (left_winrate, right_winrate) = winrates(simulation, left, right);
+        let (left_winrate, right_winrate) = winrates(simulation, left, right, *tier);
 
         assert_not_nan(left_winrate);
         assert_not_nan(right_winrate);

@@ -16,7 +16,7 @@ use std::rc::Rc;
 use std::collections::{BTreeSet, BTreeMap};
 use salty_bet_bot::{records_get_all, spawn, subtract_days, decimal, Loading, set_panic_hook, find_first_index, round_to_hour};
 use algorithm::record::{Record, Profit, Mode};
-use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE};
+use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE, NUMBER_OF_BOTS};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, FIXED_BET_AMOUNT};
 use stdweb::traits::*;
 use stdweb::spawn_local;
@@ -28,9 +28,6 @@ use stdweb::unstable::TryInto;
 use futures_signals::signal::{Mutable, Signal, SignalExt, and, not, always};
 use dominator::{Dom, text};
 
-
-// Number of people using the bot (including self)
-const NUMBER_OF_BOTS: f64 = 5.0;
 
 const DEFAULT_DAYS_SHOWN: u32 = 365;
 
@@ -235,7 +232,7 @@ impl Information {
                         let old_sum = simulation.sum;
                         let old_tournament_sum = simulation.tournament_sum;
 
-                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name, record.tier);
 
                         let tournament_profit = simulation.tournament_profit(&record);
 
@@ -348,7 +345,7 @@ impl Information {
 
                             let old_sum = simulation.sum;
 
-                            let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+                            let match_len = simulation.min_matches_len(&record.left.name, &record.right.name, record.tier);
 
                             let tournament_profit = simulation.tournament_profit(&record);
 
@@ -437,7 +434,7 @@ impl Information {
 
                         let old_sum = old_sum + tournament_profit.unwrap_or(0.0);
 
-                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name);
+                        let match_len = simulation.min_matches_len(&record.left.name, &record.right.name, record.tier);
 
                         let bet = record.bet.clone();
 

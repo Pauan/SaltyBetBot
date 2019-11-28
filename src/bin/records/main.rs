@@ -64,9 +64,9 @@ impl State {
             starting_index: Mutable::new(0),
             records: records.into_iter()
                 .map(|record| {
-                    let left_len = simulation.matches_len(&record.left.name);
-                    let right_len = simulation.matches_len(&record.right.name);
-                    let specific_matches_len = simulation.specific_matches_len(&record.left.name, &record.right.name);
+                    let left_len = simulation.matches_len(&record.left.name, record.tier);
+                    let right_len = simulation.matches_len(&record.right.name, record.tier);
+                    let specific_matches_len = simulation.specific_matches_len(&record.left.name, &record.right.name, record.tier);
 
                     // TODO code duplication with bin/chart
                     if record.sum != -1.0 {
@@ -81,8 +81,8 @@ impl State {
                     }
 
                     // TODO code duplication with bin/saltybet
-                    let (left_winrate, right_winrate) = winrates(&simulation, &record.left.name, &record.right.name);
-                    let (left_needed_odds, right_needed_odds) = needed_odds(&simulation, &record.left.name, &record.right.name);
+                    let (left_winrate, right_winrate) = winrates(&simulation, &record.left.name, &record.right.name, record.tier);
+                    let (left_needed_odds, right_needed_odds) = needed_odds(&simulation, &record.left.name, &record.right.name, record.tier);
 
                     // TODO code duplication with bin/saltybet
                     let (left_bet, right_bet) = match record.mode {
@@ -91,8 +91,8 @@ impl State {
                     };
 
                     // TODO code duplication with bin/saltybet
-                    let (left_odds, right_odds) = average_odds(&simulation, &record.left.name, &record.right.name, left_bet, right_bet);
-                    let (left_profit, right_profit) = expected_profits(&simulation, &record.left.name, &record.right.name, left_bet, right_bet);
+                    let (left_odds, right_odds) = average_odds(&simulation, &record.left.name, &record.right.name, record.tier, left_bet, right_bet);
+                    let (left_profit, right_profit) = expected_profits(&simulation, &record.left.name, &record.right.name, record.tier, left_bet, right_bet);
 
                     let left = Information {
                         // TODO avoid this clone somehow ?
@@ -108,7 +108,7 @@ impl State {
                         simulated_bet: left_bet,
                         odds: left_odds,
                         expected_profit: left_profit,
-                        elo: simulation.elo(&record.left.name),
+                        elo: simulation.elo(&record.left.name, record.tier),
                     };
 
                     let right = Information {
@@ -125,7 +125,7 @@ impl State {
                         simulated_bet: right_bet,
                         odds: right_odds,
                         expected_profit: right_profit,
-                        elo: simulation.elo(&record.right.name),
+                        elo: simulation.elo(&record.right.name, record.tier),
                     };
 
                     // TODO code duplication with bin/chart
