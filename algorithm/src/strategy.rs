@@ -1,7 +1,6 @@
 use crate::random;
 use crate::record::{Tier, Record};
 use crate::genetic::NeuralNetwork;
-use crate::types::FitnessResult;
 use crate::simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
 
 
@@ -62,7 +61,7 @@ const MINIMUM_MATCHES_MATCHMAKING: f64 = 5.0;   // minimum match data before it 
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 50.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight
 const MAXIMUM_BET_PERCENTAGE: f64 = 0.015;      // maximum percentage that it will bet (of current money)
-const MINIMUM_BET_AMOUNT: f64 = 50_000.0;       // minimum amount before it will bet
+//const MINIMUM_BET_AMOUNT: f64 = 50_000.0;       // minimum amount before it will bet
 //const MAXIMUM_BET_AMOUNT: f64 = 350000.0;       // maximum amount it will bet
 const MINIMUM_WINRATE: f64 = 0.10;              // minimum winrate difference before it will bet
 
@@ -335,7 +334,7 @@ impl Permutate for BetStrategy {
 }
 
 impl BetStrategy {
-    fn bet_value<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64, date: f64, average_sums: bool) -> (f64, f64) {
+    fn bet_value<A: Simulator>(&self, simulation: &A, tier: &Tier, left: &str, right: &str, left_bet: f64, right_bet: f64, _date: f64, average_sums: bool) -> (f64, f64) {
         let current_money = MoneyStrategy::current_money(simulation, average_sums);
         let percentage = MoneyStrategy::bet_percentage(current_money);
 

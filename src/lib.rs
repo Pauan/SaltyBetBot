@@ -639,45 +639,32 @@ pub struct Tab(Reference);
 #[reference(instance_of = "Object")]
 pub struct Port(Reference);
 
-// TODO disconnect(&self) but it needs to remove the listeners
 impl Port {
-    // TODO return DiscardOnDrop<Self> which calls self.disconnect()
-    #[inline]
-    pub fn connect(name: &str) -> Self {
-        // TODO error checking
-        js!( return chrome.runtime.connect(null, { name: @{name} }); ).try_into().unwrap()
-    }
+    fn new(port: Value) -> Self {
+        js!(
+            var port = @{port};
 
-    #[inline]
-    pub fn on_connect<F>(f: F) -> DiscardOnDrop<Listener> where F: FnMut(Self) + 'static {
-        Listener::new(js!(
-            var callback = @{f};
-
-            chrome.runtime.onConnect.addListener(callback);
-
-            return function () {
-                chrome.runtime.onConnect.removeListener(callback);
-                callback.drop();
+            var self = {
+                port: port,
+                disconnected: false
             };
-        ))
+
+            // TODO does this leak memory ?
+            port.onDisconnect.addListener(function () {
+                self.disconnected = true;
+            });
+
+            return self;
+        ).try_into().unwrap()
     }
 
-    // TODO maybe return Option<String> ?
-    #[inline]
-    pub fn name(&self) -> String {
-        js!( return @{self}.name; ).try_into().unwrap()
-    }
-
-    // TODO make new MessageSender type ?
-    #[inline]
-    pub fn tab(&self) -> Option<Tab> {
-        js!( return @{self}.sender.tab; ).try_into().unwrap()
-    }
-
+    // TODO trigger existing onDisconnect listeners
     #[inline]
     pub fn disconnect(&self) {
         js! { @(no_return)
-            @{self}.disconnect();
+            var self = @{self};
+            self.port.disconnect();
+            self.disconnected = true;
         }
     }
 
@@ -713,7 +700,7 @@ impl Port {
         where A: DeserializeOwned,
               F: FnMut(A) + 'static {
 
-        let f = move |message: String, _port: Port| {
+        let f = move |message: String, _port: Value| {
             f(serde_json::from_str(&message).unwrap());
         };
 
@@ -722,51 +709,136 @@ impl Port {
             var callback = @{f};
 
             function stop() {
-                self.onMessage.removeListener(callback);
-                self.onDisconnect.removeListener(stop);
+                self.port.onMessage.removeListener(callback);
+                self.port.onDisconnect.removeListener(stop);
                 callback.drop();
             }
 
-            // TODO error checking
-            self.onMessage.addListener(callback);
-            // TODO reconnect when it is disconnected ?
-            // TODO should this use onDisconnect ?
-            self.onDisconnect.addListener(stop);
+            if (self.disconnected) {
+                callback.drop();
+                return function () {};
 
-            return stop;
+            } else {
+                // TODO error checking
+                self.port.onMessage.addListener(callback);
+                // TODO reconnect when it is disconnected ?
+                self.port.onDisconnect.addListener(stop);
+                return stop;
+            }
         ))
     }
 
     #[inline]
     pub fn on_disconnect<A>(&self, f: A) -> DiscardOnDrop<Listener>
-        where A: FnOnce(Self) + 'static {
+        where A: FnOnce() + 'static {
 
         Listener::new(js!(
             var self = @{self};
             var callback = @{Once(f)};
 
-            // TODO error checking
-            self.onDisconnect.addListener(callback);
+            function onDisconnect() {
+                callback();
+            }
 
-            return function () {
-                self.onDisconnect.removeListener(callback);
-                callback.drop();
-            };
+            if (self.disconnected) {
+                onDisconnect();
+                return function () {};
+
+            } else {
+                // TODO error checking
+                self.port.onDisconnect.addListener(onDisconnect);
+
+                return function () {
+                    self.port.onDisconnect.removeListener(onDisconnect);
+                    callback.drop();
+                };
+            }
         ))
     }
 
-    // TODO handle onDisconnect ?
     // TODO handle errors ?
+    // TODO return whether the message was sent or not ?
     #[inline]
     fn send_message_raw(&self, message: &str) {
         js! { @(no_return)
-            @{self}.postMessage(@{message});
+            var self = @{self};
+
+            if (!self.disconnected) {
+                self.port.postMessage(@{message});
+            }
         }
     }
 
     #[inline]
     pub fn send_message<A>(&self, message: &A) where A: Serialize {
         self.send_message_raw(&serde_json::to_string(message).unwrap());
+    }
+}
+
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerPort(Port);
+
+impl ServerPort {
+    // TODO maybe return Option<String> ?
+    #[inline]
+    pub fn name(&self) -> String {
+        js!( return @{&self.0}.port.name; ).try_into().unwrap()
+    }
+
+    // TODO make new MessageSender type ?
+    #[inline]
+    pub fn tab(&self) -> Option<Tab> {
+        js!( return @{&self.0}.port.sender.tab; ).try_into().unwrap()
+    }
+
+    #[inline]
+    pub fn on_connect<F>(mut f: F) -> DiscardOnDrop<Listener> where F: FnMut(Self) + 'static {
+        let f = move |port: Value| {
+            f(ServerPort(Port::new(port)));
+        };
+
+        Listener::new(js!(
+            var callback = @{f};
+
+            chrome.runtime.onConnect.addListener(callback);
+
+            return function () {
+                chrome.runtime.onConnect.removeListener(callback);
+                callback.drop();
+            };
+        ))
+    }
+}
+
+impl std::ops::Deref for ServerPort {
+    type Target = Port;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClientPort(Port);
+
+impl ClientPort {
+    // TODO return DiscardOnDrop<Self> which calls self.disconnect()
+    #[inline]
+    pub fn connect(name: &str) -> Self {
+        // TODO error checking
+        ClientPort(Port::new(js!( return chrome.runtime.connect(null, { name: @{name} }); )))
+    }
+}
+
+impl std::ops::Deref for ClientPort {
+    type Target = Port;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

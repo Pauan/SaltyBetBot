@@ -14,7 +14,7 @@ extern crate futures_signals;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
+use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, ClientPort, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, set_panic_hook, get_extension_url, reload_page};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
@@ -853,11 +853,7 @@ impl InfoContainer {
 
 
 async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
-    let port = Port::connect("saltybet");
-
-    // TODO wait until after records are received before it starts queueing messages
-    //      (but it still has to listen to on_disconnect before receiving the records)
-    let messages = port.messages();
+    let port = ClientPort::connect("saltybet");
 
     let records = records_get_all().await?;
     //let matches = migrate_records(matches);
@@ -893,7 +889,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), Error> {
         info_container: container,
     }));
 
-    observe_changes(state.clone(), messages);
+    observe_changes(state.clone(), port.messages());
 
     fn loop_bet(state: Rc<RefCell<State>>) {
         lookup_bet(&state);
@@ -920,6 +916,14 @@ fn main() {
     set_panic_hook();
 
     log!("Initializing...");
+
+    // Reloads the page every 24 hours, just in case something screwed up on saltybet.com
+    // Normally this doesn't happen, because it reloads the page at the start of exhibitions
+    // TODO is 24 hours too long ? can it be made shorter ? should it be made shorter ?
+    set_timeout(|| {
+        reload_page();
+    // 24 hours
+    }, 86400000);
 
     wait_until_defined(|| query("#sbettorswrapper"), move |_wrapper: Element| {
         js! {
@@ -1028,14 +1032,6 @@ fn main() {
     });*/
 
     spawn(initialize_state(container));
-
-    // Reloads the page every 24 hours, just in case something screwed up on saltybet.com
-    // Normally this doesn't happen, because it reloads the page at the start of exhibitions
-    // TODO is 24 hours too long ? can it be made shorter ? should it be made shorter ?
-    set_timeout(|| {
-        reload_page();
-    // 24 hours
-    }, 86400000);
 
     stdweb::event_loop();
 }

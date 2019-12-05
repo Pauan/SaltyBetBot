@@ -15,7 +15,7 @@ use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{set_panic_hook, spawn, sorted_record_index, get_added_records, Message, Tab, Port, Listener, on_message, WaifuMessage};
+use salty_bet_bot::{set_panic_hook, spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, Listener, on_message, WaifuMessage};
 use stdweb::{PromiseFuture, Reference, Once};
 use stdweb::web::error::Error;
 use stdweb::unstable::TryInto;
@@ -361,7 +361,7 @@ async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, Error> {
 
 fn listen_to_ports() {
     struct SaltyBet {
-        port: Port,
+        port: ServerPort,
         _on_disconnect: DiscardOnDrop<Listener>,
     }
 
@@ -374,7 +374,7 @@ fn listen_to_ports() {
 
 
     struct TwitchChat {
-        port: Port,
+        port: ServerPort,
         _on_message: DiscardOnDrop<Listener>,
         _on_disconnect: DiscardOnDrop<Listener>,
     }
@@ -400,14 +400,14 @@ fn listen_to_ports() {
 
     // This is necessary because Chrome doesn't allow content scripts to directly communicate with other content scripts
     // TODO auto-reload the tabs if they haven't sent a message in a while
-    DiscardOnDrop::leak(Port::on_connect(move |port| {
+    DiscardOnDrop::leak(ServerPort::on_connect(move |port| {
         match port.name().as_str() {
             "saltybet" => {
                 let mut lock = state.borrow_mut();
 
                 let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
 
-                let on_disconnect = port.on_disconnect(clone!(state => move |port| {
+                let on_disconnect = port.on_disconnect(clone!(state, port => move || {
                     let mut lock = state.borrow_mut();
 
                     assert!(remove_value(&mut lock.salty_bet_ports, |x| x.port == port));
@@ -443,7 +443,7 @@ fn listen_to_ports() {
                     }
                 }));
 
-                let on_disconnect = port.on_disconnect(clone!(state => move |port| {
+                let on_disconnect = port.on_disconnect(clone!(state, port => move || {
                     let mut lock = state.borrow_mut();
 
                     assert!(remove_value(&mut lock.twitch_chat_ports, |x| x.port == port));

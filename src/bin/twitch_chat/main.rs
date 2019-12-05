@@ -33,7 +33,7 @@ use std::iter::Iterator;
 use std::rc::Rc;
 use std::cell::RefCell;
 use discard::DiscardOnDrop;
-use salty_bet_bot::{parse_f64, wait_until_defined, Port, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook, reload_page, Debouncer};
+use salty_bet_bot::{parse_f64, wait_until_defined, ClientPort, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, WaifuBetsClosedInfo, WaifuWinner, query, query_all, regexp, set_panic_hook, reload_page, Debouncer};
 use algorithm::record::{Tier, Mode, Winner};
 use stdweb::web::{INode, MutationObserver, MutationObserverInit, MutationRecord, Date, Node, Element, IParentNode, CloneKind, set_timeout};
 use stdweb::unstable::TryInto;
@@ -244,7 +244,7 @@ pub fn observe_changes() {
 
     log!("Initializing...");
 
-    let port = Port::connect("twitch_chat");
+    let port = ClientPort::connect("twitch_chat");
 
     let debounce = Debouncer::new(REFRESH_TIME, clone!(port => move || {
         // This will cause the SaltyBet tab to reload
@@ -283,7 +283,7 @@ pub fn observe_changes() {
 
     let observer = Rc::new(RefCell::new(Some(observer)));
 
-    DiscardOnDrop::leak(port.on_disconnect(clone!(observer => move |_| {
+    DiscardOnDrop::leak(port.on_disconnect(clone!(observer => move || {
         *observer.borrow_mut() = None;
     })));
 
