@@ -1,2 +1,6 @@
-target/
-**/*.rs.bk
+node_modules
+/dist
+/target
+/pkg
+/wasm-pack.log
+/yarn-error.log

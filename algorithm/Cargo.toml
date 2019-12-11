@@ -1,13 +1,13 @@
 [package]
 name = "algorithm"
 version = "0.1.0"
-authors = ["Pauan <pcxunlimited@gmail.com>"]
+authors = ["Pauan <pauanyu+github@pm.me>"]
 edition = "2018"
 
 [dependencies]
 arrayvec = { version = "0.4.7", features = ["serde-1"] }
 lazy_static = "1.0.0"
-rand = { version = "0.6.5", features = ["stdweb"] }
+rand = { version = "0.6.5", features = ["wasm-bindgen"] }
 #csv = "1.0.0-beta.5"
 rayon = "1.0.0"
 serde = "1.0.27"

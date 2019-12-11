@@ -1,28 +1,32 @@
 [package]
 name = "salty_bet_bot"
 version = "0.1.0"
-authors = ["Pauan <pcxunlimited@gmail.com>"]
+authors = ["Pauan <pauanyu+github@pm.me>"]
 edition = "2018"
+
+[profile.release]
+lto = true
 
 [dependencies]
 algorithm = { path = "./algorithm" }
 lazy_static = "1.0.0"
-stdweb = { version = "0.4.15", features = ["experimental_features_which_may_break_on_minor_version_bumps"] }
-stdweb-derive = "0.5.1"
 serde = "1.0.27"
 serde_json = "1.0.10"
 serde_derive = "1.0.27"
-dominator = "0.4.0"
+dominator = "0.5.0"
 futures-signals = "0.3.4"
-futures-core-preview = "0.3.0-alpha.15"
-futures-util-preview = "0.3.0-alpha.15"
-futures-channel-preview = "0.3.0-alpha.15"
+futures-core = "0.3.0"
+futures-util = "0.3.0"
+futures-channel = "0.3.0"
 discard = "1.0.0"
 glicko2 = "0.3.0"
 
-#[patch.crates-io]
-#stdweb = { git = "https://github.com/koute/stdweb" }
-#dominator = { git = "https://github.com/Pauan/rust-dominator" }
-#stdweb = { path = "../stdweb" }
-#dominator = { path = "../rust-dominator" }
-#futures-signals = { path = "../rust-signals" }
+[workspace]
+members = [
+    "src/background",
+    "src/chart",
+    "src/popup",
+    "src/records",
+    "src/saltybet",
+    "src/twitch_chat",
+]

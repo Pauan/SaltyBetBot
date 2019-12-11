@@ -1,7 +1,0 @@
-[package]
-name = "compile"
-version = "0.1.0"
-authors = ["Pauan <pcxunlimited@gmail.com>"]
-
-[dependencies]
-regex = "0.2.7"

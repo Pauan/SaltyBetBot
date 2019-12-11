@@ -1,15 +1,4 @@
-#![recursion_limit="256"]
-
 #![feature(is_sorted)]
-
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate stdweb;
-#[macro_use]
-extern crate stdweb_derive;
-#[macro_use]
-extern crate serde_derive;
 
 pub mod regexp;
 mod macros;
@@ -464,13 +453,6 @@ impl Discard for Listener {
 #[inline]
 pub fn performance_now() -> f64 {
     js!( return performance.now(); ).try_into().unwrap()
-}
-
-
-pub fn set_panic_hook() {
-    std::panic::set_hook(Box::new(move |info| {
-        stdweb::print_error_panic(info.to_string());
-    }));
 }
 
 

@@ -1,7 +1,7 @@
 [package]
 name = "process-records"
 version = "0.1.0"
-authors = ["Pauan <pcxunlimited@gmail.com>"]
+authors = ["Pauan <pauanyu+github@pm.me>"]
 edition = "2018"
 
 [dependencies]
