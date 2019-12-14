@@ -10,7 +10,7 @@
     "downloads"
   ],
   "background": {
-    "scripts": ["background.js"],
+    "scripts": ["js/background.js"],
     "persistent": true
   },
   "browser_action": {
@@ -26,7 +26,7 @@
       "https://live.saltybet.com/"
     ],
     "js": [
-      "saltybet.js"
+      "js/saltybet.js"
     ],
     "run_at": "document_start",
     "all_frames": false
@@ -35,15 +35,15 @@
       "https://*.twitch.tv/embed/saltybet/chat?darkpopout"
     ],
     "js": [
-      "twitch_chat.js"
+      "js/twitch_chat.js"
     ],
     "run_at": "document_start",
     "all_frames": true
   }],
   "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",
   "web_accessible_resources": [
-    "saltybet.wasm",
-    "twitch_chat.wasm",
+    "js/saltybet.wasm",
+    "js/twitch_chat.wasm",
     "icons/eye.svg",
     "icons/eye-blocked.svg"
   ]

@@ -9,8 +9,9 @@ categories = ["wasm"]
 crate-type = ["cdylib"]
 
 [dependencies]
-salty_bet_bot = { path = "../.." }
+#salty_bet_bot = { path = "../.." }
 dominator = "0.5.0"
 futures-signals = "0.3.0"
 wasm-bindgen = "0.2.48"
 console_error_panic_hook = "0.1.5"
+wasm-bindgen-futures = "0.4.5"

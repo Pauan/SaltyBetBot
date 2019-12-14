@@ -1,6 +1,6 @@
 #![feature(try_blocks)]
 
-use algorithm::record::{Record, deserialize_records};
+/*use algorithm::record::{Record, deserialize_records};
 use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, Listener, on_message, WaifuMessage};
 
 use std::rc::Rc;
@@ -9,12 +9,12 @@ use std::future::Future;
 
 use discard::DiscardOnDrop;
 use futures_util::try_future::{try_join, try_join_all};
-use futures_signals::signal::{Mutable, SignalExt};
+use futures_signals::signal::{Mutable, SignalExt};*/
 use wasm_bindgen::prelude::*;
 
 
 #[wasm_bindgen(start)]
-pub async fn main_js() -> Result<(), JsValue> {
+pub fn main_js() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
 
 

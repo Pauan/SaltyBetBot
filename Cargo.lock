@@ -197,7 +197,7 @@ dependencies = [
  "lazy_static",
  "pin-utils",
  "wasm-bindgen",
- "wasm-bindgen-futures",
+ "wasm-bindgen-futures 0.3.27",
  "web-sys",
 ]
 
@@ -732,8 +732,8 @@ dependencies = [
  "console_error_panic_hook",
  "dominator",
  "futures-signals",
- "salty_bet_bot",
  "wasm-bindgen",
+ "wasm-bindgen-futures 0.4.5",
 ]
 
 [[package]]
@@ -954,6 +954,18 @@ dependencies = [
  "futures-util-preview",
  "js-sys",
  "lazy_static",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "wasm-bindgen-futures"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1458706aa1b8fe6898d19433c9f110d93a05d1f22ae6adf55810409a94df34b4"
+dependencies = [
+ "cfg-if",
+ "js-sys",
  "wasm-bindgen",
  "web-sys",
 ]

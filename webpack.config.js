@@ -1,8 +1,5 @@
 const path = require("path");
-const CopyPlugin = require("copy-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
-
-const dist = path.resolve(__dirname, "dist");
 
 module.exports = {
   mode: "production",
@@ -16,14 +13,10 @@ module.exports = {
     twitch_chat: "./js/twitch_chat.js",
   },
   output: {
-    path: dist,
+    path: path.resolve(__dirname, "static", "js"),
     filename: "[name].js"
   },
   plugins: [
-    new CopyPlugin([
-      path.resolve(__dirname, "static")
-    ]),
-
     new WasmPackPlugin({
       crateDirectory: path.join(__dirname, "src", "background"),
       extraArgs: "--out-name background --out-dir ../../pkg"

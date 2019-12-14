@@ -3,11 +3,10 @@
   "name": "saltybetbot",
   "version": "0.1.0",
   "scripts": {
-    "build": "rimraf dist pkg && webpack"
+    "build": "rimraf pkg static/js && webpack"
   },
   "devDependencies": {
     "@wasm-tool/wasm-pack-plugin": "^0.4.2",
-    "copy-webpack-plugin": "^5.0.3",
     "rimraf": "^2.6.3",
     "webpack": "^4.33.0",
     "webpack-cli": "^3.3.3"
