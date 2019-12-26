@@ -1,9 +1,9 @@
 #![feature(try_blocks)]
 
-/*use algorithm::record::{Record, deserialize_records};
+use algorithm::record::{Record, deserialize_records};
 use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, Listener, on_message, WaifuMessage};
 
-use std::rc::Rc;
+/*use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
 
@@ -14,7 +14,7 @@ use wasm_bindgen::prelude::*;
 
 
 #[wasm_bindgen(start)]
-pub fn main_js() -> Result<(), JsValue> {
+pub async fn main_js() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
 
 

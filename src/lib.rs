@@ -1,25 +1,90 @@
-#![feature(is_sorted)]
+#![feature(is_sorted, unsize)]
 
 pub mod regexp;
 mod macros;
 
-use core::cmp::Ordering;
+use core::marker::Unsize;
+use std::cmp::Ordering;
+use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::task::{Poll, Context};
+use std::rc::Rc;
+use std::cell::Cell;
 use std::future::Future;
 use serde::Serialize;
+use serde_derive::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use discard::{Discard, DiscardOnDrop};
 use algorithm::record::{Tier, Mode, Winner, Record};
 use futures_core::stream::Stream;
 use futures_util::stream::StreamExt;
 use futures_channel::mpsc::{UnboundedReceiver, unbounded};
-use stdweb::{Reference, Value, Once, PromiseFuture, spawn_local, unwrap_future};
-use stdweb::web::{document, set_timeout, INode, Element, NodeList};
-use stdweb::web::error::Error;
-use stdweb::web::html_element::InputElement;
-use stdweb::unstable::TryInto;
-use stdweb::traits::*;
+use futures_signals::signal::Mutable;
+use dominator::{Dom, html};
+use lazy_static::lazy_static;
+use gloo_timers::callback::Timeout;
+use wasm_bindgen::{JsValue, JsCast};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::{spawn_local, JsFuture};
+use js_sys::{Error, Promise, Date, Function};
+use web_sys::{window, Window, Document, Node, Element, HtmlElement, HtmlInputElement, NodeList};
+
+
+#[wasm_bindgen(inline_js = "
+    export function send_message_raw(message) {
+        return new Promise(function (resolve, reject) {
+            chrome.runtime.sendMessage(null, message, null, function (x) {
+                if (chrome.runtime.lastError != null) {
+                    reject(new Error(chrome.runtime.lastError.message));
+
+                } else {
+                    resolve(x);
+                }
+            });
+        });
+    }
+
+    export function chrome_on_message() {
+        return chrome.runtime.onMessage;
+    }
+
+    export function chrome_port_connect(name) {
+        return chrome.runtime.connect(null, { name: name });
+    }
+
+    export function get_extension_url(url) {
+        return chrome.runtime.getURL(url);
+    }
+
+    // TODO add to js_sys
+    export function format_float(f) {
+        return f.toLocaleString(\"en-US\", {
+            style: \"currency\",
+            currency: \"USD\",
+            minimumFractionDigits: 0
+        });
+    }
+
+    // TODO add to js_sys
+    export function decimal(f) {
+        return f.toLocaleString(\"en-US\", {
+            style: \"decimal\",
+            maximumFractionDigits: 2
+        });
+    }
+")]
+extern "C" {
+    fn send_message_raw(message: &str) -> Promise;
+
+    fn chrome_on_message() -> Event;
+
+    fn chrome_port_connect(name: &str) -> RawPort;
+
+    pub fn get_extension_url(url: &str) -> String;
+
+    fn format_float(f: f64) -> String;
+    pub fn decimal(f: f64) -> String;
+}
 
 
 // 50 minutes
@@ -129,83 +194,76 @@ pub fn wait_until_defined<A, B, C>(mut get: A, done: B)
     match get() {
         Some(a) => done(a),
         None => {
-            set_timeout(|| wait_until_defined(get, done), 100);
+            Timeout::new(100, move || wait_until_defined(get, done)).forget();
         },
     }
 }
 
 
-pub fn get_text_content<A: INode>(node: A) -> Option<String> {
+pub fn get_text_content(node: &Node) -> Option<String> {
     node.text_content()
         .map(|x| remove_newlines(&x))
         .map(|x| collapse_whitespace(&x))
 }
 
 
-pub fn to_input_element(node: Element) -> Option<InputElement> {
+pub fn to_input_element(node: Element) -> Option<HtmlInputElement> {
     // TODO better error handling
-    node.try_into().ok()
+    node.dyn_into().ok()
 }
 
-pub fn get_value(node: &InputElement) -> String {
-    let value = node.raw_value();
+pub fn get_value(node: &HtmlInputElement) -> String {
+    let value = node.value();
     let value = remove_newlines(&value);
     collapse_whitespace(&value)
 }
 
 
-// TODO move this into stdweb
-pub fn click(node: &InputElement) {
-    js! { @(no_return)
-        @{node}.click();
-    }
+thread_local! {
+    pub static WINDOW: Window = window().unwrap_throw();
+    pub static DOCUMENT: Document = WINDOW.with(|x| x.document().unwrap_throw());
+}
+
+
+pub fn click(node: &HtmlElement) {
+    node.click();
 }
 
 
 pub fn query(input: &str) -> Option<Element> {
-    document().query_selector(input).unwrap()
+    DOCUMENT.with(|x| x.query_selector(input).unwrap_throw())
 }
 
 pub fn query_all(input: &str) -> NodeList {
-    document().query_selector_all(input).unwrap()
+    DOCUMENT.with(|x| x.query_selector_all(input).unwrap_throw())
 }
 
 
-pub fn spawn<A>(future: A) where A: Future<Output = Result<(), Error>> + 'static {
-    spawn_local(unwrap_future(future))
+pub fn spawn<A>(future: A) where A: Future<Output = Result<(), JsValue>> + 'static {
+    spawn_local(async move {
+        // TODO replace with a wasm-bindgen-futures API
+        if let Err(value) = future.await {
+            wasm_bindgen::throw_val(value);
+        }
+    })
 }
 
 
-#[inline]
-fn send_message_raw(message: &str) -> PromiseFuture<String> {
-    js!(
-        return new Promise(function (resolve, reject) {
-            chrome.runtime.sendMessage(null, @{message}, null, function (x) {
-                if (chrome.runtime.lastError != null) {
-                    reject(new Error(chrome.runtime.lastError.message));
-
-                } else {
-                    resolve(x);
-                }
-            });
-        });
-    ).try_into().unwrap()
-}
-
-pub fn send_message<A, B>(message: &A) -> impl Future<Output = Result<B, Error>>
+pub fn send_message<A, B>(message: &A) -> impl Future<Output = Result<B, JsValue>>
     where A: Serialize,
           B: DeserializeOwned {
 
-    let message: String = serde_json::to_string(message).unwrap();
+    let message: String = serde_json::to_string(message).unwrap_throw();
 
     async move {
-        let reply: String = send_message_raw(&message).await?;
+        let reply: String = JsFuture::from(send_message_raw(&message)).await?.as_string().unwrap_throw();
 
-        Ok(serde_json::from_str(&reply).unwrap())
+        Ok(serde_json::from_str(&reply).unwrap_throw())
     }
 }
 
-pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, Error>>
+
+pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, JsValue>>
     where A: Serialize,
           Result<B, String>: DeserializeOwned {
 
@@ -214,27 +272,22 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
     async move {
         let reply: Result<B, String> = future.await?;
 
-        reply.map_err(|e| {
-            // TODO replace with stdweb
-            js!( return new Error(@{e}); ).try_into().unwrap()
-        })
+        // TODO don't convert to JsValue
+        reply.map_err(|e| Error::new(&e).into())
     }
 }
 
-pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
+
+pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener<dyn FnMut(String, JsValue, Function) -> bool>>
     where A: DeserializeOwned + 'static,
           B: Future<Output = String> + 'static,
           F: FnMut(A) -> B + 'static {
 
-    let (sender, receiver) = unbounded();
+    let (sender, receiver) = unbounded::<(String, Function)>();
 
-    let callback = move |message: String, reply: Reference| {
-        sender.unbounded_send((message, reply)).unwrap();
-    };
-
-    spawn(async move {
+    spawn_local(async move {
         receiver.for_each(move |(message, reply)| {
-            let message = serde_json::from_str(&message).unwrap();
+            let message = serde_json::from_str(&message).unwrap_throw();
 
             let future = f(message);
 
@@ -242,48 +295,40 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener>
                 let result = future.await;
 
                 // TODO make this more efficient ?
-                js! { @(no_return)
-                    try {
-                        @{reply}(@{result});
+                match reply.call1(&JsValue::UNDEFINED, &JsValue::from(result)) {
+                    Ok(value) => {
+                        assert!(value.is_undefined());
+                    },
+                    Err(e) => {
+                        let e: Error = e.dyn_into().unwrap_throw();
 
-                    } catch (e) {
                         // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
-                        if (e.message !== "Attempting to use a disconnected port object") {
-                            throw e;
+                        if e.message() != "Attempting to use a disconnected port object" {
+                            wasm_bindgen::throw_val(e.into());
                         }
-                    }
+                    },
                 }
             }
         }).await;
-
-        Ok(())
     });
 
-    Listener::new(js!(
-        var callback = @{callback};
-
-        function listener(message, _sender, reply) {
-            callback(message, reply);
-            // TODO somehow only return true when needed ?
-            return true;
-        }
-
-        // TODO handle errors
-        chrome.runtime.onMessage.addListener(listener);
-
-        return function () {
-            chrome.runtime.onMessage.removeListener(listener);
-            callback.drop();
-        };
-    ))
+    Listener::new(chrome_on_message(), move |message: String, _sender: JsValue, reply: Function| -> bool {
+        sender.unbounded_send((message, reply)).unwrap_throw();
+        // TODO somehow only return true when needed ?
+        true
+    })
 }
 
+
 #[inline]
-pub fn serialize_result<A>(value: Result<A, Error>) -> Result<A, String> {
+pub fn serialize_result<A>(value: Result<A, JsValue>) -> Result<A, String> {
     value.map_err(|err| {
-        console!(error, &err);
-        // TODO use stdweb method
-        js!( return @{err}.message; ).try_into().unwrap()
+        web_sys::console::error_1(&err);
+
+        err.dyn_into::<Error>()
+            .unwrap_throw()
+            .message()
+            .into()
     })
 }
 
@@ -297,7 +342,7 @@ macro_rules! reply_result {
 #[macro_export]
 macro_rules! reply {
     ($value:block) => {
-        serde_json::to_string(&$value).unwrap()
+        serde_json::to_string(&$value).unwrap_throw()
     }
 }
 
@@ -315,7 +360,7 @@ pub enum Message {
 
 const CHUNK_SIZE: u32 = 10000;
 
-pub async fn records_get_all() -> Result<Vec<Record>, Error> {
+pub async fn records_get_all() -> Result<Vec<Record>, JsValue> {
     let mut records = vec![];
 
     let mut index = 0;
@@ -339,7 +384,7 @@ pub async fn records_get_all() -> Result<Vec<Record>, Error> {
     Ok(records)
 }
 
-pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
+pub async fn records_insert(records: Vec<Record>) -> Result<(), JsValue> {
     // TODO more idiomatic check
     if records.len() > 0 {
         for chunk in records.chunks(CHUNK_SIZE as usize) {
@@ -351,7 +396,7 @@ pub async fn records_insert(records: Vec<Record>) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn records_delete_all() -> Result<(), Error> {
+pub async fn records_delete_all() -> Result<(), JsValue> {
     send_message_result(&Message::DeleteAllRecords).await
 }
 
@@ -383,7 +428,7 @@ pub fn sorted_record_index(old_records: &[Record], new_record: &Record) -> Resul
     let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
     let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
 
-    let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
+    let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap_throw());
 
     let mut found = false;
 
@@ -429,36 +474,15 @@ pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>)
 }
 
 
-pub struct Listener {
-    stop: Value,
-}
-
-impl Listener {
-    #[inline]
-    pub fn new(stop: Value) -> DiscardOnDrop<Self> {
-        DiscardOnDrop::new(Self { stop })
-    }
-}
-
-impl Discard for Listener {
-    #[inline]
-    fn discard(self) {
-        js! { @(no_return)
-            @{&self.stop}();
-        }
-    }
-}
-
-
 #[inline]
 pub fn performance_now() -> f64 {
-    js!( return performance.now(); ).try_into().unwrap()
+    WINDOW.with(|x| x.performance().unwrap_throw().now())
 }
 
 
 #[inline]
 pub fn current_date_pretty() -> String {
-    js!( return new Date().toISOString(); ).try_into().unwrap()
+    Date::new_0().to_utc_string().into()
 }
 
 
@@ -537,7 +561,7 @@ impl IndexedDB {
 }*/
 
 
-pub struct Debouncer {
+/*pub struct Debouncer {
     value: Value,
 }
 
@@ -589,65 +613,167 @@ impl Drop for Debouncer {
             @{&self.value}.drop();
         }
     }
-}
+}*/
 
 
 pub fn reload_page() {
-    js! { @(no_return)
-        location.reload();
-    }
+    WINDOW.with(|x| x.location().reload().unwrap_throw())
 }
 
 
-pub fn get_extension_url(url: &str) -> String {
-    js!( return chrome.runtime.getURL(@{url}); ).try_into().unwrap()
+#[wasm_bindgen]
+extern "C" {
+    pub type Tab;
 }
 
-
-#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
-#[reference(instance_of = "Object")]
-pub struct Tab(Reference);
 
 /*impl Tab {
     // TODO is i32 correct ?
     #[inline]
     pub fn id(&self) -> i32 {
-        js!( return @{self}.id; ).try_into().unwrap()
+        js!( return @{self}.id; ).try_into().unwrap_throw()
     }
 }*/
 
 
-#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
-#[reference(instance_of = "Object")]
-pub struct Port(Reference);
+#[wasm_bindgen]
+extern "C" {
+    #[derive(Debug)]
+    pub type Event;
 
-impl Port {
-    fn new(port: Value) -> Self {
-        js!(
-            var port = @{port};
+    #[wasm_bindgen(method, js_name = addListener)]
+    pub fn add_listener(this: &Event, callback: &Function);
 
-            var self = {
-                port: port,
-                disconnected: false
-            };
+    #[wasm_bindgen(method, js_name = removeListener)]
+    pub fn remove_listener(this: &Event, callback: &Function);
+}
 
-            // TODO does this leak memory ?
-            port.onDisconnect.addListener(function () {
-                self.disconnected = true;
-            });
 
-            return self;
-        ).try_into().unwrap()
+#[derive(Debug)]
+pub struct Listener<A> where A: ?Sized {
+    event: Event,
+    closure: ManuallyDrop<Closure<A>>,
+}
+
+impl<A> Listener<A> where A: ?Sized {
+    fn new_raw(event: Event, closure: Closure<A>) -> DiscardOnDrop<Self> {
+        event.add_listener(closure.as_ref().unchecked_ref());
+
+        DiscardOnDrop::new(Self {
+            event,
+            closure: ManuallyDrop::new(closure),
+        })
+    }
+}
+
+impl<A> Listener<A> where A: ?Sized + wasm_bindgen::closure::WasmClosure {
+    pub fn new<F>(event: Event, f: F) -> DiscardOnDrop<Self> where F: Unsize<A> + 'static {
+        let closure = Closure::new(f);
+        Self::new_raw(event, closure)
     }
 
+    /*pub fn unchecked_once(event: Event, f: A) -> DiscardOnDrop<Self> {
+        Self::new_raw(event, Closure::once(f))
+    }*/
+}
+
+impl<A> Discard for Listener<A> where A: ?Sized {
+    fn discard(self) {
+        let closure = ManuallyDrop::into_inner(self.closure);
+        self.event.remove_listener(closure.as_ref().unchecked_ref());
+    }
+}
+
+
+#[wasm_bindgen]
+extern "C" {
+    type Sender;
+}
+
+
+#[wasm_bindgen]
+extern "C" {
+    #[derive(Debug)]
+    type RawPort;
+
+    #[wasm_bindgen(method, js_name = postMessage)]
+    fn post_message(this: &RawPort, message: &str);
+
+    #[wasm_bindgen(method, getter)]
+    fn name(this: &RawPort) -> String;
+
+    #[wasm_bindgen(method, getter)]
+    fn sender(this: &RawPort) -> Option<Sender>;
+
+    #[wasm_bindgen(method)]
+    fn disconnect(this: &RawPort);
+
+    #[wasm_bindgen(method, getter, js_name = onMessage)]
+    fn on_message(this: &RawPort) -> Event;
+
+    #[wasm_bindgen(method, getter, js_name = onDisconnect)]
+    fn on_disconnect(this: &RawPort) -> Event;
+}
+
+
+#[derive(Debug)]
+struct PortState {
+    port: RawPort,
+    // TODO figure out a way to get rid of this second Rc
+    disconnected: Rc<Cell<bool>>,
+    listener: DiscardOnDrop<Listener<dyn FnMut()>>,
+}
+
+impl PortState {
     // TODO trigger existing onDisconnect listeners
+    fn disconnect(&self) {
+        self.port.disconnect();
+        self.disconnected.set(true);
+    }
+}
+
+impl Drop for PortState {
+    fn drop(&mut self) {
+        // TODO is this a good idea ?
+        self.disconnect();
+    }
+}
+
+
+pub struct PortOnMessage {
+    _on_disconnect: Option<DiscardOnDrop<Listener<dyn FnMut()>>>,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct Port {
+    state: Rc<PortState>,
+}
+
+impl Port {
+    fn new(port: RawPort) -> Self {
+        let disconnected = Rc::new(Cell::new(false));
+
+        let listener = {
+            let disconnected = disconnected.clone();
+
+            Listener::new(port.on_disconnect(), move || {
+                disconnected.set(true);
+            })
+        };
+
+        Self {
+            state: Rc::new(PortState {
+                port,
+                disconnected,
+                listener,
+            }),
+        }
+    }
+
     #[inline]
     pub fn disconnect(&self) {
-        js! { @(no_return)
-            var self = @{self};
-            self.port.disconnect();
-            self.disconnected = true;
-        }
+        self.state.disconnect();
     }
 
     // TODO lazy initialization ?
@@ -655,7 +781,7 @@ impl Port {
     pub fn messages<A>(&self) -> impl Stream<Item = A> where A: DeserializeOwned + 'static {
         struct PortMessages<A> {
             receiver: UnboundedReceiver<A>,
-            _listener: DiscardOnDrop<Listener>,
+            _listener: PortOnMessage,
         }
 
         impl<A> Stream for PortMessages<A> {
@@ -672,21 +798,35 @@ impl Port {
         PortMessages {
             receiver,
             _listener: self.on_message(move |message| {
-                sender.unbounded_send(message).unwrap();
+                sender.unbounded_send(message).unwrap_throw();
             }),
         }
     }
 
     #[inline]
-    pub fn on_message<A, F>(&self, mut f: F) -> DiscardOnDrop<Listener>
+    pub fn on_message<A, F>(&self, mut f: F) -> PortOnMessage
         where A: DeserializeOwned,
               F: FnMut(A) + 'static {
 
-        let f = move |message: String, _port: Value| {
-            f(serde_json::from_str(&message).unwrap());
-        };
+        if self.state.disconnected.get() {
+            PortOnMessage {
+                _on_disconnect: None,
+            }
 
-        Listener::new(js!(
+        } else {
+            // TODO improve/check all of this
+            let on_message = Listener::new::<dyn FnMut(String, JsValue)>(self.state.port.on_message(), move |message: String, _port: JsValue| {
+                f(serde_json::from_str(&message).unwrap_throw());
+            });
+
+            PortOnMessage {
+                _on_disconnect: Some(Listener::new_raw(self.state.port.on_disconnect(), Closure::once(move || {
+                    drop(on_message);
+                }))),
+            }
+        }
+
+        /*Listener::new(js!(
             var self = @{self};
             var callback = @{f};
 
@@ -696,21 +836,15 @@ impl Port {
                 callback.drop();
             }
 
-            if (self.disconnected) {
-                callback.drop();
-                return function () {};
-
-            } else {
-                // TODO error checking
-                self.port.onMessage.addListener(callback);
-                // TODO reconnect when it is disconnected ?
-                self.port.onDisconnect.addListener(stop);
-                return stop;
-            }
-        ))
+            // TODO error checking
+            self.port.onMessage.addListener(callback);
+            // TODO reconnect when it is disconnected ?
+            self.port.onDisconnect.addListener(stop);
+            return stop;
+        ))*/
     }
 
-    #[inline]
+    /*#[inline]
     pub fn on_disconnect<A>(&self, f: A) -> DiscardOnDrop<Listener>
         where A: FnOnce() + 'static {
 
@@ -736,24 +870,20 @@ impl Port {
                 };
             }
         ))
-    }
+    }*/
 
     // TODO handle errors ?
     // TODO return whether the message was sent or not ?
     #[inline]
     fn send_message_raw(&self, message: &str) {
-        js! { @(no_return)
-            var self = @{self};
-
-            if (!self.disconnected) {
-                self.port.postMessage(@{message});
-            }
+        if !self.state.disconnected.get() {
+            self.state.port.post_message(message);
         }
     }
 
     #[inline]
     pub fn send_message<A>(&self, message: &A) where A: Serialize {
-        self.send_message_raw(&serde_json::to_string(message).unwrap());
+        self.send_message_raw(&serde_json::to_string(message).unwrap_throw());
     }
 }
 
@@ -765,16 +895,16 @@ impl ServerPort {
     // TODO maybe return Option<String> ?
     #[inline]
     pub fn name(&self) -> String {
-        js!( return @{&self.0}.port.name; ).try_into().unwrap()
+        self.0.state.port.name()
     }
 
     // TODO make new MessageSender type ?
     #[inline]
     pub fn tab(&self) -> Option<Tab> {
-        js!( return @{&self.0}.port.sender.tab; ).try_into().unwrap()
+        self.0.state.port.sender().tab()
     }
 
-    #[inline]
+    /*#[inline]
     pub fn on_connect<F>(mut f: F) -> DiscardOnDrop<Listener> where F: FnMut(Self) + 'static {
         let f = move |port: Value| {
             f(ServerPort(Port::new(port)));
@@ -790,7 +920,7 @@ impl ServerPort {
                 callback.drop();
             };
         ))
-    }
+    }*/
 }
 
 impl std::ops::Deref for ServerPort {
@@ -811,7 +941,7 @@ impl ClientPort {
     #[inline]
     pub fn connect(name: &str) -> Self {
         // TODO error checking
-        ClientPort(Port::new(js!( return chrome.runtime.connect(null, { name: @{name} }); )))
+        ClientPort(Port::new(chrome_port_connect(name)))
     }
 }
 
@@ -826,27 +956,23 @@ impl std::ops::Deref for ClientPort {
 
 
 pub fn round_to_hour(date: f64) -> f64 {
-    js!(
-        var date = new Date(@{date});
-        date.setUTCMinutes(0, 0, 0);
-        return date.getTime();
-    ).try_into().unwrap()
+    let date = Date::new(&JsValue::from(date));
+    date.set_utc_minutes(0);
+    date.set_utc_seconds(0);
+    date.set_utc_milliseconds(0);
+    date.get_time()
 }
 
 pub fn subtract_days(date: f64, days: u32) -> f64 {
-    js!(
-        var date = new Date(@{date});
-        date.setUTCDate(date.getUTCDate() - @{days});
-        return date.getTime();
-    ).try_into().unwrap()
+    let date = Date::new(&JsValue::from(date));
+    date.set_utc_date(date.get_utc_date() - days);
+    date.get_time()
 }
 
 pub fn add_days(date: f64, days: u32) -> f64 {
-    js!(
-        var date = new Date(@{date});
-        date.setUTCDate(date.getUTCDate() + @{days});
-        return date.getTime();
-    ).try_into().unwrap()
+    let date = Date::new(&JsValue::from(date));
+    date.set_utc_date(date.get_utc_date() + days);
+    date.get_time()
 }
 
 
@@ -854,25 +980,6 @@ pub fn percentage(p: f64) -> String {
     // Rounds to 2 digits
     // https://stackoverflow.com/a/28656825/449477
     format!("{:.2}%", p * 100.0)
-}
-
-fn format_float(f: f64) -> String {
-    js!(
-        return @{f}.toLocaleString("en-US", {
-            style: "currency",
-            currency: "USD",
-            minimumFractionDigits: 0
-        });
-    ).try_into().unwrap()
-}
-
-pub fn decimal(f: f64) -> String {
-    js!(
-        return @{f}.toLocaleString("en-US", {
-            style: "decimal",
-            maximumFractionDigits: 2
-        });
-    ).try_into().unwrap()
 }
 
 pub fn money(m: f64) -> String {
@@ -900,51 +1007,53 @@ pub fn display_odds(odds: f64) -> String {
 
 #[derive(Debug, Clone)]
 pub struct Loading {
-    element: Element,
+    visible: Mutable<bool>,
 }
 
 impl Loading {
     pub fn new() -> Self {
-        let element = document().create_element("div").unwrap();
-
-        js! { @(no_return)
-            var node = @{&element};
-            node.textContent = "LOADING";
-            node.style.cursor = "default";
-            node.style.position = "fixed";
-            node.style.left = "0px";
-            node.style.top = "0px";
-            node.style.width = "100%";
-            node.style.height = "100%";
-            node.style.zIndex = "2147483647"; // Highest Z-index
-            node.style.backgroundColor = "hsla(0, 0%, 0%, 0.50)";
-            node.style.color = "white";
-            node.style.fontWeight = "bold";
-            node.style.fontSize = "30px";
-            node.style.letterSpacing = "15px";
-            node.style.textShadow = "2px 2px 10px black, 0px 0px 5px black";
-            node.style.display = "flex";
-            node.style.flexDirection = "row";
-            node.style.alignItems = "center";
-            node.style.justifyContent = "center";
+        Self {
+            visible: Mutable::new(true),
         }
-
-        Self { element }
     }
 
-    pub fn element(&self) -> &Element {
-        &self.element
+    pub fn render(&self) -> Dom {
+        html!("div", {
+            .style_signal("display", self.visible.signal_ref(|visible| {
+                if *visible {
+                    "flex"
+
+                } else {
+                    "none"
+                }
+            }))
+
+            .style("cursor", "default")
+            .style("position", "fixed")
+            .style("left", "0px")
+            .style("top", "0px")
+            .style("width", "100%")
+            .style("height", "100%")
+            .style("z-index", "2147483647") // Highest Z-index
+            .style("background-color", "hsla(0, 0%, 0%, 0.50)")
+            .style("color", "white")
+            .style("font-weight", "bold")
+            .style("font-size", "30px")
+            .style("letter-spacing", "15px")
+            .style("text-shadow", "2px 2px 10px black, 0px 0px 5px black")
+            .style("flex-direction", "row")
+            .style("align-items", "center")
+            .style("justify-content", "center")
+
+            .text("LOADING")
+        })
     }
 
     pub fn show(&self) {
-        js! { @(no_return)
-            @{&self.element}.style.display = "flex";
-        }
+        self.visible.set_neq(true);
     }
 
     pub fn hide(&self) {
-        js! { @(no_return)
-            @{&self.element}.style.display = "none";
-        }
+        self.visible.set_neq(false);
     }
 }

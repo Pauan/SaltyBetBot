@@ -6,6 +6,8 @@ edition = "2018"
 
 [profile.release]
 lto = true
+panic = "abort"
+debug-assertions = true
 
 [dependencies]
 algorithm = { path = "./algorithm" }
@@ -19,7 +21,26 @@ futures-core = "0.3.0"
 futures-util = "0.3.0"
 futures-channel = "0.3.0"
 discard = "1.0.0"
-glicko2 = "0.3.0"
+gloo-timers = "0.2.0"
+#glicko2 = "0.3.0"
+wasm-bindgen = { version = "0.2.56", features = ["nightly"] }
+wasm-bindgen-futures = "0.4.5"
+js-sys = "0.3.33"
+
+[dependencies.web-sys]
+version = "0.3.33"
+features = [
+    "console",
+	"Document",
+	"Element",
+	"HtmlElement",
+	"HtmlInputElement",
+    "Location",
+	"Node",
+	"NodeList",
+    "Performance",
+    "Window",
+]
 
 [workspace]
 members = [
