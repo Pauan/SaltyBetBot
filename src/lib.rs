@@ -1,9 +1,8 @@
-#![feature(is_sorted, unsize)]
+#![feature(is_sorted)]
 
 pub mod regexp;
 mod macros;
 
-use core::marker::Unsize;
 use std::cmp::Ordering;
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
@@ -83,6 +82,7 @@ extern "C" {
     pub fn get_extension_url(url: &str) -> String;
 
     fn format_float(f: f64) -> String;
+
     pub fn decimal(f: f64) -> String;
 }
 
@@ -278,7 +278,9 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
 }
 
 
-pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener<dyn FnMut(String, JsValue, Function) -> bool>>
+pub type OnMessage = DiscardOnDrop<Listener<dyn FnMut(String, JsValue, Function) -> bool>>;
+
+pub fn on_message<A, B, F>(mut f: F) -> OnMessage
     where A: DeserializeOwned + 'static,
           B: Future<Output = String> + 'static,
           F: FnMut(A) -> B + 'static {
@@ -312,11 +314,11 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<Listener<dyn FnMut(String,
         }).await;
     });
 
-    Listener::new(chrome_on_message(), move |message: String, _sender: JsValue, reply: Function| -> bool {
+    Listener::new(chrome_on_message(), closure!(move |message: String, _sender: JsValue, reply: Function| -> bool {
         sender.unbounded_send((message, reply)).unwrap_throw();
         // TODO somehow only return true when needed ?
         true
-    })
+    }))
 }
 
 
@@ -561,12 +563,27 @@ impl IndexedDB {
 }*/
 
 
-/*pub struct Debouncer {
+struct DebouncerState {
+    done: Cell<bool>,
+    timer: Cell<Option<i32>>,
+}
+
+pub struct Debouncer {
     value: Value,
+    closure: Closure<dyn FnMut()>,
 }
 
 impl Debouncer {
     pub fn new<F>(time: u32, f: F) -> Self where F: FnOnce() + 'static {
+        let closure = Closure::once(f);
+
+        let state = Rc::new(DebouncerState {
+            done: Cell::new(false),
+            timer: Cell::new(None),
+        });
+
+
+
         Self {
             value: js!(
                 var done = false;
@@ -613,7 +630,7 @@ impl Drop for Debouncer {
             @{&self.value}.drop();
         }
     }
-}*/
+}
 
 
 pub fn reload_page() {
@@ -636,6 +653,23 @@ extern "C" {
 }*/
 
 
+#[macro_export]
+macro_rules! closure {
+    (move || -> $ret:ty $body:block) => {
+        wasm_bindgen::closure::Closure::wrap(std::boxed::Box::new(move || -> $ret { $body }) as std::boxed::Box<dyn FnMut() -> $ret>)
+    };
+    (move |$($arg:ident: $type:ty),*| -> $ret:ty $body:block) => {
+        wasm_bindgen::closure::Closure::wrap(std::boxed::Box::new(move |$($arg: $type),*| -> $ret { $body }) as std::boxed::Box<dyn FnMut($($type),*) -> $ret>)
+    };
+    (move || $body:block) => {
+        $crate::closure!(move || -> () $body)
+    };
+    (move |$($arg:ident: $type:ty),*| $body:block) => {
+        $crate::closure!(move |$($arg: $type),*| -> () $body);
+    };
+}
+
+
 #[wasm_bindgen]
 extern "C" {
     #[derive(Debug)]
@@ -656,7 +690,7 @@ pub struct Listener<A> where A: ?Sized {
 }
 
 impl<A> Listener<A> where A: ?Sized {
-    fn new_raw(event: Event, closure: Closure<A>) -> DiscardOnDrop<Self> {
+    pub fn new(event: Event, closure: Closure<A>) -> DiscardOnDrop<Self> {
         event.add_listener(closure.as_ref().unchecked_ref());
 
         DiscardOnDrop::new(Self {
@@ -664,17 +698,6 @@ impl<A> Listener<A> where A: ?Sized {
             closure: ManuallyDrop::new(closure),
         })
     }
-}
-
-impl<A> Listener<A> where A: ?Sized + wasm_bindgen::closure::WasmClosure {
-    pub fn new<F>(event: Event, f: F) -> DiscardOnDrop<Self> where F: Unsize<A> + 'static {
-        let closure = Closure::new(f);
-        Self::new_raw(event, closure)
-    }
-
-    /*pub fn unchecked_once(event: Event, f: A) -> DiscardOnDrop<Self> {
-        Self::new_raw(event, Closure::once(f))
-    }*/
 }
 
 impl<A> Discard for Listener<A> where A: ?Sized {
@@ -688,6 +711,9 @@ impl<A> Discard for Listener<A> where A: ?Sized {
 #[wasm_bindgen]
 extern "C" {
     type Sender;
+
+    #[wasm_bindgen(method, getter)]
+    fn tab(this: &Sender) -> Option<Tab>;
 }
 
 
@@ -703,7 +729,7 @@ extern "C" {
     fn name(this: &RawPort) -> String;
 
     #[wasm_bindgen(method, getter)]
-    fn sender(this: &RawPort) -> Option<Sender>;
+    fn sender(this: &RawPort) -> Sender;
 
     #[wasm_bindgen(method)]
     fn disconnect(this: &RawPort);
@@ -757,9 +783,9 @@ impl Port {
         let listener = {
             let disconnected = disconnected.clone();
 
-            Listener::new(port.on_disconnect(), move || {
+            Listener::new(port.on_disconnect(), closure!(move || {
                 disconnected.set(true);
-            })
+            }))
         };
 
         Self {
@@ -815,12 +841,12 @@ impl Port {
 
         } else {
             // TODO improve/check all of this
-            let on_message = Listener::new::<dyn FnMut(String, JsValue)>(self.state.port.on_message(), move |message: String, _port: JsValue| {
+            let on_message = Listener::new(self.state.port.on_message(), closure!(move |message: String, _port: JsValue| {
                 f(serde_json::from_str(&message).unwrap_throw());
-            });
+            }));
 
             PortOnMessage {
-                _on_disconnect: Some(Listener::new_raw(self.state.port.on_disconnect(), Closure::once(move || {
+                _on_disconnect: Some(Listener::new(self.state.port.on_disconnect(), Closure::once(move || {
                     drop(on_message);
                 }))),
             }
@@ -886,6 +912,15 @@ impl Port {
         self.send_message_raw(&serde_json::to_string(message).unwrap_throw());
     }
 }
+
+impl PartialEq for Port {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.state, &other.state)
+    }
+}
+
+impl Eq for Port {}
 
 
 #[derive(Clone, Debug, PartialEq, Eq)]
