@@ -797,10 +797,14 @@ dependencies = [
 name = "saltybetbot-twitch-chat"
 version = "0.1.0"
 dependencies = [
+ "algorithm",
  "console_error_panic_hook",
- "dominator",
- "futures-signals",
+ "discard",
+ "gloo-timers",
+ "js-sys",
+ "salty_bet_bot",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

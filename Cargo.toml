@@ -30,13 +30,16 @@ js-sys = "0.3.33"
 version = "0.3.33"
 features = [
     "console",
-	"Document",
-	"Element",
-	"HtmlElement",
-	"HtmlInputElement",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
     "Location",
-	"Node",
-	"NodeList",
+    "MutationObserver",
+    "MutationObserverInit",
+    "MutationRecord",
+    "Node",
+    "NodeList",
     "Performance",
     "Window",
 ]

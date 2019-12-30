@@ -200,6 +200,7 @@ pub fn wait_until_defined<A, B, C>(mut get: A, done: B)
     match get() {
         Some(a) => done(a),
         None => {
+            // TODO does this forget leak memory ?
             Timeout::new(100, move || wait_until_defined(get, done)).forget();
         },
     }
@@ -284,9 +285,18 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
 }
 
 
-pub type OnMessage = DiscardOnDrop<Listener<dyn FnMut(String, JsValue, Function) -> bool>>;
+pub struct OnMessage {
+    listener: Listener<dyn FnMut(String, JsValue, Function) -> bool>,
+}
 
-pub fn on_message<A, B, F>(mut f: F) -> OnMessage
+impl Discard for OnMessage {
+    fn discard(self) {
+        self.listener.discard();
+    }
+}
+
+
+pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<OnMessage>
     where A: DeserializeOwned + 'static,
           B: Future<Output = String> + 'static,
           F: FnMut(A) -> B + 'static {
@@ -320,11 +330,13 @@ pub fn on_message<A, B, F>(mut f: F) -> OnMessage
         }).await;
     });
 
-    Listener::new(chrome_on_message(), closure!(move |message: String, _sender: JsValue, reply: Function| -> bool {
-        sender.unbounded_send((message, reply)).unwrap_throw();
-        // TODO somehow only return true when needed ?
-        true
-    }))
+    DiscardOnDrop::new(OnMessage {
+        listener: DiscardOnDrop::leak(Listener::new(chrome_on_message(), closure!(move |message: String, _sender: JsValue, reply: Function| -> bool {
+            sender.unbounded_send((message, reply)).unwrap_throw();
+            // TODO somehow only return true when needed ?
+            true
+        }))),
+    })
 }
 
 
@@ -791,11 +803,26 @@ impl Drop for PortState {
 
 
 pub struct PortOnDisconnect {
-    _listener: Option<DiscardOnDrop<Listener<dyn FnMut()>>>,
+    listener: Option<Listener<dyn FnMut()>>,
 }
 
+impl Discard for PortOnDisconnect {
+    fn discard(self) {
+        if let Some(listener) = self.listener {
+            listener.discard();
+        }
+    }
+}
+
+
 pub struct PortOnMessage {
-    _on_disconnect: PortOnDisconnect,
+    on_disconnect: PortOnDisconnect,
+}
+
+impl Discard for PortOnMessage {
+    fn discard(self) {
+        self.on_disconnect.discard();
+    }
 }
 
 
@@ -821,7 +848,7 @@ impl Port {
     pub fn messages<A>(&self) -> impl Stream<Item = A> where A: DeserializeOwned + 'static {
         struct PortMessages<A> {
             receiver: UnboundedReceiver<A>,
-            _listener: PortOnMessage,
+            _listener: DiscardOnDrop<PortOnMessage>,
         }
 
         impl<A> Stream for PortMessages<A> {
@@ -844,7 +871,7 @@ impl Port {
     }
 
     #[inline]
-    pub fn on_message<A, F>(&self, mut f: F) -> PortOnMessage
+    pub fn on_message<A, F>(&self, mut f: F) -> DiscardOnDrop<PortOnMessage>
         where A: DeserializeOwned,
               F: FnMut(A) + 'static {
 
@@ -853,31 +880,31 @@ impl Port {
             f(serde_json::from_str(&message).unwrap_throw());
         }));
 
-        PortOnMessage {
+        DiscardOnDrop::new(PortOnMessage {
             // TODO reconnect when it is disconnected ?
-            _on_disconnect: self.on_disconnect(move || {
+            on_disconnect: DiscardOnDrop::leak(self.on_disconnect(move || {
                 drop(on_message);
-            }),
-        }
+            })),
+        })
     }
 
     #[inline]
-    pub fn on_disconnect<A>(&self, f: A) -> PortOnDisconnect
+    pub fn on_disconnect<A>(&self, f: A) -> DiscardOnDrop<PortOnDisconnect>
         where A: FnOnce() + 'static {
 
         if self.state.disconnected.get() {
             f();
 
-            PortOnDisconnect {
-                _listener: None,
-            }
+            DiscardOnDrop::new(PortOnDisconnect {
+                listener: None,
+            })
 
         } else {
             // TODO cleanup the Listener when the closure is called ?
             // TODO error checking
-            PortOnDisconnect {
-                _listener: Some(Listener::new(self.state.port.on_disconnect(), Closure::once(f))),
-            }
+            DiscardOnDrop::new(PortOnDisconnect {
+                listener: Some(DiscardOnDrop::leak(Listener::new(self.state.port.on_disconnect(), Closure::once(f)))),
+            })
         }
     }
 
@@ -907,8 +934,15 @@ impl Eq for Port {}
 
 
 pub struct ServerPortOnConnect {
-    _listener: DiscardOnDrop<Listener<dyn FnMut(RawPort)>>,
+    listener: Listener<dyn FnMut(RawPort)>,
 }
+
+impl Discard for ServerPortOnConnect {
+    fn discard(self) {
+        self.listener.discard();
+    }
+}
+
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServerPort(Port);
@@ -927,14 +961,14 @@ impl ServerPort {
     }
 
     #[inline]
-    pub fn on_connect<F>(mut f: F) -> ServerPortOnConnect where F: FnMut(Self) + 'static {
+    pub fn on_connect<F>(mut f: F) -> DiscardOnDrop<ServerPortOnConnect> where F: FnMut(Self) + 'static {
         let listener = Listener::new(chrome_on_connect(), closure!(move |port: RawPort| {
             f(ServerPort(Port::new(port)));
         }));
 
-        ServerPortOnConnect {
-            _listener: listener,
-        }
+        DiscardOnDrop::new(ServerPortOnConnect {
+            listener: DiscardOnDrop::leak(listener),
+        })
     }
 }
 
@@ -966,6 +1000,79 @@ impl std::ops::Deref for ClientPort {
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct NodeListIter {
+    list: NodeList,
+    range: std::ops::Range<u32>,
+}
+
+impl NodeListIter {
+    pub fn new(list: NodeList) -> Self {
+        Self {
+            range: 0..list.length(),
+            list,
+        }
+    }
+}
+
+impl std::iter::Iterator for NodeListIter {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = self.range.next()?;
+        Some(self.list.get(index).unwrap_throw())
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.range.size_hint()
+    }
+}
+
+impl std::iter::DoubleEndedIterator for NodeListIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let index = self.range.next_back()?;
+        Some(self.list.get(index).unwrap_throw())
+    }
+}
+
+impl std::iter::FusedIterator for NodeListIter {}
+
+impl std::iter::ExactSizeIterator for NodeListIter {}
+
+
+pub struct MutationObserver {
+    observer: web_sys::MutationObserver,
+    closure: ManuallyDrop<Closure<dyn FnMut(js_sys::Array, web_sys::MutationObserver)>>,
+}
+
+impl Discard for MutationObserver {
+    fn discard(self) {
+        let _ = ManuallyDrop::into_inner(self.closure);
+        self.observer.disconnect();
+    }
+}
+
+impl MutationObserver {
+    pub fn new<F>(mut f: F) -> DiscardOnDrop<Self> where F: FnMut(Vec<web_sys::MutationRecord>) + 'static {
+        let closure = closure!(move |records: js_sys::Array, _observer: web_sys::MutationObserver| {
+            f(records.iter().map(|x| x.dyn_into().unwrap_throw()).collect());
+        });
+
+        let observer = web_sys::MutationObserver::new(closure.as_ref().unchecked_ref()).unwrap_throw();
+
+        DiscardOnDrop::new(Self {
+            observer,
+            closure: ManuallyDrop::new(closure),
+        })
+    }
+
+    pub fn observe(&self, target: &Node, options: &web_sys::MutationObserverInit) {
+        self.observer.observe_with_options(target, options).unwrap_throw();
     }
 }
 
