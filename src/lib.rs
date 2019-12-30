@@ -563,84 +563,68 @@ impl IndexedDB {
 }*/
 
 
-struct DebouncerState {
-    done: Cell<bool>,
-    timer: Cell<Option<i32>>,
-}
-
+// TODO move into gloo
 pub struct Debouncer {
-    value: Value,
+    time: u32,
+    timer: i32,
+    done: Rc<Cell<bool>>,
     closure: Closure<dyn FnMut()>,
 }
 
 impl Debouncer {
+    fn clear_timeout(&self) {
+        WINDOW.with(|window| {
+            window.clear_timeout_with_handle(self.timer);
+        })
+    }
+
+    fn set_timeout(time: u32, closure: &Closure<dyn FnMut()>) -> i32 {
+        WINDOW.with(|window| {
+            // TODO better i32 conversion
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(closure.as_ref().unchecked_ref(), time as i32).unwrap_throw()
+        })
+    }
+
     pub fn new<F>(time: u32, f: F) -> Self where F: FnOnce() + 'static {
-        let closure = Closure::once(f);
+        let done = Rc::new(Cell::new(false));
 
-        let state = Rc::new(DebouncerState {
-            done: Cell::new(false),
-            timer: Cell::new(None),
-        });
+        let closure = {
+            let done = done.clone();
 
+            Closure::once(move || {
+                done.set(true);
+                f();
+            })
+        };
 
+        let timer = Self::set_timeout(time, &closure);
 
         Self {
-            value: js!(
-                var done = false;
-                var callback = @{Once(f)};
-                var timer;
-
-                function reset() {
-                    if (!done) {
-                        clearTimeout(timer);
-
-                        timer = setTimeout(function () {
-                            done = true;
-                            callback();
-                        }, @{time});
-                    }
-                }
-
-                function drop() {
-                    done = true;
-                    clearTimeout(timer);
-                    callback.drop();
-                }
-
-                reset();
-
-                return {
-                    reset: reset,
-                    drop: drop
-                };
-            )
+            time,
+            timer,
+            done,
+            closure,
         }
     }
 
-    pub fn reset(&self) {
-        js! { @(no_return)
-            @{&self.value}.reset();
+    pub fn reset(&mut self) {
+        if !self.done.get() {
+            self.clear_timeout();
+            self.timer = Self::set_timeout(self.time, &self.closure);
         }
     }
 }
 
 impl Drop for Debouncer {
     fn drop(&mut self) {
-        js! { @(no_return)
-            @{&self.value}.drop();
-        }
+        self.done.set(true);
+        self.clear_timeout();
     }
 }
 
 
 pub fn reload_page() {
     WINDOW.with(|x| x.location().reload().unwrap_throw())
-}
-
-
-#[wasm_bindgen]
-extern "C" {
-    pub type Tab;
 }
 
 
@@ -705,6 +689,12 @@ impl<A> Discard for Listener<A> where A: ?Sized {
         let closure = ManuallyDrop::into_inner(self.closure);
         self.event.remove_listener(closure.as_ref().unchecked_ref());
     }
+}
+
+
+#[wasm_bindgen]
+extern "C" {
+    pub type Tab;
 }
 
 
@@ -834,23 +824,14 @@ impl Port {
         where A: DeserializeOwned,
               F: FnMut(A) + 'static {
 
-        if self.state.disconnected.get() {
-            PortOnMessage {
-                _on_disconnect: None,
-            }
+        // TODO improve/check all of this
+        let on_message = Listener::new(self.state.port.on_message(), closure!(move |message: String, _port: JsValue| {
+            f(serde_json::from_str(&message).unwrap_throw());
+        }));
 
-        } else {
-            // TODO improve/check all of this
-            let on_message = Listener::new(self.state.port.on_message(), closure!(move |message: String, _port: JsValue| {
-                f(serde_json::from_str(&message).unwrap_throw());
-            }));
-
-            PortOnMessage {
-                _on_disconnect: Some(Listener::new(self.state.port.on_disconnect(), Closure::once(move || {
-                    drop(on_message);
-                }))),
-            }
-        }
+        self.on_disconnect(move || {
+            drop(on_message);
+        })
 
         /*Listener::new(js!(
             var self = @{self};
@@ -870,9 +851,21 @@ impl Port {
         ))*/
     }
 
-    /*#[inline]
+    #[inline]
     pub fn on_disconnect<A>(&self, f: A) -> DiscardOnDrop<Listener>
         where A: FnOnce() + 'static {
+
+        if self.state.disconnected.get() {
+            PortOnMessage {
+                _on_disconnect: None,
+            }
+
+        } else {
+            PortOnMessage {
+                _on_disconnect: Some(Listener::new(self.state.port.on_disconnect(), Closure::once(f))),
+            }
+        }
+
 
         Listener::new(js!(
             var self = @{self};
@@ -896,7 +889,7 @@ impl Port {
                 };
             }
         ))
-    }*/
+    }
 
     // TODO handle errors ?
     // TODO return whether the message was sent or not ?
