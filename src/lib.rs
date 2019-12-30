@@ -20,7 +20,6 @@ use futures_util::stream::StreamExt;
 use futures_channel::mpsc::{UnboundedReceiver, unbounded};
 use futures_signals::signal::Mutable;
 use dominator::{Dom, html};
-use lazy_static::lazy_static;
 use gloo_timers::callback::Timeout;
 use wasm_bindgen::{JsValue, JsCast};
 use wasm_bindgen::prelude::*;
@@ -45,6 +44,10 @@ use web_sys::{window, Window, Document, Node, Element, HtmlElement, HtmlInputEle
 
     export function chrome_on_message() {
         return chrome.runtime.onMessage;
+    }
+
+    export function chrome_on_connect() {
+        return chrome.runtime.onConnect;
     }
 
     export function chrome_port_connect(name) {
@@ -76,6 +79,7 @@ extern "C" {
     fn send_message_raw(message: &str) -> Promise;
 
     fn chrome_on_message() -> Event;
+    fn chrome_on_connect() -> Event;
 
     fn chrome_port_connect(name: &str) -> RawPort;
 
@@ -134,11 +138,11 @@ pub enum WaifuMessage {
 
 // TODO make this more efficient
 pub fn parse_f64(input: &str) -> Option<f64> {
-    lazy_static! {
-        static ref PARSE_F64_REGEX: regexp::RegExp = regexp::RegExp::new(r",");
+    thread_local! {
+        static PARSE_F64_REGEX: regexp::RegExp = regexp::RegExp::new(r",");
     }
 
-    match PARSE_F64_REGEX.replace(input, "").parse::<f64>() {
+    match PARSE_F64_REGEX.with(|re| re.replace(input, "")).parse::<f64>() {
         Ok(a) => Some(a),
         // TODO better error handling
         Err(_) => None,
@@ -148,43 +152,45 @@ pub fn parse_f64(input: &str) -> Option<f64> {
 
 // TODO make this more efficient
 pub fn remove_newlines(input: &str) -> String {
-    lazy_static! {
+    thread_local! {
         // TODO replace all \u{a0} with spaces ?
-        static ref PARSE_NEWLINES: regexp::RegExp = regexp::RegExp::new(r"(?:^[ \u{a0}\n\r]+)|(?:[\n\r]+)|(?:[ \u{a0}\n\r]+$)");
+        static PARSE_NEWLINES: regexp::RegExp = regexp::RegExp::new(r"(?:^[ \u{a0}\n\r]+)|(?:[\n\r]+)|(?:[ \u{a0}\n\r]+$)");
     }
 
-    PARSE_NEWLINES.replace(input, "")
+    PARSE_NEWLINES.with(|re| re.replace(input, ""))
 }
 
 
 // TODO make this more efficient
 pub fn collapse_whitespace(input: &str) -> String {
-    lazy_static! {
-        static ref PARSE_WHITESPACE: regexp::RegExp = regexp::RegExp::new(r" {2,}");
+    thread_local! {
+        static PARSE_WHITESPACE: regexp::RegExp = regexp::RegExp::new(r" {2,}");
     }
 
-    PARSE_WHITESPACE.replace(input, " ")
+    PARSE_WHITESPACE.with(|re| re.replace(input, " "))
 }
 
 
 pub fn parse_name(input: &str) -> Option<String> {
-    lazy_static! {
-        static ref REGEXP: regexp::RegExp = regexp::RegExp::new(r"^(.+) \[-?[0-9,]+\] #[0-9,]+$");
+    thread_local! {
+        static REGEXP: regexp::RegExp = regexp::RegExp::new(r"^(.+) \[-?[0-9,]+\] #[0-9,]+$");
     }
 
-    REGEXP.first_match(input).and_then(|mut captures| captures[1].take())
+    REGEXP.with(|re| re.first_match(input)).and_then(|mut captures| captures[1].take())
 }
 
 
 pub fn parse_money(input: &str) -> Option<f64> {
-    lazy_static! {
-        static ref MONEY_REGEX: regexp::RegExp = regexp::RegExp::new(
+    thread_local! {
+        static MONEY_REGEX: regexp::RegExp = regexp::RegExp::new(
             r"^[ \n\r]*\$([0-9,]+)[ \n\r]*$"
         );
     }
 
-    MONEY_REGEX.first_match(input).and_then(|captures|
-        captures[1].as_ref().and_then(|x| parse_f64(x)))
+    MONEY_REGEX.with(|re| re.first_match(input))
+        .and_then(|captures|
+            captures[1].as_ref()
+                .and_then(|x| parse_f64(x)))
 }
 
 
@@ -667,10 +673,19 @@ extern "C" {
 }
 
 
-#[derive(Debug)]
 pub struct Listener<A> where A: ?Sized {
     event: Event,
     closure: ManuallyDrop<Closure<A>>,
+}
+
+// TODO use derive instead
+impl<A> std::fmt::Debug for Listener<A> where A: ?Sized {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Listener")
+            .field("event", &self.event)
+            .field("closure", &self.closure)
+            .finish()
+    }
 }
 
 impl<A> Listener<A> where A: ?Sized {
@@ -741,10 +756,29 @@ struct PortState {
 }
 
 impl PortState {
+    fn new(port: RawPort) -> Self {
+        let disconnected = Rc::new(Cell::new(false));
+
+        let listener = {
+            let disconnected = disconnected.clone();
+
+            // TODO cleanup the Listener when the closure is called ?
+            Listener::new(port.on_disconnect(), Closure::once(move || {
+                disconnected.set(true);
+            }))
+        };
+
+        Self {
+            port,
+            disconnected,
+            listener,
+        }
+    }
+
     // TODO trigger existing onDisconnect listeners
     fn disconnect(&self) {
-        self.port.disconnect();
         self.disconnected.set(true);
+        self.port.disconnect();
     }
 }
 
@@ -756,8 +790,12 @@ impl Drop for PortState {
 }
 
 
+pub struct PortOnDisconnect {
+    _listener: Option<DiscardOnDrop<Listener<dyn FnMut()>>>,
+}
+
 pub struct PortOnMessage {
-    _on_disconnect: Option<DiscardOnDrop<Listener<dyn FnMut()>>>,
+    _on_disconnect: PortOnDisconnect,
 }
 
 
@@ -768,22 +806,8 @@ pub struct Port {
 
 impl Port {
     fn new(port: RawPort) -> Self {
-        let disconnected = Rc::new(Cell::new(false));
-
-        let listener = {
-            let disconnected = disconnected.clone();
-
-            Listener::new(port.on_disconnect(), closure!(move || {
-                disconnected.set(true);
-            }))
-        };
-
         Self {
-            state: Rc::new(PortState {
-                port,
-                disconnected,
-                listener,
-            }),
+            state: Rc::new(PortState::new(port)),
         }
     }
 
@@ -824,78 +848,44 @@ impl Port {
         where A: DeserializeOwned,
               F: FnMut(A) + 'static {
 
-        // TODO improve/check all of this
+        // TODO error checking
         let on_message = Listener::new(self.state.port.on_message(), closure!(move |message: String, _port: JsValue| {
             f(serde_json::from_str(&message).unwrap_throw());
         }));
 
-        self.on_disconnect(move || {
-            drop(on_message);
-        })
-
-        /*Listener::new(js!(
-            var self = @{self};
-            var callback = @{f};
-
-            function stop() {
-                self.port.onMessage.removeListener(callback);
-                self.port.onDisconnect.removeListener(stop);
-                callback.drop();
-            }
-
-            // TODO error checking
-            self.port.onMessage.addListener(callback);
+        PortOnMessage {
             // TODO reconnect when it is disconnected ?
-            self.port.onDisconnect.addListener(stop);
-            return stop;
-        ))*/
+            _on_disconnect: self.on_disconnect(move || {
+                drop(on_message);
+            }),
+        }
     }
 
     #[inline]
-    pub fn on_disconnect<A>(&self, f: A) -> DiscardOnDrop<Listener>
+    pub fn on_disconnect<A>(&self, f: A) -> PortOnDisconnect
         where A: FnOnce() + 'static {
 
         if self.state.disconnected.get() {
-            PortOnMessage {
-                _on_disconnect: None,
+            f();
+
+            PortOnDisconnect {
+                _listener: None,
             }
 
         } else {
-            PortOnMessage {
-                _on_disconnect: Some(Listener::new(self.state.port.on_disconnect(), Closure::once(f))),
+            // TODO cleanup the Listener when the closure is called ?
+            // TODO error checking
+            PortOnDisconnect {
+                _listener: Some(Listener::new(self.state.port.on_disconnect(), Closure::once(f))),
             }
         }
-
-
-        Listener::new(js!(
-            var self = @{self};
-            var callback = @{Once(f)};
-
-            function onDisconnect() {
-                callback();
-            }
-
-            if (self.disconnected) {
-                onDisconnect();
-                return function () {};
-
-            } else {
-                // TODO error checking
-                self.port.onDisconnect.addListener(onDisconnect);
-
-                return function () {
-                    self.port.onDisconnect.removeListener(onDisconnect);
-                    callback.drop();
-                };
-            }
-        ))
     }
 
-    // TODO handle errors ?
     // TODO return whether the message was sent or not ?
     #[inline]
     fn send_message_raw(&self, message: &str) {
         if !self.state.disconnected.get() {
+            // TODO use try/catch to catch errors ?
             self.state.port.post_message(message);
         }
     }
@@ -916,6 +906,10 @@ impl PartialEq for Port {
 impl Eq for Port {}
 
 
+pub struct ServerPortOnConnect {
+    _listener: DiscardOnDrop<Listener<dyn FnMut(RawPort)>>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServerPort(Port);
 
@@ -932,23 +926,16 @@ impl ServerPort {
         self.0.state.port.sender().tab()
     }
 
-    /*#[inline]
-    pub fn on_connect<F>(mut f: F) -> DiscardOnDrop<Listener> where F: FnMut(Self) + 'static {
-        let f = move |port: Value| {
+    #[inline]
+    pub fn on_connect<F>(mut f: F) -> ServerPortOnConnect where F: FnMut(Self) + 'static {
+        let listener = Listener::new(chrome_on_connect(), closure!(move |port: RawPort| {
             f(ServerPort(Port::new(port)));
-        };
+        }));
 
-        Listener::new(js!(
-            var callback = @{f};
-
-            chrome.runtime.onConnect.addListener(callback);
-
-            return function () {
-                chrome.runtime.onConnect.removeListener(callback);
-                callback.drop();
-            };
-        ))
-    }*/
+        ServerPortOnConnect {
+            _listener: listener,
+        }
+    }
 }
 
 impl std::ops::Deref for ServerPort {

@@ -1,9 +1,7 @@
 #[macro_export]
 macro_rules! log {
     ($($args:tt)*) => {
-        js! { @(no_return)
-            console.log(@{format!("{} [{}:{}] {}", $crate::current_date_pretty(), file!(), line!(), format!($($args)*))});
-        }
+        web_sys::console::log_1(&wasm_bindgen::JsValue::from(std::format!("{} [{}:{}] {}", $crate::current_date_pretty(), std::file!(), std::line!(), std::format!($($args)*))));
     };
 }
 
@@ -14,7 +12,7 @@ macro_rules! time {
         let old = $crate::performance_now();
         let value = $value;
         let new = $crate::performance_now();
-        log!("{} took {}ms", $name, new - old);
+        $crate::log!("{} took {}ms", $name, new - old);
         value
     }}
 }
@@ -23,6 +21,6 @@ macro_rules! time {
 #[macro_export]
 macro_rules! server_log {
     ($($args:tt)*) => {
-        $crate::server_log(format!("{} [{}:{}] {}", $crate::current_date_pretty(), file!(), line!(), format!($($args)*)))
+        $crate::server_log(std::format!("{} [{}:{}] {}", $crate::current_date_pretty(), std::file!(), std::line!(), std::format!($($args)*)))
     }
 }

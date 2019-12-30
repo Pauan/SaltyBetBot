@@ -732,7 +732,6 @@ dependencies = [
  "futures-util",
  "gloo-timers",
  "js-sys",
- "lazy_static",
  "serde",
  "serde_derive",
  "serde_json",
