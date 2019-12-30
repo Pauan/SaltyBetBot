@@ -787,10 +787,19 @@ dependencies = [
 name = "saltybetbot-saltybet"
 version = "0.1.0"
 dependencies = [
+ "algorithm",
  "console_error_panic_hook",
  "dominator",
+ "futures-core",
  "futures-signals",
+ "futures-util",
+ "glicko2",
+ "gloo-timers",
+ "lazy_static",
+ "salty_bet_bot",
  "wasm-bindgen",
+ "wasm-bindgen-futures 0.4.6",
+ "web-sys",
 ]
 
 [[package]]
