@@ -746,11 +746,16 @@ version = "0.1.0"
 dependencies = [
  "algorithm",
  "console_error_panic_hook",
+ "discard",
  "dominator",
  "futures-signals",
+ "futures-util",
+ "js-sys",
  "salty_bet_bot",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures 0.4.6",
+ "web-sys",
 ]
 
 [[package]]

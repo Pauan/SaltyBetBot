@@ -1,5 +1,6 @@
 #![feature(is_sorted)]
 
+pub mod indexeddb;
 pub mod regexp;
 mod macros;
 
@@ -286,6 +287,7 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
 
 
 pub struct OnMessage {
+    // TODO use dyn FnMut(String, &JsValue, Function) -> bool
     listener: Listener<dyn FnMut(String, JsValue, Function) -> bool>,
 }
 
@@ -794,13 +796,6 @@ impl PortState {
     }
 }
 
-impl Drop for PortState {
-    fn drop(&mut self) {
-        // TODO is this a good idea ?
-        self.disconnect();
-    }
-}
-
 
 pub struct PortOnDisconnect {
     listener: Option<Listener<dyn FnMut()>>,
@@ -876,6 +871,7 @@ impl Port {
               F: FnMut(A) + 'static {
 
         // TODO error checking
+        // TODO use |message: &str, _port: &JsValue|
         let on_message = Listener::new(self.state.port.on_message(), closure!(move |message: String, _port: JsValue| {
             f(serde_json::from_str(&message).unwrap_throw());
         }));

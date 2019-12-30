@@ -1,154 +1,36 @@
 #![feature(try_blocks)]
 
 use algorithm::record::{Record, deserialize_records};
-use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, Listener, on_message, WaifuMessage};
-
-/*use std::rc::Rc;
+use discard::DiscardOnDrop;
+use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-
-use discard::DiscardOnDrop;
-use futures_util::try_future::{try_join, try_join_all};
-use futures_signals::signal::{Mutable, SignalExt};*/
+use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, on_message, WaifuMessage, log, time, reply, reply_result, PortOnMessage, PortOnDisconnect};
+use salty_bet_bot::indexeddb::{Db, TableOptions};
+use futures_util::future::{try_join, try_join_all};
+use futures_signals::signal::{Mutable, SignalExt};
+use js_sys::{Promise, Array};
+use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen::prelude::*;
 
 
-#[wasm_bindgen(start)]
-pub async fn main_js() -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
-
-
-    /*log!("Initializing...");
-
-
-    listen_to_ports();
-
-
-    let db = time!("Initializing database", {
-        Db::new(2, |db, _old, _new| {
-            db.migrate();
-        }).await?
-    });
-
-    let loaded = Mutable::new(false);
-
-
-    // This is necessary because Chrome doesn't allow content scripts to use the tabs API
-    DiscardOnDrop::leak(on_message(clone!(db, loaded => move |message| {
-        // TODO is there a better way of doing this ?
-        let done = loaded.signal().wait_for(true);
-
-        clone!(db => async move {
-            done.await;
-
-            match message {
-                Message::RecordsNew => reply_result!({
-                    // TODO this shouldn't pause the message queue
-                    let records = db.get_all_records().await?;
-                    Remote::new(records)
-                }),
-                Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
-                    let from = from as usize;
-                    let to = to as usize;
-
-                    reply!({
-                        let len = records.len();
-
-                        if from >= len {
-                            None
-
-                        } else {
-                            Some(&records[from..(to.min(len))])
-                        }
-                    })
-                }),
-                Message::RecordsDrop(id) => reply!({
-                    Remote::drop::<Vec<Record>>(id);
-                }),
-
-                Message::InsertRecords(records) => reply_result!({
-                    db.insert_records(records.as_slice()).await?;
-                }),
-
-                Message::DeleteAllRecords => reply_result!({
-                    db.delete_all_records().await?;
-                }),
-
-                Message::ServerLog(message) => reply!({
-                    console!(log, message);
-                }),
-            }
-        })
-    })));
-
-
-    {
-        let old_records = delete_duplicate_records(&db);
-
-        let new_records = get_static_records(&[
-            "records/SaltyBet Records 0.json",
-            "records/SaltyBet Records 1.json",
-            "records/SaltyBet Records 2.json",
-            "records/SaltyBet Records 3.json",
-        ]);
-
-        let (old_records, new_records) = try_join(old_records, new_records).await?;
-
-        let added_records = time!("Inserting default records", {
-            let added_records = get_added_records(old_records, new_records);
-            db.insert_records(added_records.as_slice()).await?;
-            added_records
-        });
-
-        log!("Inserted {} records", added_records.len());
-
-        loaded.set(true);
-    }
-
-
-    log!("Background page started");*/
-
-    Ok(())
-}
-/*
-
-
-// TODO cancellation
-fn fetch(url: &str) -> PromiseFuture<String> {
-    js!(
+#[wasm_bindgen(inline_js = "
+    // TODO cancellation
+    export function fetch_(url) {
         // TODO cache ?
         // TODO integrity ?
-        return fetch(chrome.runtime.getURL(@{url}), {
-            credentials: "same-origin",
-            mode: "same-origin"
+        return fetch(chrome.runtime.getURL(url), {
+            credentials: \"same-origin\",
+            mode: \"same-origin\"
         // TODO check HTTP status codes ?
         }).then(function (response) {
             return response.text();
         });
-    ).try_into().unwrap()
-}
+    }
 
-/*fn get_twitch_tabs() -> PromiseFuture<Vec<Tab>> {
-    js!(
-        return new Promise(function (resolve, reject) {
-            chrome.tabs.query({
-                url: "https://www.twitch.tv/embed/saltybet/chat?darkpopout"
-            }, function (tabs) {
-                if (chrome.runtime.lastError != null) {
-                    reject(new Error(chrome.runtime.lastError.message));
-
-                } else {
-                    resolve(tabs);
-                }
-            });
-        });
-    ).try_into().unwrap()
-}*/
-
-fn remove_tabs(tabs: &[Tab]) -> PromiseFuture<()> {
-    js!(
+    export function remove_tabs(tabs) {
         // TODO move this into Rust ?
-        var ids = @{tabs}.map(function (tab) { return tab.id; });
+        var ids = tabs.map(function (tab) { return tab.id; });
 
         return new Promise(function (resolve, reject) {
             chrome.tabs.remove(ids, function () {
@@ -160,8 +42,15 @@ fn remove_tabs(tabs: &[Tab]) -> PromiseFuture<()> {
                 }
             });
         });
-    ).try_into().unwrap()
+    }
+")]
+extern "C" {
+    // TODO replace with gloo
+    fn fetch_(url: &str) -> Promise;
+
+    fn remove_tabs(tabs: &Array) -> Promise;
 }
+
 
 /*async fn remove_twitch_tabs() -> Result<(), Error> {
     let tabs = await!(get_twitch_tabs())?;
@@ -174,178 +63,46 @@ fn remove_tabs(tabs: &[Tab]) -> PromiseFuture<()> {
 }*/
 
 
-#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
-#[reference(instance_of = "IDBCursorWithValue")]
-pub struct Cursor(Reference);
+pub fn get_all_records(db: &Db) -> impl Future<Output = Result<Vec<Record>, JsValue>> {
+    db.read(&["records"], move |tx| {
+        async move {
+            let array = tx.get_all("records").await?;
 
-impl Cursor {
-    pub fn value(&self) -> String {
-        js!( return @{self}.value; ).try_into().unwrap()
-    }
+            let mut records: Vec<Record> = array.iter()
+                .map(|x| Record::deserialize(&x.as_string().unwrap_throw()))
+                .collect();
 
-    pub fn delete(&self) {
-        js! { @(no_return)
-            @{self}.delete();
+            records.sort_by(Record::sort_date);
+
+            Ok(records)
         }
-    }
+    })
 }
 
-
-#[derive(Clone, Debug, PartialEq, Eq, ReferenceType)]
-#[reference(instance_of = "IDBDatabase")]
-pub struct Db(Reference);
-
-impl Db {
-    // TODO this should actually be u64
-    pub fn new<F>(version: u32, upgrade_needed: F) -> PromiseFuture<Self> where F: FnOnce(Db, u32, Option<u32>) + 'static {
-        js!(
-            var upgrade_needed = @{Once(upgrade_needed)};
-
-            return new Promise(function (resolve, reject) {
-                var request = indexedDB.open("", @{version});
-
-                request.onupgradeneeded = function (event) {
-                    // TODO test this with oldVersion and newVersion
-                    upgrade_needed(event.target.result, event.oldVersion, event.newVersion);
-                };
-
-                request.onsuccess = function (event) {
-                    upgrade_needed.drop();
-                    resolve(event.target.result);
-                };
-
-                request.onblocked = function () {
-                    upgrade_needed.drop();
-                    reject(new Error("Database is blocked"));
-                };
-
-                request.onerror = function (event) {
-                    upgrade_needed.drop();
-                    // TODO is this correct ?
-                    reject(event);
-                };
-            });
-        ).try_into().unwrap()
-    }
-
-    pub fn migrate(&self) {
-        js! { @(no_return)
-            @{self}.createObjectStore("records", { autoIncrement: true });
-        }
-    }
-
-    pub fn for_each<F>(&self, f: F) -> PromiseFuture<()> where F: FnMut(Cursor) + 'static {
-        js!(
-            return new Promise(function (resolve, reject) {
-                var callback = @{f};
-
-                var transaction = @{self}.transaction("records", "readwrite");
-
-                transaction.oncomplete = function () {
-                    callback.drop();
-                    resolve();
-                };
-
-                transaction.onerror = function (event) {
-                    callback.drop();
-                    // TODO is this correct ?
-                    reject(event);
-                };
-
-                var request = transaction.objectStore("records").openCursor();
-
-                request.onsuccess = function (event) {
-                    var cursor = event.target.result;
-
-                    if (cursor) {
-                        callback(cursor);
-                        cursor.continue();
-                    }
-                };
-            });
-        ).try_into().unwrap()
-    }
-
-    fn get_all_records_raw(&self) -> PromiseFuture<Vec<String>> {
-        js!(
-            return new Promise(function (resolve, reject) {
-                var request = @{self}.transaction("records", "readonly").objectStore("records").getAll();
-
-                request.onsuccess = function (event) {
-                    resolve(event.target.result);
-                };
-
-                request.onerror = function (event) {
-                    // TODO is this correct ?
-                    reject(event);
-                };
-            });
-        ).try_into().unwrap()
-    }
-
-    pub async fn get_all_records(&self) -> Result<Vec<Record>, Error> {
-        let records = self.get_all_records_raw().await?;
-        let mut records: Vec<Record> = records.into_iter().map(|x| Record::deserialize(&x)).collect();
-        records.sort_by(Record::sort_date);
-        Ok(records)
-    }
-
-    fn insert_records_raw(&self, records: Vec<String>) -> PromiseFuture<()> {
-        js!(
-            return new Promise(function (resolve, reject) {
-                var transaction = @{self}.transaction("records", "readwrite");
-
-                transaction.oncomplete = function () {
-                    resolve();
-                };
-
-                transaction.onerror = function (event) {
-                    // TODO is this correct ?
-                    reject(event);
-                };
-
-                var store = transaction.objectStore("records");
-
-                @{records}.forEach(function (value) {
-                    store.add(value);
-                });
-            });
-        ).try_into().unwrap()
-    }
-
-    // TODO is this '_ correct ?
-    pub fn insert_records(&self, records: &[Record]) -> impl Future<Output = Result<(), Error>> + '_ {
-        // TODO avoid doing anything if the len is 0 ?
-        let records: Vec<String> = records.into_iter().map(Record::serialize).collect();
-
+pub fn delete_all_records(db: &Db) -> impl Future<Output = Result<(), JsValue>> {
+    db.write(&["records"], move |tx| {
         async move {
-            if records.len() > 0 {
-                self.insert_records_raw(records).await?;
-            }
-
+            tx.clear("records");
             Ok(())
         }
-    }
+    })
+}
 
-    pub fn delete_all_records(&self) -> PromiseFuture<()> {
-        js!(
-            return new Promise(function (resolve, reject) {
-                var transaction = @{self}.transaction("records", "readwrite");
+pub fn insert_records<'a>(db: &'a Db, records: &[Record]) -> impl Future<Output = Result<(), JsValue>> + 'a {
+    // TODO avoid doing anything if the len is 0 ?
+    let records: Vec<JsValue> = records.into_iter().map(|x| JsValue::from(Record::serialize(x))).collect();
 
-                transaction.oncomplete = function () {
-                    resolve();
-                };
+    async move {
+        if records.len() > 0 {
+            db.write(&["records"], move |tx| {
+                async move {
+                    tx.insert_many("records", records);
+                    Ok(())
+                }
+            }).await?;
+        }
 
-                transaction.onerror = function (event) {
-                    // TODO is this correct ?
-                    reject(event);
-                };
-
-                var store = transaction.objectStore("records");
-
-                store.clear();
-            });
-        ).try_into().unwrap()
+        Ok(())
     }
 }
 
@@ -388,14 +145,14 @@ impl Remote {
 }
 
 
-async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, Error> {
+async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, JsValue> {
     let records = time!("Retrieving default records", {
         let mut output = vec![];
 
-        let files = files.into_iter().map(|file| fetch(file));
+        let files = files.into_iter().map(|file| JsFuture::from(fetch_(file)));
 
         for file in try_join_all(files).await? {
-            let mut records = deserialize_records(&file);
+            let mut records = deserialize_records(&file.as_string().unwrap_throw());
             output.append(&mut records);
         }
 
@@ -408,7 +165,7 @@ async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, Error
 }
 
 
-async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, Error> {
+async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, JsValue> {
     let state = time!("Deleting duplicate records", {
         struct State {
             records: Vec<Record>,
@@ -420,21 +177,27 @@ async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, Error> {
             deleted: 0,
         }));
 
-        db.for_each(clone!(state => move |cursor| {
-            let mut state = state.borrow_mut();
+        {
+            let state = state.clone();
 
-            let record = Record::deserialize(&cursor.value());
+            db.write(&["records"], move |tx| {
+                tx.for_each("records", move |cursor| {
+                    let mut state = state.borrow_mut();
 
-            match sorted_record_index(&state.records, &record) {
-                Ok(_) => {
-                    state.deleted += 1;
-                    cursor.delete();
-                },
-                Err(index) => {
-                    state.records.insert(index, record);
-                },
-            }
-        })).await?;
+                    let record = Record::deserialize(&cursor.value().as_string().unwrap_throw());
+
+                    match sorted_record_index(&state.records, &record) {
+                        Ok(_) => {
+                            state.deleted += 1;
+                            cursor.delete();
+                        },
+                        Err(index) => {
+                            state.records.insert(index, record);
+                        },
+                    }
+                })
+            }).await?;
+        }
 
         match Rc::try_unwrap(state) {
             Ok(state) => state.into_inner(),
@@ -452,7 +215,7 @@ async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, Error> {
 fn listen_to_ports() {
     struct SaltyBet {
         port: ServerPort,
-        _on_disconnect: DiscardOnDrop<Listener>,
+        _on_disconnect: DiscardOnDrop<PortOnDisconnect>,
     }
 
     impl Drop for SaltyBet {
@@ -465,8 +228,8 @@ fn listen_to_ports() {
 
     struct TwitchChat {
         port: ServerPort,
-        _on_message: DiscardOnDrop<Listener>,
-        _on_disconnect: DiscardOnDrop<Listener>,
+        _on_message: DiscardOnDrop<PortOnMessage>,
+        _on_disconnect: DiscardOnDrop<PortOnDisconnect>,
     }
 
     impl Drop for TwitchChat {
@@ -497,11 +260,16 @@ fn listen_to_ports() {
 
                 let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
 
-                let on_disconnect = port.on_disconnect(clone!(state, port => move || {
-                    let mut lock = state.borrow_mut();
+                let on_disconnect = port.on_disconnect({
+                    let state = state.clone();
+                    let port = port.clone();
 
-                    assert!(remove_value(&mut lock.salty_bet_ports, |x| x.port == port));
-                }));
+                    move || {
+                        let mut lock = state.borrow_mut();
+
+                        assert!(remove_value(&mut lock.salty_bet_ports, |x| x.port == port));
+                    }
+                });
 
                 lock.salty_bet_ports.push(SaltyBet {
                     port,
@@ -510,7 +278,8 @@ fn listen_to_ports() {
 
                 spawn(async move {
                     if tabs.len() > 0 {
-                        remove_tabs(&tabs).await?;
+                        let value = JsFuture::from(remove_tabs(&tabs.into_iter().collect())).await?;
+                        assert!(value.is_undefined());
                     }
 
                     Ok(())
@@ -522,22 +291,31 @@ fn listen_to_ports() {
 
                 lock.twitch_chat_ports.clear();
 
-                let on_message = port.on_message(clone!(state => move |message: Vec<WaifuMessage>| {
-                    let lock = state.borrow();
+                let on_message = {
+                    let state = state.clone();
 
-                    assert!(lock.salty_bet_ports.len() <= 1);
-                    assert_eq!(lock.twitch_chat_ports.len(), 1);
+                    port.on_message(move |message: Vec<WaifuMessage>| {
+                        let lock = state.borrow();
 
-                    for x in lock.salty_bet_ports.iter() {
-                        x.port.send_message(&message);
+                        assert!(lock.salty_bet_ports.len() <= 1);
+                        assert_eq!(lock.twitch_chat_ports.len(), 1);
+
+                        for x in lock.salty_bet_ports.iter() {
+                            x.port.send_message(&message);
+                        }
+                    })
+                };
+
+                let on_disconnect = port.on_disconnect({
+                    let state = state.clone();
+                    let port = port.clone();
+
+                    move || {
+                        let mut lock = state.borrow_mut();
+
+                        assert!(remove_value(&mut lock.twitch_chat_ports, |x| x.port == port));
                     }
-                }));
-
-                let on_disconnect = port.on_disconnect(clone!(state, port => move || {
-                    let mut lock = state.borrow_mut();
-
-                    assert!(remove_value(&mut lock.twitch_chat_ports, |x| x.port == port));
-                }));
+                });
 
                 lock.twitch_chat_ports.push(TwitchChat {
                     port,
@@ -551,4 +329,114 @@ fn listen_to_ports() {
             },
         }
     }));
-}*/
+}
+
+
+#[wasm_bindgen(start)]
+pub async fn main_js() -> Result<(), JsValue> {
+    console_error_panic_hook::set_once();
+
+
+    log!("Initializing...");
+
+
+    listen_to_ports();
+
+
+    let db = time!("Initializing database", {
+        Db::open("", 2, |db, _old, _new| {
+            db.create_table("records", &TableOptions {
+                key_path: Some("foo"),
+                auto_increment: false,
+            });
+            // { autoIncrement: true }
+        }).await?
+    });
+
+    let loaded = Mutable::new(false);
+
+
+    {
+        let db = db.clone();
+        let loaded = loaded.clone();
+
+        // This is necessary because Chrome doesn't allow content scripts to use the tabs API
+        DiscardOnDrop::leak(on_message(move |message| {
+            // TODO is there a better way of doing this ?
+            let done = loaded.signal().wait_for(true);
+
+            let db = db.clone();
+
+            async move {
+                done.await;
+
+                match message {
+                    Message::RecordsNew => reply_result!({
+                        // TODO this shouldn't pause the message queue
+                        let records = get_all_records(&db).await?;
+                        Remote::new(records)
+                    }),
+                    Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
+                        let from = from as usize;
+                        let to = to as usize;
+
+                        reply!({
+                            let len = records.len();
+
+                            if from >= len {
+                                None
+
+                            } else {
+                                Some(&records[from..(to.min(len))])
+                            }
+                        })
+                    }),
+                    Message::RecordsDrop(id) => reply!({
+                        Remote::drop::<Vec<Record>>(id);
+                    }),
+
+                    Message::InsertRecords(records) => reply_result!({
+                        insert_records(&db, records.as_slice()).await?;
+                    }),
+
+                    Message::DeleteAllRecords => reply_result!({
+                        delete_all_records(&db).await?;
+                    }),
+
+                    Message::ServerLog(message) => reply!({
+                        web_sys::console::log_1(&JsValue::from(message));
+                    }),
+                }
+            }
+        }));
+    }
+
+
+    {
+        let old_records = delete_duplicate_records(&db);
+
+        let new_records = get_static_records(&[
+            "records/SaltyBet Records 0.json",
+            "records/SaltyBet Records 1.json",
+            "records/SaltyBet Records 2.json",
+            "records/SaltyBet Records 3.json",
+        ]);
+
+        let (old_records, new_records) = try_join(old_records, new_records).await?;
+
+        let added_records = time!("Inserting default records", {
+            let added_records = get_added_records(old_records, new_records);
+            insert_records(&db, added_records.as_slice()).await?;
+            added_records
+        });
+
+        log!("Inserted {} records", added_records.len());
+
+        loaded.set(true);
+    }
+
+
+    log!("Background page started");
+
+    Ok(())
+}
