@@ -14,6 +14,7 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, "static", "js"),
+    chunkFilename: "chunks/[id].js",
     filename: "[name].js"
   },
   plugins: [

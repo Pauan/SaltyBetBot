@@ -42,8 +42,7 @@
   }],
   "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",
   "web_accessible_resources": [
-    "js/saltybet.wasm",
-    "js/twitch_chat.wasm",
+    "js/*.wasm",
     "icons/eye.svg",
     "icons/eye-blocked.svg"
   ]
