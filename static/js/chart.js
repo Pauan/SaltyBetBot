@@ -189,7 +189,5 @@ return result.then(({instance, module}) => {
 });
 }
 
-const url = chrome.runtime.getURL("js/chart.wasm");
-        console.log(url);
-        init(url).catch(console.error);
+init(chrome.runtime.getURL("js/chart.wasm")).catch(console.error);
 //# sourceMappingURL=chart.js.map

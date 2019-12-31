@@ -456,7 +456,7 @@ impl std::ops::Deref for DbUpgrade {
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Db {
     db: IdbDatabase,
 }

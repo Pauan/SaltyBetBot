@@ -48,6 +48,39 @@ function wait(p) {
 }
 
 
+const state = {
+    locked: false,
+    pending: [],
+};
+
+async function lock(f) {
+    if (state.locked) {
+        await new Promise(function (resolve, reject) {
+            state.pending.push(resolve);
+        });
+
+        if (state.locked) {
+            throw new Error("Invalid lock state");
+        }
+    }
+
+    state.locked = true;
+
+    try {
+        return await f();
+
+    } finally {
+        state.locked = false;
+
+        if (state.pending.length !== 0) {
+            const resolve = state.pending.shift();
+            // Wake up pending task
+            resolve();
+        }
+    }
+}
+
+
 async function build(cx, id, options) {
     const toml = $toml.parse(await read(id));
 
@@ -71,8 +104,16 @@ async function build(cx, id, options) {
         (options.debug ? "--dev" : "--release")
     ];
 
-    // TODO make sure to use the npm installed binary for wasm-pack
-    await wait($child.spawn("wasm-pack", args, { cwd: dir, stdio: "inherit" }));
+    try {
+        await lock(async function () {
+            // TODO make sure to use the npm installed binary for wasm-pack
+            await wait($child.spawn("wasm-pack", args, { cwd: dir, stdio: "inherit" }));
+        });
+
+    // TODO print the full error in verbose mode
+    } catch (e) {
+        throw new Error("");
+    }
 
     const wasm = await read($path.join(out_dir, "index_bg.wasm"));
 

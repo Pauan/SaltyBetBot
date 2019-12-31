@@ -189,7 +189,5 @@ return result.then(({instance, module}) => {
 });
 }
 
-const url = chrome.runtime.getURL("js/records.wasm");
-        console.log(url);
-        init(url).catch(console.error);
+init(chrome.runtime.getURL("js/records.wasm")).catch(console.error);
 //# sourceMappingURL=records.js.map

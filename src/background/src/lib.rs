@@ -344,13 +344,13 @@ pub async fn main_js() -> Result<(), JsValue> {
 
 
     let db = time!("Initializing database", {
-        Db::open("", 2, |db, _old, _new| {
+        Rc::new(Db::open("", 2, |db, _old, _new| {
             db.create_table("records", &TableOptions {
                 key_path: Some("foo"),
                 auto_increment: false,
             });
             // { autoIncrement: true }
-        }).await?
+        }).await?)
     });
 
     let loaded = Mutable::new(false);
