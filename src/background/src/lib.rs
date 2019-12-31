@@ -5,7 +5,7 @@ use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, on_message, WaifuMessage, log, time, reply, reply_result, PortOnMessage, PortOnDisconnect};
+use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, on_message, WaifuMessage, log, time, reply, reply_result, PortOnMessage, PortOnDisconnect, console_log};
 use salty_bet_bot::indexeddb::{Db, TableOptions};
 use futures_util::future::{try_join, try_join_all};
 use futures_signals::signal::{Mutable, SignalExt};
@@ -404,7 +404,7 @@ pub async fn main_js() -> Result<(), JsValue> {
                     }),
 
                     Message::ServerLog(message) => reply!({
-                        web_sys::console::log_1(&JsValue::from(message));
+                        console_log(message);
                     }),
                 }
             }

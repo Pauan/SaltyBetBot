@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! log {
     ($($args:tt)*) => {
-        web_sys::console::log_1(&wasm_bindgen::JsValue::from(std::format!("{} [{}:{}] {}", $crate::current_date_pretty(), std::file!(), std::line!(), std::format!($($args)*))));
+        $crate::console_log(std::format!("{} [{}:{}] {}", $crate::current_date_pretty(), std::file!(), std::line!(), std::format!($($args)*)));
     };
 }
 

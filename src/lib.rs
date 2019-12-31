@@ -508,6 +508,17 @@ pub fn current_date_pretty() -> String {
 }
 
 
+#[inline]
+pub fn console_log(message: String) {
+    web_sys::console::log_1(&wasm_bindgen::JsValue::from(message));
+}
+
+#[inline]
+pub fn console_error(message: String) {
+    web_sys::console::error_1(&wasm_bindgen::JsValue::from(message));
+}
+
+
 /*pub struct IndexedDBSchema(Value);
 
 impl IndexedDBSchema {
@@ -645,6 +656,12 @@ impl Drop for Debouncer {
 
 pub fn reload_page() {
     WINDOW.with(|x| x.location().reload().unwrap_throw())
+}
+
+
+pub fn export_function<A>(name: &str, f: Closure<A>) where A: wasm_bindgen::closure::WasmClosure + ?Sized {
+    WINDOW.with(|window| js_sys::Reflect::set(&window, &JsValue::from(name), f.as_ref())).unwrap_throw();
+    f.forget();
 }
 
 

@@ -9,7 +9,21 @@ categories = ["wasm"]
 crate-type = ["cdylib"]
 
 [dependencies]
+algorithm = { path = "../../algorithm" }
+salty_bet_bot = { path = "../.." }
+serde_json = "1.0.10"
+js-sys = "0.3.33"
+lazy_static = "1.0.0"
 dominator = "0.5.0"
 futures-signals = "0.3.0"
+gloo-timers = { version = "0.2.0", features = ["futures"] }
 wasm-bindgen = "0.2.48"
+wasm-bindgen-futures = "0.4.5"
 console_error_panic_hook = "0.1.5"
+
+[dependencies.web-sys]
+version = "0.3.33"
+features = [
+    "HtmlInputElement",
+    "HtmlSelectElement",
+]

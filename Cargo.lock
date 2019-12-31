@@ -72,7 +72,6 @@ dependencies = [
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures 0.4.6",
- "web-sys",
 ]
 
 [[package]]
@@ -97,10 +96,18 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 name = "chart"
 version = "0.1.0"
 dependencies = [
+ "algorithm",
  "console_error_panic_hook",
  "dominator",
  "futures-signals",
+ "gloo-timers",
+ "js-sys",
+ "lazy_static",
+ "salty_bet_bot",
+ "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures 0.4.6",
+ "web-sys",
 ]
 
 [[package]]
@@ -353,6 +360,8 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b2d17dbd803c2fc86cb1b613adf63192046a7176f383a8302594654752c4c4a"
 dependencies = [
+ "futures-channel",
+ "futures-core",
  "js-sys",
  "wasm-bindgen",
  "web-sys",
