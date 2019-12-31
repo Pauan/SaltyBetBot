@@ -76,6 +76,10 @@ use web_sys::{window, Window, Document, Node, Element, HtmlElement, HtmlInputEle
             maximumFractionDigits: 2
         });
     }
+
+    export function set_utc_date(date, days) {
+        date.setUTCDate(days);
+    }
 ")]
 extern "C" {
     fn send_message_raw(message: &str) -> Promise;
@@ -90,6 +94,8 @@ extern "C" {
     fn format_float(f: f64) -> String;
 
     pub fn decimal(f: f64) -> String;
+
+    fn set_utc_date(date: &Date, days: f64);
 }
 
 
@@ -1235,7 +1241,8 @@ pub fn round_to_hour(date: f64) -> f64 {
 
 pub fn subtract_days(date: f64, days: u32) -> f64 {
     let date = Date::new(&JsValue::from(date));
-    date.set_utc_date(date.get_utc_date() - days);
+    // TODO https://github.com/rustwasm/wasm-bindgen/pull/1684
+    set_utc_date(&date, (date.get_utc_date() as f64) - (days as f64));
     date.get_time()
 }
 

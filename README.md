@@ -41,6 +41,7 @@ Then run these commands to setup things:
 
 ```
 rustup install nightly
+rustup override set nightly
 yarn
 ```
 
