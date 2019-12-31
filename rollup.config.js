@@ -21,6 +21,6 @@ export default {
                 return "chrome.runtime.getURL(" + JSON.stringify("js/" + path) + ")";
             },
         }),
-        //terser(),
+        terser(),
     ],
 };

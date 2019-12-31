@@ -81,8 +81,10 @@ async function lock(f) {
 }
 
 
-async function build(cx, id, options) {
-    const toml = $toml.parse(await read(id));
+// TODO handle watch mode
+// TODO handle non-entry imports
+async function build(cx, source, id, options) {
+    const toml = $toml.parse(source);
 
     const name = toml.package.name;
 
@@ -105,6 +107,7 @@ async function build(cx, id, options) {
     ];
 
     try {
+        // TODO what if it tries to build the same crate multiple times ?
         await lock(async function () {
             // TODO make sure to use the npm installed binary for wasm-pack
             await wait($child.spawn("wasm-pack", args, { cwd: dir, stdio: "inherit" }));
@@ -131,11 +134,14 @@ async function build(cx, id, options) {
 
     const import_wasm = (options.importHook ? options.importHook(wasm_name) : JSON.stringify(wasm_name));
 
-    return `
-        import init from ${import_path};
+    return {
+        code: `
+            import init from ${import_path};
 
-        init(${import_wasm}).catch(console.error);
-    `;
+            init(${import_wasm}).catch(console.error);
+        `,
+        map: { mappings: '' }
+    };
 }
 
 
@@ -149,9 +155,9 @@ module.exports = function rust(options = {}) {
     return {
         name: "rust",
 
-        load(id) {
+        transform(source, id) {
             if ($path.basename(id) === "Cargo.toml" && filter(id)) {
-                return build(this, id, options);
+                return build(this, source, id, options);
 
             } else {
                 return null;
