@@ -35,19 +35,25 @@ How to upgrade
 How to build (for programmers only)
 ===================================
 
-Make sure that you [have Rust installed](https://www.rust-lang.org/en-US/install.html), and then run these commands to setup things:
+You will need to install [Rust](https://www.rust-lang.org/en-US/install.html), [Node.js](https://nodejs.org/en/download/), and [Yarn](https://yarnpkg.com/en/docs/install#windows-stable).
+
+Then run these commands to setup things:
 
 ```
 rustup install nightly
-rustup target add wasm32-unknown-unknown
-rustup run nightly cargo install cargo-web
+yarn
 ```
 
 You only need to run the above commands one time.
 
-Now you can run these commands to build the project:
+Now you can run this command to build the project:
 
 ```
-cd compile
-cargo run --release
+yarn build
 ```
+
+You need to re-run the above command whenever you make any changes.
+
+Lastly, you can load the `static` folder into Chrome as usual.
+
+Whenever you rebuild you need to reload the extension in Chrome (using the circular arrow).
