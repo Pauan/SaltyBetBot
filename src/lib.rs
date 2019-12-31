@@ -9,7 +9,7 @@ use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::task::{Poll, Context};
 use std::rc::Rc;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::future::Future;
 use serde::Serialize;
 use serde_derive::{Serialize, Deserialize};
@@ -18,6 +18,7 @@ use discard::{Discard, DiscardOnDrop};
 use algorithm::record::{Tier, Mode, Winner, Record};
 use futures_core::stream::Stream;
 use futures_util::stream::StreamExt;
+use futures_channel::oneshot;
 use futures_channel::mpsc::{UnboundedReceiver, unbounded};
 use futures_signals::signal::Mutable;
 use dominator::{Dom, html};
@@ -26,7 +27,7 @@ use wasm_bindgen::{JsValue, JsCast};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use js_sys::{Error, Promise, Date, Function};
-use web_sys::{window, Window, Document, Node, Element, HtmlElement, HtmlInputElement, NodeList};
+use web_sys::{window, Window, Document, Node, Element, HtmlElement, HtmlInputElement, NodeList, FileReader, Blob, ProgressEvent};
 
 
 #[wasm_bindgen(inline_js = "
@@ -134,6 +135,140 @@ pub enum WaifuMessage {
     Winner(WaifuWinner),
     ModeSwitch { date: f64, is_exhibition: bool },
     ReloadPage,
+}
+
+
+pub fn poll_receiver<A>(receiver: &mut oneshot::Receiver<A>, cx: &mut Context) -> Poll<A> {
+    Pin::new(receiver).poll(cx).map(|x| {
+        // TODO better error handling
+        match x {
+            Ok(x) => x,
+            Err(_) => unreachable!(),
+        }
+    })
+}
+
+
+#[derive(Debug)]
+pub struct MultiSender<A> {
+    sender: Rc<RefCell<Option<oneshot::Sender<A>>>>,
+}
+
+impl<A> MultiSender<A> {
+    pub fn new(sender: oneshot::Sender<A>) -> Self {
+        Self {
+            sender: Rc::new(RefCell::new(Some(sender))),
+        }
+    }
+
+    pub fn send(&self, value: A) {
+        let _ = self.sender.borrow_mut()
+            .take()
+            .unwrap_throw()
+            .send(value);
+    }
+}
+
+impl<A> Clone for MultiSender<A> {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub struct ReadProgress {
+    pub is_size_known: bool,
+    pub loaded: u64,
+    pub total: u64,
+}
+
+struct ReadFile {
+    reader: FileReader,
+    receiver: oneshot::Receiver<Result<String, JsValue>>,
+    _onprogress: Closure<dyn FnMut(&ProgressEvent)>,
+    _onabort: Closure<dyn FnMut(&JsValue)>,
+    _onerror: Closure<dyn FnMut(&JsValue)>,
+    _onload: Closure<dyn FnMut(&JsValue)>,
+}
+
+impl Future for ReadFile {
+    type Output = Result<String, JsValue>;
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        poll_receiver(&mut self.receiver, cx)
+    }
+}
+
+impl Drop for ReadFile {
+    // TODO test whether this triggers the abort event or not
+    #[inline]
+    fn drop(&mut self) {
+        self.reader.abort();
+    }
+}
+
+pub fn read_file<P>(blob: &Blob, mut on_progress: P) -> impl Future<Output = Result<String, JsValue>>
+    where P: FnMut(ReadProgress) + 'static {
+
+    let (sender, receiver) = oneshot::channel();
+
+    let sender = MultiSender::new(sender);
+
+    let reader = FileReader::new().unwrap_throw();
+
+    let onprogress = closure!(move |event: &ProgressEvent| {
+        on_progress(ReadProgress {
+            is_size_known: event.length_computable(),
+            // TODO are these conversions safe ?
+            loaded: event.loaded() as u64,
+            total: event.total() as u64,
+        });
+    });
+
+    let onabort = {
+        let sender = sender.clone();
+
+        Closure::once(move |_event: &JsValue| {
+            sender.send(Err(Error::new("read_file was aborted").into()));
+        })
+    };
+
+    let onerror = {
+        let reader = reader.clone();
+        let sender = sender.clone();
+
+        Closure::once(move |_event: &JsValue| {
+            sender.send(Err(reader.error().unwrap_throw().into()));
+        })
+    };
+
+    let onload = {
+        let reader = reader.clone();
+
+        Closure::once(move |_event: &JsValue| {
+            sender.send(Ok(reader.result().unwrap_throw().as_string().unwrap_throw()));
+        })
+    };
+
+    reader.set_onprogress(Some(onprogress.as_ref().unchecked_ref()));
+    reader.set_onabort(Some(onabort.as_ref().unchecked_ref()));
+    reader.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+    reader.set_onload(Some(onload.as_ref().unchecked_ref()));
+
+    reader.read_as_text(blob).unwrap_throw();
+
+    ReadFile {
+        reader,
+        receiver,
+        _onprogress: onprogress,
+        _onabort: onabort,
+        _onerror: onerror,
+        _onload: onload,
+    }
 }
 
 

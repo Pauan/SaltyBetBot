@@ -1,6 +1,4 @@
-use super::{closure, WINDOW};
-use std::rc::Rc;
-use std::cell::RefCell;
+use super::{closure, WINDOW, MultiSender, poll_receiver};
 use std::pin::Pin;
 use std::future::Future;
 use std::task::{Poll, Context};
@@ -9,35 +7,6 @@ use web_sys::{IdbDatabase, IdbRequest, IdbVersionChangeEvent, DomException, IdbT
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-
-
-#[derive(Debug)]
-struct MultiSender<A> {
-    sender: Rc<RefCell<Option<oneshot::Sender<A>>>>,
-}
-
-impl<A> MultiSender<A> {
-    fn new(sender: oneshot::Sender<A>) -> Self {
-        Self {
-            sender: Rc::new(RefCell::new(Some(sender))),
-        }
-    }
-
-    fn send(&self, value: A) {
-        let _ = self.sender.borrow_mut()
-            .take()
-            .unwrap_throw()
-            .send(value);
-    }
-}
-
-impl<A> Clone for MultiSender<A> {
-    fn clone(&self) -> Self {
-        Self {
-            sender: self.sender.clone(),
-        }
-    }
-}
 
 
 #[derive(Debug)]
@@ -139,13 +108,7 @@ impl Future for TransactionFuture {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        Pin::new(&mut self.receiver).poll(cx).map(|x| {
-            // TODO better error handling
-            match x {
-                Ok(x) => x,
-                Err(_) => unreachable!(),
-            }
-        })
+        poll_receiver(&mut self.receiver, cx)
     }
 }
 
@@ -199,13 +162,7 @@ impl<A> Future for RequestFuture<A> {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        Pin::new(&mut self.receiver).poll(cx).map(|x| {
-            // TODO better error handling
-            match x {
-                Ok(x) => x,
-                Err(_) => unreachable!(),
-            }
-        })
+        poll_receiver(&mut self.receiver, cx)
     }
 }
 
@@ -239,13 +196,7 @@ impl Future for ForEach {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        Pin::new(&mut self.receiver).poll(cx).map(|x| {
-            // TODO better error handling
-            match x {
-                Ok(x) => x,
-                Err(_) => unreachable!(),
-            }
-        })
+        poll_receiver(&mut self.receiver, cx)
     }
 }
 

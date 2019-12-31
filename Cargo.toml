@@ -30,9 +30,11 @@ js-sys = "0.3.33"
 version = "0.3.33"
 features = [
     "console",
+    "Blob",
     "Document",
     "DomException",
     "Element",
+    "FileReader",
     "HtmlElement",
     "HtmlInputElement",
     "IdbCursor",
@@ -53,6 +55,7 @@ features = [
     "Node",
     "NodeList",
     "Performance",
+    "ProgressEvent",
     "Window",
 ]
 

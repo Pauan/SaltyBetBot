@@ -1,98 +1,85 @@
 use algorithm::record::{deserialize_records, serialize_records};
-use salty_bet_bot::{spawn, records_get_all, records_insert, records_delete_all, get_added_records, Loading, log, time};
-use dominator::{stylesheet, events, class, html, clone};
+use salty_bet_bot::{spawn, records_get_all, records_insert, records_delete_all, get_added_records, Loading, log, time, DOCUMENT, WINDOW, read_file, ReadProgress};
+use dominator::{stylesheet, events, class, html, clone, with_node};
 use lazy_static::lazy_static;
+use js_sys::Promise;
+use web_sys::{HtmlInputElement, HtmlElement, Blob, File};
+use wasm_bindgen_futures::JsFuture;
+use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 
 
-// TODO return Option<File>
-fn get_file(event: &events::Change) -> Option<Reference> {
-    js!(
-        var files = @{event}.target.files;
-
-        if (files.length === 1) {
-            return files[0];
-
-        } else {
-            return null;
-        }
-    ).try_into().unwrap()
-}
-
-fn reset_input(event: &events::Change) {
-    js! { @(no_return)
-        @{event}.target.value = "";
-    }
-}
-
-// TODO accept File
-fn read_file<P>(file: Reference, on_progress: P) -> PromiseFuture<String> where P: FnMut(u32, u32) + 'static {
-    js!(
-        return new Promise(function (resolve, reject) {
-            var on_progress = @{on_progress};
-
-            var reader = new FileReader();
-
-            reader.onprogress = function (e) {
-                on_progress(e.loaded, e.total);
-            };
-
-            // TODO handle errors
-            reader.onload = function (e) {
-                on_progress.drop();
-                resolve(e.target.result);
-            };
-
-            reader.readAsText(@{file});
+#[wasm_bindgen(inline_js = "
+    export function open_tab(url) {
+        // TODO error handling
+        chrome.tabs.create({
+            url: chrome.runtime.getURL(url)
         });
-    ).try_into().unwrap()
-}
-
-fn click(id: &str) {
-    js! { @(no_return)
-        document.getElementById(@{id}).click();
     }
-}
 
-fn confirm(message: &str) -> bool {
-    js!( return confirm(@{message}); ).try_into().unwrap()
-}
+    export function current_date() {
+        return new Date().toISOString().replace(new RegExp(\"\\\\:\", \"g\"), \"_\");
+    }
 
-fn current_date() -> String {
-    js!( return new Date().toISOString().replace(new RegExp("\\:", "g"), "_"); ).try_into().unwrap()
-}
-
-fn str_to_blob(contents: &str) -> Blob {
-    js!( return new Blob([@{contents}], { type: "application/json" }); ).try_into().unwrap()
-}
-
-fn download(filename: &str, blob: &Blob) -> PromiseFuture<()> {
-    js!(
+    export function download(filename, blob) {
         return new Promise(function (resolve, reject) {
-            var url = URL.createObjectURL(@{blob});
+            var url = URL.createObjectURL(blob);
 
             // TODO error handling
             chrome.downloads.download({
                 url: url,
-                filename: @{filename},
+                filename: filename,
                 saveAs: true,
-                conflictAction: "prompt"
+                conflictAction: \"prompt\"
             }, function () {
                 URL.revokeObjectURL(url);
                 resolve();
             });
         });
-    ).try_into().unwrap()
+    }
+
+    export function str_to_blob(contents) {
+        return new Blob([contents], { type: \"application/json\" });
+    }
+")]
+extern "C" {
+    // TODO return Promise
+    fn open_tab(url: &str);
+
+    fn current_date() -> String;
+
+    fn download(filename: &str, blob: &Blob) -> Promise;
+
+    fn str_to_blob(contents: &str) -> Blob;
 }
 
-// TODO return PromiseFuture<()>
-fn open_tab(url: &str) {
-    js! { @(no_return)
-        // TODO error handling
-        chrome.tabs.create({
-            url: chrome.runtime.getURL(@{url})
-        });
+
+fn get_file(node: &HtmlInputElement) -> Option<File> {
+    let files = node.files().unwrap_throw();
+
+    if files.length() == 1 {
+        Some(files.get(0).unwrap_throw())
+
+    } else {
+        None
     }
+}
+
+
+fn click(id: &str) {
+    DOCUMENT.with(|document| {
+        document.get_element_by_id(id)
+            .unwrap_throw()
+            .dyn_into::<HtmlElement>()
+            .unwrap_throw()
+            .click()
+    })
+}
+
+fn confirm(message: &str) -> bool {
+    WINDOW.with(|window| {
+        window.confirm_with_message(message).unwrap_throw()
+    })
 }
 
 
@@ -173,49 +160,52 @@ pub fn main_js() {
                 html!("div", {
                     .class(&*CLASS_ROW)
                     .children(&mut [
-                        html!("input", {
+                        html!("input" => HtmlInputElement, {
                             .attribute("id", "import-input")
                             .attribute("type", "file")
                             .style("display", "none")
-                            .event(clone!(loading => move |e: events::Change| {
-                                spawn(clone!(loading => async move {
-                                    if let Some(file) = get_file(&e) {
-                                        reset_input(&e);
+                            .with_node!(element => {
+                                .event(clone!(loading => move |_: events::Change| {
+                                    spawn(clone!(element, loading => async move {
+                                        if let Some(file) = get_file(&element) {
+                                            // If we don't reset the value then the button will stop working after 1 click
+                                            element.set_value("");
 
-                                        log!("Starting import");
+                                            log!("Starting import");
 
-                                        loading.show();
+                                            loading.show();
 
-                                        let on_progress = |loaded, total| {
-                                            log!("Loaded {} / {}", loaded, total);
-                                        };
+                                            let on_progress = |progress: ReadProgress| {
+                                                log!("Loaded {} / {}", progress.loaded, progress.total);
+                                            };
 
-                                        let new_records = time!("Loading file", { read_file(file, on_progress).await? });
+                                            let new_records = time!("Loading file", { read_file(&file, on_progress).await? });
 
-                                        //time!("Deserializing JSON.parse", { js!( return JSON.parse(@{&new_records}); ) });
+                                            //time!("Deserializing JSON.parse", { js!( return JSON.parse(@{&new_records}); ) });
 
-                                        let new_records = time!("Deserializing records", { deserialize_records(&new_records) });
+                                            let new_records = time!("Deserializing records", { deserialize_records(&new_records) });
 
-                                        log!("{} records deserialized", new_records.len());
+                                            log!("{} records deserialized", new_records.len());
 
-                                        let old_records = time!("Retrieving current records", { records_get_all().await? });
+                                            let old_records = time!("Retrieving current records", { records_get_all().await? });
 
-                                        log!("{} records retrieved", old_records.len());
+                                            log!("{} records retrieved", old_records.len());
 
-                                        let added_records = time!("Merging records", { get_added_records(old_records, new_records) });
+                                            let added_records = time!("Merging records", { get_added_records(old_records, new_records) });
 
-                                        let len = added_records.len();
+                                            let len = added_records.len();
 
-                                        time!("Inserting new records", { records_insert(added_records).await? });
+                                            time!("Inserting new records", { records_insert(added_records).await? });
 
-                                        loading.hide();
+                                            loading.hide();
 
-                                        log!("Inserted {} new records", len);
-                                    }
+                                            log!("Inserted {} new records", len);
+                                        }
 
-                                    Ok(())
-                                }));
-                            }))
+                                        Ok(())
+                                    }));
+                                }))
+                            })
                         }),
 
                         html!("button", {
@@ -243,7 +233,8 @@ pub fn main_js() {
                                     let blob = time!("Converting into Blob", { str_to_blob(&records) });
 
                                     time!("Downloading", {
-                                        download(&format!("SaltyBet Records ({}).json", current_date()), &blob).await?;
+                                        let value = JsFuture::from(download(&format!("SaltyBet Records ({}).json", current_date()), &blob)).await?;
+                                        assert!(value.is_undefined());
                                     });
 
                                     loading.hide();
