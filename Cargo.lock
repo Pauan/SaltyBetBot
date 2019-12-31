@@ -737,10 +737,16 @@ dependencies = [
 name = "records"
 version = "0.1.0"
 dependencies = [
+ "algorithm",
  "console_error_panic_hook",
  "dominator",
  "futures-signals",
+ "glicko2",
+ "js-sys",
+ "lazy_static",
+ "salty_bet_bot",
  "wasm-bindgen",
+ "wasm-bindgen-futures 0.4.6",
 ]
 
 [[package]]
