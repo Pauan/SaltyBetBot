@@ -5,7 +5,7 @@ export default {
     input: {
         background: "src/background/Cargo.toml",
         chart: "src/chart/Cargo.toml",
-        popup: "src/popup/Cargo.toml",
+        //popup: "src/popup/Cargo.toml",
         records: "src/records/Cargo.toml",
         saltybet: "src/saltybet/Cargo.toml",
         twitch_chat: "src/twitch_chat/Cargo.toml",

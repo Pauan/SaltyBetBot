@@ -26,7 +26,7 @@
       "https://live.saltybet.com/"
     ],
     "js": [
-      "js/saltybet.js"
+      "saltybet.js"
     ],
     "run_at": "document_start",
     "all_frames": false
@@ -35,15 +35,15 @@
       "https://*.twitch.tv/embed/saltybet/chat?darkpopout"
     ],
     "js": [
-      "js/twitch_chat.js"
+      "twitch_chat.js"
     ],
     "run_at": "document_start",
     "all_frames": true
   }],
   "content_security_policy": "script-src 'self' 'wasm-eval'; object-src 'self'",
   "web_accessible_resources": [
+    "js/*.js",
     "js/*.wasm",
-    "icons/eye.svg",
-    "icons/eye-blocked.svg"
+    "icons/*.svg"
   ]
 }

@@ -163,14 +163,5 @@ module.exports = function rust(options = {}) {
                 return null;
             }
         },
-
-        // TODO hacky, improve this
-        resolveImportMeta(property, { moduleId }) {
-            if (property === "url") {
-                return "\"\"";
-            }
-
-            return null;
-        },
     };
 };

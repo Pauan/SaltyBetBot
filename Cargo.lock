@@ -546,9 +546,12 @@ checksum = "5894c618ce612a3fa23881b152b608bafb8c56cfc22f434a3ba3120b40f7b587"
 name = "popup"
 version = "0.1.0"
 dependencies = [
+ "algorithm",
  "console_error_panic_hook",
  "dominator",
  "futures-signals",
+ "lazy_static",
+ "salty_bet_bot",
  "wasm-bindgen",
 ]
 
