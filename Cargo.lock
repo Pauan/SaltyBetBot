@@ -58,6 +58,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d49d90015b3c36167a20fe2810c5cd875ad504b39cff3d4eae7977e6b7c1cb2"
 
 [[package]]
+name = "background"
+version = "0.1.0"
+dependencies = [
+ "algorithm",
+ "console_error_panic_hook",
+ "discard",
+ "dominator",
+ "futures-signals",
+ "futures-util",
+ "js-sys",
+ "salty_bet_bot",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures 0.4.6",
+ "web-sys",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -74,6 +92,16 @@ name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
+
+[[package]]
+name = "chart"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "dominator",
+ "futures-signals",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "chrono"
@@ -506,6 +534,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5894c618ce612a3fa23881b152b608bafb8c56cfc22f434a3ba3120b40f7b587"
 
 [[package]]
+name = "popup"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "dominator",
+ "futures-signals",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "proc-macro-hack"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -681,6 +719,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "records"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "dominator",
+ "futures-signals",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -741,55 +789,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "saltybetbot-background"
-version = "0.1.0"
-dependencies = [
- "algorithm",
- "console_error_panic_hook",
- "discard",
- "dominator",
- "futures-signals",
- "futures-util",
- "js-sys",
- "salty_bet_bot",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures 0.4.6",
- "web-sys",
-]
-
-[[package]]
-name = "saltybetbot-chart"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "dominator",
- "futures-signals",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "saltybetbot-popup"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "dominator",
- "futures-signals",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "saltybetbot-records"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "dominator",
- "futures-signals",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "saltybetbot-saltybet"
+name = "saltybet"
 version = "0.1.0"
 dependencies = [
  "algorithm",
@@ -804,20 +804,6 @@ dependencies = [
  "salty_bet_bot",
  "wasm-bindgen",
  "wasm-bindgen-futures 0.4.6",
- "web-sys",
-]
-
-[[package]]
-name = "saltybetbot-twitch-chat"
-version = "0.1.0"
-dependencies = [
- "algorithm",
- "console_error_panic_hook",
- "discard",
- "gloo-timers",
- "js-sys",
- "salty_bet_bot",
- "wasm-bindgen",
  "web-sys",
 ]
 
@@ -926,6 +912,20 @@ dependencies = [
  "libc",
  "redox_syscall",
  "winapi",
+]
+
+[[package]]
+name = "twitch-chat"
+version = "0.1.0"
+dependencies = [
+ "algorithm",
+ "console_error_panic_hook",
+ "discard",
+ "gloo-timers",
+ "js-sys",
+ "salty_bet_bot",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

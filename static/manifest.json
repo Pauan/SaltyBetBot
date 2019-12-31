@@ -10,7 +10,7 @@
     "downloads"
   ],
   "background": {
-    "scripts": ["js/background.js"],
+    "page": "background.html",
     "persistent": true
   },
   "browser_action": {

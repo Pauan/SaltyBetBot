@@ -342,7 +342,7 @@ impl Read {
             closure!(move |_event: &JsValue| {
                 let cursor = request.result().unwrap_throw();
 
-                if cursor.is_undefined() {
+                if cursor.is_null() {
                     sender.send(Ok(()));
 
                 } else {

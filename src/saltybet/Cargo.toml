@@ -1,5 +1,5 @@
 [package]
-name = "saltybetbot-saltybet"
+name = "saltybet"
 version = "0.1.0"
 authors = ["Pauan <pauanyu+github@pm.me>"]
 edition = "2018"

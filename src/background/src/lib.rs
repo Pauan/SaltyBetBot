@@ -258,7 +258,7 @@ fn listen_to_ports() {
             "saltybet" => {
                 let mut lock = state.borrow_mut();
 
-                let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
+                let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap_throw()).collect();
 
                 let on_disconnect = port.on_disconnect({
                     let state = state.clone();
