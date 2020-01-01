@@ -1,10 +1,29 @@
 const $fs = require("fs");
+const $glob = require("glob");
 const $path = require("path");
 const $child = require("child_process");
 const $toml = require("toml");
 const $rimraf = require("rimraf");
 const { createFilter } = require("rollup-pluginutils");
 
+
+function glob(pattern, cwd) {
+    return new Promise(function (resolve, reject) {
+        $glob(pattern, {
+            cwd: cwd,
+            strict: true,
+            absolute: true,
+            nodir: true
+        }, function (err, files) {
+            if (err) {
+                reject(err);
+
+            } else {
+                resolve(files);
+            }
+        });
+    });
+}
 
 function rm(path) {
     return new Promise(function (resolve, reject) {
@@ -81,14 +100,10 @@ async function lock(f) {
 }
 
 
-// TODO handle watch mode
-// TODO handle non-entry imports
-async function build(cx, source, id, options) {
+async function wasm_pack(cx, dir, source, id, options) {
     const toml = $toml.parse(source);
 
     const name = toml.package.name;
-
-    const dir = $path.dirname(id);
 
     // TODO use some logic to find the target dir
     const out_dir = $path.resolve($path.join("target", "wasm-pack", name));
@@ -121,6 +136,7 @@ async function build(cx, source, id, options) {
     const wasm = await read($path.join(out_dir, "index_bg.wasm"));
 
     // TODO use the [name] somehow
+    // TODO generate random name ?
     const wasm_name = name + ".wasm";
 
     cx.emitFile({
@@ -145,15 +161,60 @@ async function build(cx, source, id, options) {
 }
 
 
+async function watch_files(cx, dir, options) {
+    if (options.watch) {
+        const matches = await await Promise.all(options.watchPatterns.map(function (pattern) {
+            return glob(pattern, dir);
+        }));
+
+        // TODO deduplicate matches ?
+        matches.forEach(function (files) {
+            files.forEach(function (file) {
+                cx.addWatchFile(file);
+            });
+        });
+    }
+}
+
+
+// TODO handle importing a Cargo.toml file
+async function build(cx, source, id, options) {
+    const dir = $path.dirname(id);
+
+    const [output] = await Promise.all([
+        wasm_pack(cx, dir, source, id, options),
+        watch_files(cx, dir, options),
+    ]);
+
+    return output;
+}
+
+
 module.exports = function rust(options = {}) {
+    // TODO should the filter affect the watching ?
+    // TODO should the filter affect the Rust compilation ?
     const filter = createFilter(options.include, options.exclude);
 
-    if (options.debug == null) {
-        options.debug = false;
+    if (options.watchPatterns == null) {
+        options.watchPatterns = [
+            "src/**"
+        ];
     }
 
     return {
         name: "rust",
+
+        buildStart(rollup) {
+            if (rollup.watch) {
+                if (options.watch == null) {
+                    options.watch = true;
+                }
+
+                if (options.debug == null) {
+                    options.debug = true;
+                }
+            }
+        },
 
         transform(source, id) {
             if ($path.basename(id) === "Cargo.toml" && filter(id)) {
