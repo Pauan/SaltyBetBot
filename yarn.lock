@@ -159,7 +159,7 @@ fs.realpath@^1.0.0:
   resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
   integrity sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
 
-glob@^7.1.3:
+glob@^7.1.3, glob@^7.1.6:
   version "7.1.6"
   resolved "https://registry.yarnpkg.com/glob/-/glob-7.1.6.tgz#141f33b81a7c2492e125594307480c46679278a6"
   integrity sha512-LwaxwyZ72Lk7vZINtNNrywX0ZuLyStrdDtabefZKAY5ZGJhVtgdznluResxNmPitE0SAO+O26sWTHeKSI2wMBA==
@@ -292,9 +292,11 @@ rimraf@^3.0.0:
   dependencies:
     glob "^7.1.3"
 
-"rollup-plugin-rust@file:./rollup-plugin":
-  version "0.1.0"
+"rollup-plugin-rust@github:Pauan/rollup-plugin-rust":
+  version "1.0.0"
+  resolved "https://codeload.github.com/Pauan/rollup-plugin-rust/tar.gz/2eb6a5b18e3290c1cb77d58b6b457fcb5da42b83"
   dependencies:
+    glob "^7.1.6"
     rimraf "^3.0.0"
     rollup-pluginutils "^2.8.2"
     toml "^3.0.0"
