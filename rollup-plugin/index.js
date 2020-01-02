@@ -150,14 +150,28 @@ async function wasm_pack(cx, dir, source, id, options) {
 
     const import_wasm = (options.importHook ? options.importHook(wasm_name) : JSON.stringify(wasm_name));
 
-    return {
-        code: `
-            import init from ${import_path};
+    const is_entry = cx.getModuleInfo(id).isEntry;
 
-            init(${import_wasm}).catch(console.error);
-        `,
-        map: { mappings: '' }
-    };
+    if (is_entry) {
+        return {
+            code: `
+                import init from ${import_path};
+
+                init(${import_wasm}).catch(console.error);
+            `,
+            map: { mappings: '' }
+        };
+
+    } else {
+        return {
+            code: `
+                import init from ${import_path};
+
+                export default init(${import_wasm});
+            `,
+            map: { mappings: '' }
+        };
+    }
 }
 
 
@@ -177,7 +191,6 @@ async function watch_files(cx, dir, options) {
 }
 
 
-// TODO handle importing a Cargo.toml file
 async function build(cx, source, id, options) {
     const dir = $path.dirname(id);
 
