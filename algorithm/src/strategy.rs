@@ -13,7 +13,7 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     scale_by_money: true,
     scale_by_time: None,
     money: MoneyStrategy::Matchmaking { max_bet: FIXED_BET_AMOUNT },
-    bet: BetStrategy::Matchmaking,
+    bet: BetStrategy::WinnerOdds,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
