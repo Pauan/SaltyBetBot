@@ -170,7 +170,7 @@ impl<A> MultiSender<A> {
     pub fn send(&self, value: A) {
         let _ = self.sender.borrow_mut()
             .take()
-            .unwrap_throw()
+            .unwrap()
             .send(value);
     }
 }
@@ -224,7 +224,7 @@ pub fn read_file<P>(blob: &Blob, mut on_progress: P) -> impl Future<Output = Res
 
     let sender = MultiSender::new(sender);
 
-    let reader = FileReader::new().unwrap_throw();
+    let reader = FileReader::new().unwrap();
 
     let onprogress = closure!(move |event: &ProgressEvent| {
         on_progress(ReadProgress {
@@ -248,7 +248,7 @@ pub fn read_file<P>(blob: &Blob, mut on_progress: P) -> impl Future<Output = Res
         let sender = sender.clone();
 
         Closure::once(move |_event: &JsValue| {
-            sender.send(Err(reader.error().unwrap_throw().into()));
+            sender.send(Err(reader.error().unwrap().into()));
         })
     };
 
@@ -256,7 +256,7 @@ pub fn read_file<P>(blob: &Blob, mut on_progress: P) -> impl Future<Output = Res
         let reader = reader.clone();
 
         Closure::once(move |_event: &JsValue| {
-            sender.send(Ok(reader.result().unwrap_throw().as_string().unwrap_throw()));
+            sender.send(Ok(reader.result().unwrap().as_string().unwrap()));
         })
     };
 
@@ -265,7 +265,7 @@ pub fn read_file<P>(blob: &Blob, mut on_progress: P) -> impl Future<Output = Res
     reader.set_onerror(Some(onerror.as_ref().unchecked_ref()));
     reader.set_onload(Some(onload.as_ref().unchecked_ref()));
 
-    reader.read_as_text(blob).unwrap_throw();
+    reader.read_as_text(blob).unwrap();
 
     ReadFile {
         reader,
@@ -369,8 +369,8 @@ pub fn get_value(node: &HtmlInputElement) -> String {
 
 
 thread_local! {
-    pub static WINDOW: Window = window().unwrap_throw();
-    pub static DOCUMENT: Document = WINDOW.with(|x| x.document().unwrap_throw());
+    pub static WINDOW: Window = window().unwrap();
+    pub static DOCUMENT: Document = WINDOW.with(|x| x.document().unwrap());
 }
 
 
@@ -380,11 +380,11 @@ pub fn click(node: &HtmlElement) {
 
 
 pub fn query(input: &str) -> Option<Element> {
-    DOCUMENT.with(|x| x.query_selector(input).unwrap_throw())
+    DOCUMENT.with(|x| x.query_selector(input).unwrap())
 }
 
 pub fn query_all(input: &str) -> NodeList {
-    DOCUMENT.with(|x| x.query_selector_all(input).unwrap_throw())
+    DOCUMENT.with(|x| x.query_selector_all(input).unwrap())
 }
 
 
@@ -402,12 +402,12 @@ pub fn send_message<A, B>(message: &A) -> impl Future<Output = Result<B, JsValue
     where A: Serialize,
           B: DeserializeOwned {
 
-    let message: String = serde_json::to_string(message).unwrap_throw();
+    let message: String = serde_json::to_string(message).unwrap();
 
     async move {
-        let reply: String = JsFuture::from(send_message_raw(&message)).await?.as_string().unwrap_throw();
+        let reply: String = JsFuture::from(send_message_raw(&message)).await?.as_string().unwrap();
 
-        Ok(serde_json::from_str(&reply).unwrap_throw())
+        Ok(serde_json::from_str(&reply).unwrap())
     }
 }
 
@@ -448,7 +448,7 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<OnMessage>
 
     spawn_local(async move {
         receiver.for_each(move |(message, reply)| {
-            let message = serde_json::from_str(&message).unwrap_throw();
+            let message = serde_json::from_str(&message).unwrap();
 
             let future = f(message);
 
@@ -461,7 +461,7 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<OnMessage>
                         assert!(value.is_undefined());
                     },
                     Err(e) => {
-                        let e: Error = e.dyn_into().unwrap_throw();
+                        let e: Error = e.dyn_into().unwrap();
 
                         // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
                         if e.message() != "Attempting to use a disconnected port object" {
@@ -475,7 +475,7 @@ pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<OnMessage>
 
     DiscardOnDrop::new(OnMessage {
         listener: DiscardOnDrop::leak(Listener::new(chrome_on_message(), closure!(move |message: String, _sender: JsValue, reply: Function| -> bool {
-            sender.unbounded_send((message, reply)).unwrap_throw();
+            sender.unbounded_send((message, reply)).unwrap();
             // TODO somehow only return true when needed ?
             true
         }))),
@@ -489,7 +489,7 @@ pub fn serialize_result<A>(value: Result<A, JsValue>) -> Result<A, String> {
         web_sys::console::error_1(&err);
 
         err.dyn_into::<Error>()
-            .unwrap_throw()
+            .unwrap()
             .message()
             .into()
     })
@@ -505,7 +505,7 @@ macro_rules! reply_result {
 #[macro_export]
 macro_rules! reply {
     ($value:block) => {
-        serde_json::to_string(&$value).unwrap_throw()
+        serde_json::to_string(&$value).unwrap()
     }
 }
 
@@ -591,7 +591,7 @@ pub fn sorted_record_index(old_records: &[Record], new_record: &Record) -> Resul
     let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
     let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
 
-    let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap_throw());
+    let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
 
     let mut found = false;
 
@@ -639,7 +639,7 @@ pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>)
 
 #[inline]
 pub fn performance_now() -> f64 {
-    WINDOW.with(|x| x.performance().unwrap_throw().now())
+    WINDOW.with(|x| x.performance().unwrap().now())
 }
 
 
@@ -753,7 +753,7 @@ impl Debouncer {
     fn set_timeout(time: u32, closure: &Closure<dyn FnMut()>) -> i32 {
         WINDOW.with(|window| {
             // TODO better i32 conversion
-            window.set_timeout_with_callback_and_timeout_and_arguments_0(closure.as_ref().unchecked_ref(), time as i32).unwrap_throw()
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(closure.as_ref().unchecked_ref(), time as i32).unwrap()
         })
     }
 
@@ -796,12 +796,12 @@ impl Drop for Debouncer {
 
 
 pub fn reload_page() {
-    WINDOW.with(|x| x.location().reload().unwrap_throw())
+    WINDOW.with(|x| x.location().reload().unwrap())
 }
 
 
 pub fn export_function<A>(name: &str, f: Closure<A>) where A: wasm_bindgen::closure::WasmClosure + ?Sized {
-    WINDOW.with(|window| js_sys::Reflect::set(&window, &JsValue::from(name), f.as_ref())).unwrap_throw();
+    WINDOW.with(|window| js_sys::Reflect::set(&window, &JsValue::from(name), f.as_ref())).unwrap();
     f.forget();
 }
 
@@ -810,7 +810,7 @@ pub fn export_function<A>(name: &str, f: Closure<A>) where A: wasm_bindgen::clos
     // TODO is i32 correct ?
     #[inline]
     pub fn id(&self) -> i32 {
-        js!( return @{self}.id; ).try_into().unwrap_throw()
+        js!( return @{self}.id; ).try_into().unwrap()
     }
 }*/
 
@@ -1018,7 +1018,7 @@ impl Port {
         PortMessages {
             receiver,
             _listener: self.on_message(move |message| {
-                sender.unbounded_send(message).unwrap_throw();
+                sender.unbounded_send(message).unwrap();
             }),
         }
     }
@@ -1031,7 +1031,7 @@ impl Port {
         // TODO error checking
         // TODO use |message: &str, _port: &JsValue|
         let on_message = Listener::new(self.state.port.on_message(), closure!(move |message: String, _port: JsValue| {
-            f(serde_json::from_str(&message).unwrap_throw());
+            f(serde_json::from_str(&message).unwrap());
         }));
 
         DiscardOnDrop::new(PortOnMessage {
@@ -1073,7 +1073,7 @@ impl Port {
 
     #[inline]
     pub fn send_message<A>(&self, message: &A) where A: Serialize {
-        self.send_message_raw(&serde_json::to_string(message).unwrap_throw());
+        self.send_message_raw(&serde_json::to_string(message).unwrap());
     }
 }
 
@@ -1178,7 +1178,7 @@ impl std::iter::Iterator for NodeListIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.range.next()?;
-        Some(self.list.get(index).unwrap_throw())
+        Some(self.list.get(index).unwrap())
     }
 
     #[inline]
@@ -1190,7 +1190,7 @@ impl std::iter::Iterator for NodeListIter {
 impl std::iter::DoubleEndedIterator for NodeListIter {
     fn next_back(&mut self) -> Option<Self::Item> {
         let index = self.range.next_back()?;
-        Some(self.list.get(index).unwrap_throw())
+        Some(self.list.get(index).unwrap())
     }
 }
 
@@ -1214,10 +1214,10 @@ impl Discard for MutationObserver {
 impl MutationObserver {
     pub fn new<F>(mut f: F) -> DiscardOnDrop<Self> where F: FnMut(Vec<web_sys::MutationRecord>) + 'static {
         let closure = closure!(move |records: js_sys::Array, _observer: web_sys::MutationObserver| {
-            f(records.iter().map(|x| x.dyn_into().unwrap_throw()).collect());
+            f(records.iter().map(|x| x.dyn_into().unwrap()).collect());
         });
 
-        let observer = web_sys::MutationObserver::new(closure.as_ref().unchecked_ref()).unwrap_throw();
+        let observer = web_sys::MutationObserver::new(closure.as_ref().unchecked_ref()).unwrap();
 
         DiscardOnDrop::new(Self {
             observer,
@@ -1226,7 +1226,7 @@ impl MutationObserver {
     }
 
     pub fn observe(&self, target: &Node, options: &web_sys::MutationObserverInit) {
-        self.observer.observe_with_options(target, options).unwrap_throw();
+        self.observer.observe_with_options(target, options).unwrap();
     }
 }
 

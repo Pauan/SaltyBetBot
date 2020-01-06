@@ -168,7 +168,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
         let mut len = 0.0;
 
         for bettor in NodeListIter::new(list) {
-            let bettor = get_text_content(&bettor).unwrap_throw();
+            let bettor = get_text_content(&bettor).unwrap();
 
             if bettor == name {
                 assert!(!*matched);
@@ -575,8 +575,8 @@ impl State {
         self.info_container.right.needed_odds.set(Some(right_needed_odds));
 
         let (left_bet, right_bet) = match *mode {
-            Mode::Matchmaking => self.simulation.matchmaking_strategy.as_ref().unwrap_throw().bet_amount(&self.simulation, tier, left, right, date),
-            Mode::Tournament => self.simulation.tournament_strategy.as_ref().unwrap_throw().bet_amount(&self.simulation, tier, left, right, date),
+            Mode::Matchmaking => self.simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right, date),
+            Mode::Tournament => self.simulation.tournament_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right, date),
         };
 
         self.info_container.left.bet_amount.set(Some(left_bet));
@@ -832,7 +832,7 @@ impl InfoContainer {
         (record.right.illuminati_bettors + record.right.normal_bettors) > 0.0
     }).collect();
 
-    set_storage("matches", &serde_json::to_string(&records).unwrap_throw());
+    set_storage("matches", &serde_json::to_string(&records).unwrap());
 
     records
 }*/
@@ -849,8 +849,8 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), JsValue> {
 
         let mut simulation = Simulation::new();
 
-        /*let matchmaking_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap_throw();
-        let tournament_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap_throw();
+        /*let matchmaking_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap();
+        let tournament_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap();
 
         simulation.matchmaking_strategy = Some(matchmaking_strategy);
         simulation.tournament_strategy = Some(tournament_strategy);*/
@@ -946,13 +946,13 @@ pub async fn main_js() -> Result<(), JsValue> {
 
             fn show_video(&mut self) {
                 self.showing_video.set_neq(true);
-                self.parent.append_child(&self.video).unwrap_throw();
+                self.parent.append_child(&self.video).unwrap();
                 self.statistics.visible.set_neq(false);
             }
 
             fn hide_video(&mut self) {
                 self.showing_video.set_neq(false);
-                self.parent.remove_child(&self.video).unwrap_throw();
+                self.parent.remove_child(&self.video).unwrap();
                 self.statistics.visible.set_neq(true);
             }
 
@@ -986,7 +986,7 @@ pub async fn main_js() -> Result<(), JsValue> {
             }
         }
 
-        let parent = video.parent_node().unwrap_throw();
+        let parent = video.parent_node().unwrap();
 
         dominator::append_dom(&parent, container.render());
 

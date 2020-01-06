@@ -202,23 +202,23 @@ fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
 
 fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
     // This is to avoid mutating the DOM of the chat
-    let node = node.clone_node_with_deep(true).unwrap_throw();
+    let node = node.clone_node_with_deep(true).unwrap();
 
-    let node: Element = node.dyn_into().unwrap_throw();
+    let node: Element = node.dyn_into().unwrap();
 
     // This removes the Twitch badges
     // TODO quite hacky, make this more robust
-    node.remove_child(&node.first_child().unwrap_throw()).unwrap_throw();
+    node.remove_child(&node.first_child().unwrap()).unwrap();
 
     // Hack to replace emotes with their text version, needed because sometimes fighters have emotes in their name
     // TODO can this be made better somehow ?
-    for node in NodeListIter::new(node.query_selector_all("img").unwrap_throw()) {
-        let node: HtmlImageElement = node.dyn_into().unwrap_throw();
+    for node in NodeListIter::new(node.query_selector_all("img").unwrap()) {
+        let node: HtmlImageElement = node.dyn_into().unwrap();
 
         node.parent_node()
-            .unwrap_throw()
+            .unwrap()
             .replace_child(&DOCUMENT.with(|document| document.create_text_node(&node.alt())), &node)
-            .unwrap_throw();
+            .unwrap();
     }
 
     get_text_content(&node).and_then(|x| parse_message(&x, date))
@@ -308,7 +308,7 @@ pub fn main_js() {
 
     wait_until_defined(|| query("[data-a-target='chat-welcome-message']"), move |welcome| {
         if let Some(observer) = observer.borrow().as_ref() {
-            observer.observe(&welcome.parent_node().unwrap_throw(), MutationObserverInit::new()
+            observer.observe(&welcome.parent_node().unwrap(), MutationObserverInit::new()
                 .child_list(true));
 
             log!("Observer initialized");

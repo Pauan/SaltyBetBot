@@ -24,7 +24,7 @@ impl Request {
             let request = request.clone();
 
             Closure::once(move |_event: &JsValue| {
-                on_success(request.result().unwrap_throw());
+                on_success(request.result().unwrap());
             })
         };
 
@@ -32,7 +32,7 @@ impl Request {
             let request = request.clone();
 
             Closure::once(move |_event: &JsValue| {
-                on_error(request.error().unwrap_throw().unwrap_throw());
+                on_error(request.error().unwrap().unwrap());
             })
         };
 
@@ -76,7 +76,7 @@ impl TransactionFuture {
             let sender = sender.clone();
 
             Closure::once(move |_event: &JsValue| {
-                let error = tx.error().unwrap_throw();
+                let error = tx.error().unwrap();
 
                 sender.send(Err(error.into()));
             })
@@ -213,18 +213,18 @@ pub struct ReadCursor {
 
 impl ReadCursor {
     pub fn key(&self) -> JsValue {
-        self.cursor.key().unwrap_throw()
+        self.cursor.key().unwrap()
     }
 
     pub fn value(&self) -> JsValue {
-        self.cursor.value().unwrap_throw()
+        self.cursor.value().unwrap()
     }
 }
 
 impl Cursor for ReadCursor {
     #[inline]
     fn next(&self) {
-        self.cursor.continue_().unwrap_throw();
+        self.cursor.continue_().unwrap();
     }
 }
 
@@ -236,11 +236,11 @@ pub struct WriteCursor {
 
 impl WriteCursor {
     pub fn delete(&self) {
-        self.cursor.cursor.delete().unwrap_throw();
+        self.cursor.cursor.delete().unwrap();
     }
 
     pub fn update(&self, value: &JsValue) {
-        self.cursor.cursor.update(value).unwrap_throw();
+        self.cursor.cursor.update(value).unwrap();
     }
 }
 
@@ -268,11 +268,11 @@ pub struct Read {
 
 impl Read {
     fn store(&self, name: &str) -> IdbObjectStore {
-        self.tx.object_store(wasm_bindgen::intern(name)).unwrap_throw()
+        self.tx.object_store(wasm_bindgen::intern(name)).unwrap()
     }
 
     pub fn get_all(&self, name: &str) -> impl Future<Output = Result<js_sys::Array, JsValue>> {
-        RequestFuture::new(&self.store(name).get_all().unwrap_throw(), move |values| values.dyn_into().unwrap_throw())
+        RequestFuture::new(&self.store(name).get_all().unwrap(), move |values| values.dyn_into().unwrap())
     }
 
     fn for_each_raw<A, F, M>(&self, name: &str, mut f: F, mut map: M) -> impl Future<Output = Result<(), JsValue>>
@@ -284,20 +284,20 @@ impl Read {
 
         let sender = MultiSender::new(sender);
 
-        let request = self.store(name).open_cursor().unwrap_throw();
+        let request = self.store(name).open_cursor().unwrap();
 
         let on_success = {
             let sender = sender.clone();
             let request = request.clone();
 
             closure!(move |_event: &JsValue| {
-                let cursor = request.result().unwrap_throw();
+                let cursor = request.result().unwrap();
 
                 if cursor.is_null() {
                     sender.send(Ok(()));
 
                 } else {
-                    let cursor = map(cursor.dyn_into().unwrap_throw());
+                    let cursor = map(cursor.dyn_into().unwrap());
                     f(&cursor);
                     cursor.next();
                 }
@@ -308,7 +308,7 @@ impl Read {
             let request = request.clone();
 
             Closure::once(move |_event: &JsValue| {
-                let error = request.error().unwrap_throw().unwrap_throw();
+                let error = request.error().unwrap().unwrap();
                 sender.send(Err(error.into()));
             })
         };
@@ -338,19 +338,19 @@ pub struct Write {
 
 impl Write {
     pub fn insert(&self, name: &str, value: &JsValue) {
-        self.store(name).add(value).unwrap_throw();
+        self.store(name).add(value).unwrap();
     }
 
     pub fn insert_many<I>(&self, name: &str, values: I) where I: IntoIterator<Item = JsValue> {
         let store = self.store(name);
 
         for value in values {
-            store.add(&value).unwrap_throw();
+            store.add(&value).unwrap();
         }
     }
 
     pub fn clear(&self, name: &str) {
-        self.store(name).clear().unwrap_throw();
+        self.store(name).clear().unwrap();
     }
 
     pub fn for_each<F>(&self, name: &str, f: F) -> impl Future<Output = Result<(), JsValue>> where F: FnMut(&WriteCursor) + 'static {
@@ -388,12 +388,12 @@ impl DbUpgrade {
                 .auto_increment(options.auto_increment)
                 // TODO intern this ?
                 .key_path(options.key_path.map(JsValue::from).as_ref()),
-        ).unwrap_throw();
+        ).unwrap();
     }
 
     pub fn delete_table(&self, name: &str) {
         // TODO intern this ?
-        self.db.db.delete_object_store(name).unwrap_throw();
+        self.db.db.delete_object_store(name).unwrap();
     }
 }
 
@@ -422,17 +422,17 @@ impl Db {
         let sender = MultiSender::new(sender);
 
         let request = WINDOW.with(|x| x.indexed_db()
-            .unwrap_throw()
-            .unwrap_throw()
+            .unwrap()
+            .unwrap()
             // TODO should this intern the name ?
             .open_with_u32(wasm_bindgen::intern(name), version)
-            .unwrap_throw());
+            .unwrap());
 
         let onupgradeneeded = {
             let request = request.clone();
 
             Closure::once(move |event: &IdbVersionChangeEvent| {
-                let db = request.result().unwrap_throw().dyn_into().unwrap_throw();
+                let db = request.result().unwrap().dyn_into().unwrap();
 
                 // TODO are these u32 conversions correct ?
                 // TODO test this with oldVersion and newVersion
@@ -456,7 +456,7 @@ impl Db {
         DbOpen {
             future: RequestFuture::new_raw(&request, sender, receiver, move |result| {
                 Self {
-                    db: result.dyn_into().unwrap_throw(),
+                    db: result.dyn_into().unwrap(),
                 }
             }),
             _onupgradeneeded: onupgradeneeded,
@@ -469,7 +469,7 @@ impl Db {
         // TODO verify that the names are interned properly when calling JsValue::from
         let names = names.into_iter().map(|x| JsValue::from(wasm_bindgen::intern(*x))).collect::<js_sys::Array>();
 
-        self.db.transaction_with_str_sequence_and_mode(&names, mode).unwrap_throw()
+        self.db.transaction_with_str_sequence_and_mode(&names, mode).unwrap()
     }
 
     pub fn read<A, B, F>(&self, names: &[&str], f: F) -> impl Future<Output = Result<A, JsValue>>

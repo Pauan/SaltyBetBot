@@ -69,7 +69,7 @@ pub fn get_all_records(db: &Db) -> impl Future<Output = Result<Vec<Record>, JsVa
             let array = tx.get_all("records").await?;
 
             let mut records: Vec<Record> = array.iter()
-                .map(|x| Record::deserialize(&x.as_string().unwrap_throw()))
+                .map(|x| Record::deserialize(&x.as_string().unwrap()))
                 .collect();
 
             records.sort_by(Record::sort_date);
@@ -152,7 +152,7 @@ async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, JsVal
         let files = files.into_iter().map(|file| JsFuture::from(fetch_(file)));
 
         for file in try_join_all(files).await? {
-            let mut records = deserialize_records(&file.as_string().unwrap_throw());
+            let mut records = deserialize_records(&file.as_string().unwrap());
             output.append(&mut records);
         }
 
@@ -184,7 +184,7 @@ async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, JsValue> {
                 tx.for_each("records", move |cursor| {
                     let mut state = state.borrow_mut();
 
-                    let record = Record::deserialize(&cursor.value().as_string().unwrap_throw());
+                    let record = Record::deserialize(&cursor.value().as_string().unwrap());
 
                     match sorted_record_index(&state.records, &record) {
                         Ok(_) => {
@@ -258,7 +258,7 @@ fn listen_to_ports() {
             "saltybet" => {
                 let mut lock = state.borrow_mut();
 
-                let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap_throw()).collect();
+                let tabs: Vec<Tab> = lock.salty_bet_ports.drain(..).map(|x| x.port.tab().unwrap()).collect();
 
                 let on_disconnect = port.on_disconnect({
                     let state = state.clone();

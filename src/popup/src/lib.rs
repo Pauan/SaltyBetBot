@@ -55,10 +55,10 @@ extern "C" {
 
 
 fn get_file(node: &HtmlInputElement) -> Option<File> {
-    let files = node.files().unwrap_throw();
+    let files = node.files().unwrap();
 
     if files.length() == 1 {
-        Some(files.get(0).unwrap_throw())
+        Some(files.get(0).unwrap())
 
     } else {
         None
@@ -69,16 +69,16 @@ fn get_file(node: &HtmlInputElement) -> Option<File> {
 fn click(id: &str) {
     DOCUMENT.with(|document| {
         document.get_element_by_id(id)
-            .unwrap_throw()
+            .unwrap()
             .dyn_into::<HtmlElement>()
-            .unwrap_throw()
+            .unwrap()
             .click()
     })
 }
 
 fn confirm(message: &str) -> bool {
     WINDOW.with(|window| {
-        window.confirm_with_message(message).unwrap_throw()
+        window.confirm_with_message(message).unwrap()
     })
 }
 
