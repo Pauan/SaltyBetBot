@@ -346,10 +346,9 @@ pub async fn main_js() -> Result<(), JsValue> {
     let db = time!("Initializing database", {
         Rc::new(Db::open("", 2, |db, _old, _new| {
             db.create_table("records", &TableOptions {
-                key_path: Some("foo"),
-                auto_increment: false,
+                key_path: None,
+                auto_increment: true,
             });
-            // { autoIncrement: true }
         }).await?)
     });
 
