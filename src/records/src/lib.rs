@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cmp::Ordering;
-use salty_bet_bot::{records_get_all, percentage, decimal, money, display_odds, Loading, log};
+use salty_bet_bot::{api, percentage, decimal, money, display_odds, Loading, log};
 use algorithm::simulation::{Simulation, Simulator, Strategy, Bet, Elo};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
 use algorithm::record::{Record, Winner, Tier, Mode, Profit};
@@ -708,7 +708,7 @@ pub async fn main_js() -> Result<(), JsValue> {
 
     dominator::append_dom(&dominator::body(), loading.render());
 
-    let records = records_get_all().await?;
+    let records = api::records_get_all().await?;
 
     dominator::append_dom(&dominator::body(), display_records(records));
 

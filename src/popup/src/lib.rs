@@ -1,5 +1,5 @@
 use algorithm::record::{deserialize_records, serialize_records};
-use salty_bet_bot::{spawn, records_get_all, records_insert, records_delete_all, get_added_records, Loading, log, time, DOCUMENT, WINDOW, read_file, ReadProgress};
+use salty_bet_bot::{api, spawn, Loading, log, time, DOCUMENT, WINDOW, read_file, ReadProgress};
 use dominator::{stylesheet, events, class, html, clone, with_node};
 use lazy_static::lazy_static;
 use js_sys::Promise;
@@ -187,15 +187,15 @@ pub fn main_js() {
 
                                             log!("{} records deserialized", new_records.len());
 
-                                            let old_records = time!("Retrieving current records", { records_get_all().await? });
+                                            let old_records = time!("Retrieving current records", { api::records_get_all().await? });
 
                                             log!("{} records retrieved", old_records.len());
 
-                                            let added_records = time!("Merging records", { get_added_records(old_records, new_records) });
+                                            let added_records = time!("Merging records", { api::get_added_records(old_records, new_records) });
 
                                             let len = added_records.len();
 
-                                            time!("Inserting new records", { records_insert(added_records).await? });
+                                            time!("Inserting new records", { api::records_insert(added_records).await? });
 
                                             loading.hide();
 
@@ -226,7 +226,7 @@ pub fn main_js() {
 
                                     loading.show();
 
-                                    let records = time!("Getting records", { records_get_all().await? });
+                                    let records = time!("Getting records", { api::records_get_all().await? });
 
                                     let records = time!("Serializing records", { serialize_records(&records) });
 
@@ -255,7 +255,7 @@ pub fn main_js() {
 
                                         loading.show();
 
-                                        time!("Deleting all records", { records_delete_all().await? });
+                                        time!("Deleting all records", { api::records_delete_all().await? });
 
                                         loading.hide();
 

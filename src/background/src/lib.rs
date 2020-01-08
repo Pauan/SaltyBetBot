@@ -5,8 +5,9 @@ use discard::DiscardOnDrop;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
-use salty_bet_bot::{spawn, sorted_record_index, get_added_records, Message, Tab, ServerPort, on_message, WaifuMessage, log, time, reply, reply_result, PortOnMessage, PortOnDisconnect, console_log};
+use salty_bet_bot::{api, spawn, Tab, ServerPort, messages, log, time, reply, reply_result, PortOnMessage, PortOnDisconnect, console_log};
 use salty_bet_bot::indexeddb::{Db, TableOptions};
+use futures_util::stream::StreamExt;
 use futures_util::future::{try_join, try_join_all};
 use futures_signals::signal::{Mutable, SignalExt};
 use js_sys::{Promise, Array};
@@ -186,7 +187,7 @@ async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, JsValue> {
 
                     let record = Record::deserialize(&cursor.value().as_string().unwrap());
 
-                    match sorted_record_index(&state.records, &record) {
+                    match api::sorted_record_index(&state.records, &record) {
                         Ok(_) => {
                             state.deleted += 1;
                             cursor.delete();
@@ -295,7 +296,7 @@ fn listen_to_ports() {
                 let on_message = {
                     let state = state.clone();
 
-                    port.on_message(move |message: Vec<WaifuMessage>| {
+                    port.on_message(move |message: Vec<api::WaifuMessage>| {
                         let lock = state.borrow();
 
                         assert!(lock.salty_bet_ports.len() <= 1);
@@ -344,6 +345,10 @@ pub async fn main_js() -> Result<(), JsValue> {
     listen_to_ports();
 
 
+    // This starts listening to messages immediately, but they're only polled later
+    let messages = messages::<api::Message>();
+
+
     let db = time!("Initializing database", {
         Rc::new(Db::open("", 2, |db, _old, _new| {
             db.create_table("records", &TableOptions {
@@ -360,55 +365,60 @@ pub async fn main_js() -> Result<(), JsValue> {
         let db = db.clone();
         let loaded = loaded.clone();
 
-        // This is necessary because Chrome doesn't allow content scripts to use the tabs API
-        DiscardOnDrop::leak(on_message(move |message| {
-            // TODO is there a better way of doing this ?
-            let done = loaded.signal().wait_for(true);
+        spawn(async move {
+            messages.for_each(move |message| {
+                // TODO is there a better way of doing this ?
+                let done = loaded.signal().wait_for(true);
 
-            let db = db.clone();
+                let db = db.clone();
 
-            async move {
-                done.await;
+                message.with(move |message| {
+                    async move {
+                        done.await;
 
-                match message {
-                    Message::RecordsNew => reply_result!({
-                        // TODO this shouldn't pause the message queue
-                        let records = get_all_records(&db).await?;
-                        Remote::new(records)
-                    }),
-                    Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
-                        let from = from as usize;
-                        let to = to as usize;
+                        match message {
+                            api::Message::RecordsNew => reply_result!({
+                                // TODO this shouldn't pause the message queue
+                                let records = get_all_records(&db).await?;
+                                Remote::new(records)
+                            }),
+                            api::Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
+                                let from = from as usize;
+                                let to = to as usize;
 
-                        reply!({
-                            let len = records.len();
+                                reply!({
+                                    let len = records.len();
 
-                            if from >= len {
-                                None
+                                    if from >= len {
+                                        None
 
-                            } else {
-                                Some(&records[from..(to.min(len))])
-                            }
-                        })
-                    }),
-                    Message::RecordsDrop(id) => reply!({
-                        Remote::drop::<Vec<Record>>(id);
-                    }),
+                                    } else {
+                                        Some(&records[from..(to.min(len))])
+                                    }
+                                })
+                            }),
+                            api::Message::RecordsDrop(id) => reply!({
+                                Remote::drop::<Vec<Record>>(id);
+                            }),
 
-                    Message::InsertRecords(records) => reply_result!({
-                        insert_records(&db, records.as_slice()).await?;
-                    }),
+                            api::Message::InsertRecords(records) => reply_result!({
+                                insert_records(&db, records.as_slice()).await?;
+                            }),
 
-                    Message::DeleteAllRecords => reply_result!({
-                        delete_all_records(&db).await?;
-                    }),
+                            api::Message::DeleteAllRecords => reply_result!({
+                                delete_all_records(&db).await?;
+                            }),
 
-                    Message::ServerLog(message) => reply!({
-                        console_log(message);
-                    }),
-                }
-            }
-        }));
+                            api::Message::ServerLog(message) => reply!({
+                                console_log(message);
+                            }),
+                        }
+                    }
+                })
+            }).await;
+
+            Ok(())
+        });
     }
 
 
@@ -425,7 +435,7 @@ pub async fn main_js() -> Result<(), JsValue> {
         let (old_records, new_records) = try_join(old_records, new_records).await?;
 
         let added_records = time!("Inserting default records", {
-            let added_records = get_added_records(old_records, new_records);
+            let added_records = api::get_added_records(old_records, new_records);
             insert_records(&db, added_records.as_slice()).await?;
             added_records
         });

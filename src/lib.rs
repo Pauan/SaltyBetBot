@@ -2,8 +2,10 @@
 
 pub mod indexeddb;
 pub mod regexp;
+pub mod api;
 mod macros;
 
+use std::marker::PhantomData;
 use std::cmp::Ordering;
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
@@ -12,10 +14,8 @@ use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
 use serde::Serialize;
-use serde_derive::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use discard::{Discard, DiscardOnDrop};
-use algorithm::record::{Tier, Mode, Winner, Record};
 use futures_core::stream::Stream;
 use futures_util::stream::StreamExt;
 use futures_channel::oneshot;
@@ -34,8 +34,10 @@ use web_sys::{window, Window, Document, Node, Element, HtmlElement, HtmlInputEle
     export function send_message_raw(message) {
         return new Promise(function (resolve, reject) {
             chrome.runtime.sendMessage(null, message, null, function (x) {
-                if (chrome.runtime.lastError != null) {
-                    reject(new Error(chrome.runtime.lastError.message));
+                var error = chrome.runtime.lastError;
+
+                if (error != null) {
+                    reject(new Error(error.message));
 
                 } else {
                     resolve(x);
@@ -96,51 +98,6 @@ extern "C" {
     pub fn decimal(f: f64) -> String;
 
     fn set_utc_date(date: &Date, days: f64);
-}
-
-
-// 50 minutes
-// TODO is this high enough ?
-pub const MAX_MATCH_TIME_LIMIT: f64 = 1000.0 * 60.0 * 50.0;
-
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaifuBetsOpen {
-    pub left: String,
-    pub right: String,
-    pub tier: Tier,
-    pub mode: Mode,
-    pub date: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaifuBetsClosedInfo {
-    pub name: String,
-    pub win_streak: f64,
-    pub bet_amount: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaifuBetsClosed {
-    pub left: WaifuBetsClosedInfo,
-    pub right: WaifuBetsClosedInfo,
-    pub date: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaifuWinner {
-    pub name: String,
-    pub side: Winner,
-    pub date: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WaifuMessage {
-    BetsOpen(WaifuBetsOpen),
-    BetsClosed(WaifuBetsClosed),
-    Winner(WaifuWinner),
-    ModeSwitch { date: f64, is_exhibition: bool },
-    ReloadPage,
 }
 
 
@@ -430,59 +387,79 @@ pub fn send_message_result<A, B>(message: &A) -> impl Future<Output = Result<B, 
 }
 
 
-pub struct OnMessage {
+pub struct Messages<A> {
     // TODO use dyn FnMut(String, &JsValue, Function) -> bool
-    listener: Listener<dyn FnMut(String, JsValue, Function) -> bool>,
+    _listener: DiscardOnDrop<Listener<dyn FnMut(String, JsValue, Function) -> bool>>,
+    receiver: UnboundedReceiver<(String, Function)>,
+    _value: PhantomData<A>,
 }
 
-impl Discard for OnMessage {
-    fn discard(self) {
-        self.listener.discard();
+impl<A> Unpin for Messages<A> {}
+
+impl<A> Stream for Messages<A> where A: DeserializeOwned {
+    type Item = Message<A>;
+
+    #[inline]
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.receiver.poll_next_unpin(cx).map(|option| {
+            option.map(|(value, reply)| {
+                let value = serde_json::from_str(&value).unwrap();
+                Message { value, reply }
+            })
+        })
     }
 }
 
 
-pub fn on_message<A, B, F>(mut f: F) -> DiscardOnDrop<OnMessage>
-    where A: DeserializeOwned + 'static,
-          B: Future<Output = String> + 'static,
-          F: FnMut(A) -> B + 'static {
+#[derive(Debug)]
+pub struct Message<A> {
+    value: A,
+    reply: Function,
+}
 
+impl<A> Message<A> {
+    pub fn with<B, F>(self, f: F) -> impl Future<Output = ()>
+        where B: Future<Output = String>,
+              F: FnOnce(A) -> B {
+
+        let Message { value, reply } = self;
+
+        let fut = f(value);
+
+        async move {
+            let message = fut.await;
+
+            // TODO make this more efficient ?
+            match reply.call1(&JsValue::UNDEFINED, &JsValue::from(message)) {
+                Ok(value) => {
+                    assert!(value.is_undefined());
+                },
+                Err(e) => {
+                    let e: Error = e.dyn_into().unwrap();
+
+                    // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
+                    if e.message() != "Attempting to use a disconnected port object" {
+                        wasm_bindgen::throw_val(e.into());
+                    }
+                },
+            }
+        }
+    }
+}
+
+
+pub fn messages<A>() -> Messages<A> where A: DeserializeOwned {
     let (sender, receiver) = unbounded::<(String, Function)>();
 
-    spawn_local(async move {
-        receiver.for_each(move |(message, reply)| {
-            let message = serde_json::from_str(&message).unwrap();
-
-            let future = f(message);
-
-            async move {
-                let result = future.await;
-
-                // TODO make this more efficient ?
-                match reply.call1(&JsValue::UNDEFINED, &JsValue::from(result)) {
-                    Ok(value) => {
-                        assert!(value.is_undefined());
-                    },
-                    Err(e) => {
-                        let e: Error = e.dyn_into().unwrap();
-
-                        // TODO incredibly hacky, but needed because Chrome is stupid and gives errors that cannot be avoided
-                        if e.message() != "Attempting to use a disconnected port object" {
-                            wasm_bindgen::throw_val(e.into());
-                        }
-                    },
-                }
-            }
-        }).await;
-    });
-
-    DiscardOnDrop::new(OnMessage {
-        listener: DiscardOnDrop::leak(Listener::new(chrome_on_message(), closure!(move |message: String, _sender: JsValue, reply: Function| -> bool {
-            sender.unbounded_send((message, reply)).unwrap();
+    Messages {
+        _listener: Listener::new(chrome_on_message(), closure!(move |value: String, _sender: JsValue, reply: Function| -> bool {
+            sender.unbounded_send((value, reply)).unwrap();
             // TODO somehow only return true when needed ?
             true
-        }))),
-    })
+        })),
+        receiver,
+        _value: PhantomData,
+    }
 }
 
 
@@ -513,64 +490,6 @@ macro_rules! reply {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Message {
-    RecordsNew,
-    RecordsSlice(u32, u32, u32),
-    RecordsDrop(u32),
-
-    InsertRecords(Vec<Record>),
-    DeleteAllRecords,
-    ServerLog(String),
-}
-
-const CHUNK_SIZE: u32 = 10000;
-
-pub async fn records_get_all() -> Result<Vec<Record>, JsValue> {
-    let mut records = vec![];
-
-    let mut index = 0;
-
-    let id: u32 = send_message_result(&Message::RecordsNew).await?;
-
-    loop {
-        let chunk: Option<Vec<Record>> = send_message(&Message::RecordsSlice(id, index, index + CHUNK_SIZE)).await?;
-
-        if let Some(mut chunk) = chunk {
-            records.append(&mut chunk);
-            index += CHUNK_SIZE;
-
-        } else {
-            break;
-        }
-    }
-
-    send_message(&Message::RecordsDrop(id)).await?;
-
-    Ok(records)
-}
-
-pub async fn records_insert(records: Vec<Record>) -> Result<(), JsValue> {
-    // TODO more idiomatic check
-    if records.len() > 0 {
-        for chunk in records.chunks(CHUNK_SIZE as usize) {
-            // TODO can this be made more efficient ?
-            send_message_result(&Message::InsertRecords(chunk.into_iter().cloned().collect())).await?;
-        }
-    }
-
-    Ok(())
-}
-
-pub async fn records_delete_all() -> Result<(), JsValue> {
-    send_message_result(&Message::DeleteAllRecords).await
-}
-
-pub fn server_log(message: String) {
-    spawn(send_message(&Message::ServerLog(message)))
-}
-
-
 pub fn find_first_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) -> Ordering {
     slice.binary_search_by(|value| {
         match f(value) {
@@ -587,56 +506,6 @@ pub fn find_last_index<A, F>(slice: &[A], mut f: F) -> usize where F: FnMut(&A) 
             a => a,
         }
     }).unwrap_err()
-}
-
-
-pub fn sorted_record_index(old_records: &[Record], new_record: &Record) -> Result<(), usize> {
-    let start_date = new_record.date - MAX_MATCH_TIME_LIMIT;
-    let end_date = new_record.date + MAX_MATCH_TIME_LIMIT;
-
-    let index = find_first_index(&old_records, |x| x.date.partial_cmp(&start_date).unwrap());
-
-    let mut found = false;
-
-    for old_record in &old_records[index..] {
-        assert!(old_record.date >= start_date);
-
-        if old_record.date <= end_date {
-            if old_record.is_duplicate(&new_record) {
-                found = true;
-                break;
-            }
-
-        } else {
-            break;
-        }
-    }
-
-    if found {
-        // TODO return the index of the duplicate ?
-        Ok(())
-
-    } else {
-        let new_index = find_last_index(&old_records, |x| Record::sort_date(x, &new_record));
-        Err(new_index)
-    }
-}
-
-
-pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>) -> Vec<Record> {
-    assert!(old_records.is_sorted_by(|x, y| Some(Record::sort_date(x, y))));
-
-    let mut added_records = vec![];
-
-    // TODO this can be implemented more efficiently (linear rather than quadratic)
-    for new_record in new_records {
-        if let Err(index) = sorted_record_index(&old_records, &new_record) {
-            old_records.insert(index, new_record.clone());
-            added_records.push(new_record);
-        }
-    }
-
-    added_records
 }
 
 

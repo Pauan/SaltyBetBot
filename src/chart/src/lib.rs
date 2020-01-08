@@ -2,7 +2,7 @@ use std::f64::INFINITY;
 use std::rc::Rc;
 use std::collections::{BTreeSet, BTreeMap};
 use lazy_static::lazy_static;
-use salty_bet_bot::{records_get_all, subtract_days, decimal, Loading, find_first_index, round_to_hour, log, export_function, closure, console_log, console_error};
+use salty_bet_bot::{api, subtract_days, decimal, Loading, find_first_index, round_to_hour, log, export_function, closure, console_log, console_error};
 use algorithm::record::{Record, Profit, Mode};
 use algorithm::simulation::{Bet, Simulation, Strategy, Simulator, TOURNAMENT_BALANCE, NUMBER_OF_BOTS};
 use algorithm::strategy::{CustomStrategy, MoneyStrategy, BetStrategy, Permutate, MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, FIXED_BET_AMOUNT};
@@ -1854,7 +1854,7 @@ pub async fn main_js() -> Result<(), JsValue> {
 
     dominator::append_dom(&dominator::body(), loading.render());
 
-    let records = records_get_all().await?;
+    let records = api::records_get_all().await?;
 
     dominator::append_dom(&dominator::body(), display_records(records, loading.clone()));
 

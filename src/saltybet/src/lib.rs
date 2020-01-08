@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, ClientPort, get_text_content, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed, to_input_element, get_value, click, query, query_all, records_get_all, records_insert, money, display_odds, MAX_MATCH_TIME_LIMIT, get_extension_url, reload_page, log, server_log, NodeListIter};
+use salty_bet_bot::{server_log, decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, money, display_odds, get_extension_url, reload_page, log, NodeListIter};
+use salty_bet_bot::api::{records_get_all, records_insert, MAX_MATCH_TIME_LIMIT, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};

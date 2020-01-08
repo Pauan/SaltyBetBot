@@ -21,6 +21,6 @@ macro_rules! time {
 #[macro_export]
 macro_rules! server_log {
     ($($args:tt)*) => {
-        $crate::server_log(std::format!("{} [{}:{}] {}", $crate::current_date_pretty(), std::file!(), std::line!(), std::format!($($args)*)))
+        $crate::api::server_log(std::format!("{} [{}:{}] {}", $crate::current_date_pretty(), std::file!(), std::line!(), std::format!($($args)*)))
     }
 }
