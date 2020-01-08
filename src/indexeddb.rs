@@ -410,6 +410,7 @@ impl std::ops::Deref for DbUpgrade {
 #[derive(Debug)]
 pub struct Db {
     db: IdbDatabase,
+    close: bool,
 }
 
 impl Db {
@@ -436,7 +437,7 @@ impl Db {
 
                 // TODO are these u32 conversions correct ?
                 // TODO test this with oldVersion and newVersion
-                on_upgrade(&DbUpgrade { db: Db { db } }, event.old_version() as u32, event.new_version().map(|x| x as u32));
+                on_upgrade(&DbUpgrade { db: Self { db, close: false } }, event.old_version() as u32, event.new_version().map(|x| x as u32));
             })
         };
 
@@ -457,6 +458,7 @@ impl Db {
             future: RequestFuture::new_raw(&request, sender, receiver, move |result| {
                 Self {
                     db: result.dyn_into().unwrap(),
+                    close: true,
                 }
             }),
             _onupgradeneeded: onupgradeneeded,
@@ -508,6 +510,8 @@ impl Db {
 impl Drop for Db {
     #[inline]
     fn drop(&mut self) {
-        self.db.close();
+        if self.close {
+            self.db.close();
+        }
     }
 }

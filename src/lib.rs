@@ -404,8 +404,11 @@ pub fn send_message<A, B>(message: &A) -> impl Future<Output = Result<B, JsValue
 
     let message: String = serde_json::to_string(message).unwrap();
 
+    // TODO move this inside of the async ?
+    let fut = JsFuture::from(send_message_raw(&message));
+
     async move {
-        let reply: String = JsFuture::from(send_message_raw(&message)).await?.as_string().unwrap();
+        let reply: String = fut.await?.as_string().unwrap();
 
         Ok(serde_json::from_str(&reply).unwrap())
     }

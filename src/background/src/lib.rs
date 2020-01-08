@@ -276,14 +276,15 @@ fn listen_to_ports() {
                     _on_disconnect: on_disconnect,
                 });
 
-                spawn(async move {
-                    if tabs.len() > 0 {
-                        let value = JsFuture::from(remove_tabs(&tabs.into_iter().collect())).await?;
-                        assert!(value.is_undefined());
-                    }
+                if tabs.len() > 0 {
+                    let fut = JsFuture::from(remove_tabs(&tabs.into_iter().collect()));
 
-                    Ok(())
-                });
+                    spawn(async move {
+                        let value = fut.await?;
+                        assert!(value.is_undefined());
+                        Ok(())
+                    });
+                }
             },
 
             "twitch_chat" => {
