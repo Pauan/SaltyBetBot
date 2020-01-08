@@ -61,12 +61,27 @@ impl Winner {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
+    None,
     New,
     P,
     B,
     A,
     S,
     X,
+}
+
+impl std::fmt::Display for Tier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(match self {
+            Tier::None => "None",
+            Tier::New => "NEW",
+            Tier::P => "P",
+            Tier::B => "B",
+            Tier::A => "A",
+            Tier::S => "S",
+            Tier::X => "X",
+        })
+    }
 }
 
 /*impl Tier {
@@ -87,6 +102,33 @@ pub enum Tier {
 pub enum Mode {
     Matchmaking,
     Tournament,
+    Exhibitions,
+}
+
+impl Mode {
+    pub fn is_exhibitions(&self) -> bool {
+        match self {
+            Self::Exhibitions => true,
+            Self::Matchmaking | Self::Tournament => false,
+        }
+    }
+
+    pub fn is_tournament(&self) -> bool {
+        match self {
+            Self::Tournament => true,
+            Self::Matchmaking | Self::Exhibitions => false,
+        }
+    }
+}
+
+impl std::fmt::Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(match self {
+            Mode::Matchmaking => "Matchmaking",
+            Mode::Tournament => "Tournament",
+            Mode::Exhibitions => "Exhibitions",
+        })
+    }
 }
 
 /*impl Mode {

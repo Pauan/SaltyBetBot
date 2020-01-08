@@ -18,6 +18,8 @@
 // WAIFU4u: Bets are locked. FOO- $723,823, BAR- $60,903
 // WAIFU4u: FOO wins! Payouts to Team Red. 24 exhibition matches left!
 
+// Bets are OPEN for Team DoraTheEmployer vs Team NoSwiping! (Requested by NinaYamada) (exhibitions) www.saltybet.com
+
 // WAIFU4u: "wtfSalt ♫ "
 
 use std::iter::Iterator;
@@ -38,14 +40,17 @@ use wasm_bindgen::prelude::*;
 const REFRESH_TIME: u32 = 1000 * 60 * 15;
 
 
-fn parse_tier(input: &str) -> Option<Tier> {
-    match input {
-        "NEW" => Some(Tier::New),
-        "X" => Some(Tier::X),
-        "S" => Some(Tier::S),
-        "A" => Some(Tier::A),
-        "B" => Some(Tier::B),
-        "P" => Some(Tier::P),
+fn parse_tier(input: &Option<String>) -> Option<Tier> {
+    match input.as_deref() {
+        // TODO is this correct ?
+        None => Some(Tier::None),
+        Some("NEW") => Some(Tier::New),
+        Some("None") => Some(Tier::None),
+        Some("X") => Some(Tier::X),
+        Some("S") => Some(Tier::S),
+        Some("A") => Some(Tier::A),
+        Some("B") => Some(Tier::B),
+        Some("P") => Some(Tier::P),
         _ => None,
     }
 }
@@ -54,22 +59,22 @@ fn parse_mode(input: &str) -> Option<Mode> {
     match input {
         "(matchmaking) www.saltybet.com" => Some(Mode::Matchmaking),
         "tournament bracket: http://www.saltybet.com/shaker?bracket=1" => Some(Mode::Tournament),
+        "(exhibitions) www.saltybet.com" => Some(Mode::Exhibitions),
         _ => None,
     }
 }
 
 fn parse_bets_open(input: &str, date: f64) -> Option<WaifuMessage> {
     thread_local! {
-        // Bets are OPEN for Team DoraTheEmployer vs Team NoSwiping! (Requested by NinaYamada) (exhibitions) www.saltybet.com
         static BET_OPEN_REGEX: regexp::RegExp = regexp::RegExp::new(
-            r"^Bets are OPEN for (.+) vs (.+?) *! \((NEW|[XSABP]) Tier\) ((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1))$"
+            r"^Bets are OPEN for (.+) vs (.+?) *!(?: \((NEW|None|[XSABP])(?: / (?:NEW|None|[XSABP]))? Tier\))? (?:\(Requested by .+? *\) )?((?:\(matchmaking\) www\.saltybet\.com)|(?:tournament bracket: http://www\.saltybet\.com/shaker\?bracket=1)|(?:\(exhibitions\) www\.saltybet\.com))$"
         );
     }
 
     BET_OPEN_REGEX.with(|re| re.first_match(input)).and_then(|mut captures|
         captures[1].take().and_then(|left|
         captures[2].take().and_then(|right|
-        captures[3].as_ref().and_then(|x| parse_tier(x)).and_then(|tier|
+        parse_tier(&captures[3]).and_then(|tier|
         captures[4].as_ref().and_then(|x| parse_mode(x)).map(|mode|
             WaifuMessage::BetsOpen(WaifuBetsOpen { left, right, tier, mode, date }))))))
 }
@@ -167,7 +172,7 @@ fn parse_mode_switch(input: &str, date: f64) -> Option<WaifuMessage> {
 fn check_unknown_message(input: &str) -> Option<WaifuMessage> {
     thread_local! {
         static UNKNOWN_REGEX: regexp::RegExp = regexp::RegExp::new(
-            r"(?:^wtfSalt ♫ )|(?:^(?:NEW|None|[XSABP])(?: / (?:NEW|None|[XSABP]))? Tier$)|(?:^Current stage: )|(?:^(?:.+) by(?: .+?)? *, (?:.+) by(?: .+)?$)|(?:^Current odds: [0-9\.]+:[0-9\.]+$)|(?:^The current game mode is: (?:matchmaking|tournament|exhibitions)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket|exhibition matches left)!$)|(?:^Download WAIFU Wars at www\.waifuwars\.com! https://clips\.twitch\.tv/UninterestedHumbleCiderWoofer)|(?:^Current pot total: \$[0-9]+$)|(?:^The current tournament bracket can be found at: http://www\.saltybet\.com/shaker\?bracket=1$)|(?:^wtfVeku Note: .*\(from (?:.*?) *\)$)|(?:^wtfSALTY (?:.+) is fighting to stay in [SAB] Tier!$)|(?:^wtfSALTY New Waifu Wars bounties available! Winner: (?:.+) \(wave [0-9,]+\)! Play for free at http://www\.waifuwars\.com$)|(?:^wtfSalt Congrats tournament winner! (?:.+) \(\+\$[0-9,]+\)$)|(?:^The current game mode is: (?:tournament|exhibitions)\. FINAL ROUND! Stay tuned for exhibitions after the tournament!$)|(?:^Bets are locked\. (?:.+?) *- \$[0-9,]+, (?:.+?) *- \$[0-9,]+$)|(?:^(?:.+) vs (?:.+) was requested by (?:.+?) *\. OMGScoots$)|(?:^Palettes of previous match: [0-9]+(?: / [0-9]+)?, [0-9]+(?: / [0-9]+)?$)|(?:^Bets are OPEN for (?:.+) vs (?:.+?) *!(?: \((?:NEW|None|[XSABP])(?: / (?:NEW|None|[XSABP]))? Tier\))? \(Requested by (?:.+?) *\) \(exhibitions\) www\.saltybet\.com$)|(?:^The current game mode is: (?:matchmaking|exhibitions)\. Matchmaking mode will be activated after the next exhibition match!$)|(?:^The current game mode is: tournament\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) has been demoted!$)|(?:^(?:.+) vs (?:.+) was requested by RNG\. Kappa$)|(?:^The current game mode is: matchmaking\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) is fighting for a promotion from [ABP] to [SAB] Tier!$)|(?:^wtfSALTY (?:.+) has been promoted!$)|(?:^[0-9,]+ characters are left in NEW tier: http://www\.saltybet\.com/stats\?playerstats=1&new=1$)|(?:^Join the official Salty Bet Illuminati Discord! https://discord\.gg/saltybet$)|(?:^https://www\.waifuwars\.com$)"
+            r"(?:^wtfSalt ♫ )|(?:^(?:NEW|None|[XSABP])(?: / (?:NEW|None|[XSABP]))? Tier$)|(?:^Current stage: )|(?:^(?:.+) by(?: .+?)? *, (?:.+) by(?: .+)?$)|(?:^Current odds: [0-9\.]+:[0-9\.]+$)|(?:^The current game mode is: (?:matchmaking|tournament|exhibitions)\. [0-9]+ (?:more matches until the next tournament|characters are left in the bracket|exhibition matches left)!$)|(?:^Download WAIFU Wars at www\.waifuwars\.com! https://clips\.twitch\.tv/UninterestedHumbleCiderWoofer)|(?:^Current pot total: \$[0-9]+$)|(?:^The current tournament bracket can be found at: http://www\.saltybet\.com/shaker\?bracket=1$)|(?:^wtfVeku Note: .*\(from (?:.*?) *\)$)|(?:^wtfSALTY (?:.+) is fighting to stay in [SAB] Tier!$)|(?:^wtfSALTY New Waifu Wars bounties available! Winner: (?:.+) \(wave [0-9,]+\)! Play for free at http://www\.waifuwars\.com$)|(?:^wtfSalt Congrats tournament winner! (?:.+) \(\+\$[0-9,]+\)$)|(?:^The current game mode is: (?:tournament|exhibitions)\. FINAL ROUND! Stay tuned for exhibitions after the tournament!$)|(?:^Bets are locked\. (?:.+?) *- \$[0-9,]+, (?:.+?) *- \$[0-9,]+$)|(?:^(?:.+) vs (?:.+) was requested by (?:.+?) *\. OMGScoots$)|(?:^Palettes of previous match: [0-9]+(?: / [0-9]+)?, [0-9]+(?: / [0-9]+)?$)|(?:^The current game mode is: (?:matchmaking|exhibitions)\. Matchmaking mode will be activated after the next exhibition match!$)|(?:^The current game mode is: tournament\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) has been demoted!$)|(?:^(?:.+) vs (?:.+) was requested by RNG\. Kappa$)|(?:^The current game mode is: matchmaking\. Tournament mode will be activated after the next match!$)|(?:^wtfSALTY (?:.+) is fighting for a promotion from [ABP] to [SAB] Tier!$)|(?:^wtfSALTY (?:.+) has been promoted!$)|(?:^[0-9,]+ characters are left in NEW tier: http://www\.saltybet\.com/stats\?playerstats=1&new=1$)|(?:^Join the official Salty Bet Illuminati Discord! https://discord\.gg/saltybet$)|(?:^https://www\.waifuwars\.com$)"
         );
     }
 

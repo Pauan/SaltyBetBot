@@ -1085,6 +1085,7 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
             match settings.mode {
                 Mode::Matchmaking => simulation.matchmaking_strategy = Some(creature.clone()),
                 Mode::Tournament => simulation.tournament_strategy = Some(creature.clone()),
+                Mode::Exhibitions => panic!("Cannot run genetics on exhibitions"),
             }
 
             // TODO is this correct ?

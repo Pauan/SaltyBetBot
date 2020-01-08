@@ -979,12 +979,15 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
                 Some(ref a) => self.pick_winner(a, &record.tier, &record.left.name, &record.right.name, record.date),
                 None => Bet::None,
             },
+            Mode::Exhibitions => {
+                Bet::Left(1.0)
+            },
         }
     }
 
     fn is_tournament_boundary(&self, record: &Record) -> bool {
         self.in_tournament && match record.mode {
-            Mode::Matchmaking => true,
+            Mode::Matchmaking | Mode::Exhibitions => true,
             Mode::Tournament => self.tournament_date.map(|date| (record.date - date).abs() > MAX_TOURNAMENT_DURATION).unwrap_or(false),
         }
     }
@@ -1000,7 +1003,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
 
     pub fn skip(&mut self, record: &Record) {
         match record.mode {
-            Mode::Matchmaking => {
+            Mode::Matchmaking | Mode::Exhibitions => {
                 self.in_tournament = false;
             },
             Mode::Tournament => {

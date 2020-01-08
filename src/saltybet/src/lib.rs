@@ -75,6 +75,7 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
             let correct_mode = match open.mode {
                 Mode::Matchmaking => !in_tournament,
                 Mode::Tournament => in_tournament,
+                Mode::Exhibitions => !in_tournament,
             };
 
             // TODO check the date as well ?
@@ -115,6 +116,10 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                             Some(ref a) => simulation.pick_winner(a, &open.tier, &open.left, &open.right, open.date),
                             None => Bet::None,
                         }
+                    },
+
+                    Mode::Exhibitions => {
+                        Bet::Left(1.0)
                     },
                 };
 
@@ -362,18 +367,20 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
 
                     match state.open {
                         Some(ref open) => {
-                            let duration = closed.date - open.date;
+                            if !open.mode.is_exhibitions() {
+                                let duration = closed.date - open.date;
 
-                            if duration >= 0.0 &&
-                               duration <= MAX_BET_TIME_LIMIT &&
-                               open.left == closed.left.name &&
-                               open.right == closed.right.name &&
-                               state.closed.is_none() {
-                                state.closed = Some(closed);
-                                continue;
+                                if duration >= 0.0 &&
+                                   duration <= MAX_BET_TIME_LIMIT &&
+                                   open.left == closed.left.name &&
+                                   open.right == closed.right.name &&
+                                   state.closed.is_none() {
+                                    state.closed = Some(closed);
+                                    continue;
 
-                            } else {
-                                server_log!("Invalid data: {:#?} {:#?}", open, closed);
+                                } else {
+                                    server_log!("Invalid data: {:#?} {:#?}", open, closed);
+                                }
                             }
                         },
                         None => {},
@@ -398,19 +405,24 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                     let mut state = state.borrow_mut();
 
                     match state.open {
-                        Some(ref open) => match state.closed {
-                            Some(_) => {
-                                if mode_switch.is_none() {
-                                    mode_switch = Some(date);
-                                    continue;
+                        Some(ref open) => {
+                            // TODO is this check robust ?
+                            if !open.mode.is_exhibitions() {
+                                match state.closed {
+                                    Some(_) => {
+                                        if mode_switch.is_none() {
+                                            mode_switch = Some(date);
+                                            continue;
 
-                                } else {
-                                    server_log!("Duplicate mode switch: {:#?} {:#?} {:#?}", open, mode_switch, message);
+                                        } else {
+                                            server_log!("Duplicate mode switch: {:#?} {:#?} {:#?}", open, mode_switch, message);
+                                        }
+                                    },
+                                    None => {
+                                        server_log!("Missing closed: {:#?} {:#?}", open, message);
+                                    },
                                 }
-                            },
-                            None => {
-                                server_log!("Missing closed: {:#?} {:#?}", open, message);
-                            },
+                            }
                         },
                         None => {},
                     }
@@ -426,95 +438,100 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                     let state: &mut State = &mut state.borrow_mut();
 
                     match state.open {
-                        Some(ref open) => match state.closed {
-                            Some(ref mut closed) => match state.information {
-                                Some(ref information) => {
-                                    let date = match mode_switch {
-                                        Some(date) => date,
-                                        None => winner.date,
-                                    };
-
-                                    let duration = date - closed.date;
-
-                                    let is_winner_correct = match winner.side {
-                                        Winner::Left => winner.name == closed.left.name,
-                                        Winner::Right => winner.name == closed.right.name,
-                                    };
-
-                                    if is_winner_correct &&
-                                       duration >= 0.0 &&
-                                       duration <= MAX_MATCH_TIME_LIMIT {
-
-                                        // TODO figure out a way to avoid the clone
-                                        let information = information.clone();
-
-                                        match information.bet {
-                                            Bet::Left(amount) => {
-                                                closed.left.bet_amount -= amount;
-                                            },
-                                            Bet::Right(amount) => {
-                                                closed.right.bet_amount -= amount;
-                                            },
-                                            Bet::None => {},
-                                        }
-
-                                        if closed.left.bet_amount > 0.0 &&
-                                           closed.right.bet_amount > 0.0 &&
-                                           (information.left_bettors_illuminati + information.left_bettors_normal) > 0.0 &&
-                                           (information.right_bettors_illuminati + information.right_bettors_normal) > 0.0 {
-
-                                            // TODO figure out a way to avoid clone
-                                            let record = Record {
-                                                left: Character {
-                                                    name: closed.left.name.clone(),
-                                                    bet_amount: closed.left.bet_amount,
-                                                    win_streak: closed.left.win_streak,
-                                                    illuminati_bettors: information.left_bettors_illuminati,
-                                                    normal_bettors: information.left_bettors_normal,
-                                                },
-                                                right: Character {
-                                                    name: closed.right.name.clone(),
-                                                    bet_amount: closed.right.bet_amount,
-                                                    win_streak: closed.right.win_streak,
-                                                    illuminati_bettors: information.right_bettors_illuminati,
-                                                    normal_bettors: information.right_bettors_normal,
-                                                },
-                                                winner: winner.side,
-                                                tier: open.tier.clone(),
-                                                mode: open.mode.clone(),
-                                                bet: information.bet.clone(),
-                                                duration,
-                                                date,
-                                                sum: information.sum,
+                        Some(ref open) => {
+                            // TODO is this check robust ?
+                            if !open.mode.is_exhibitions() {
+                                match state.closed {
+                                    Some(ref mut closed) => match state.information {
+                                        Some(ref information) => {
+                                            let date = match mode_switch {
+                                                Some(date) => date,
+                                                None => winner.date,
                                             };
 
-                                            if let Mode::Matchmaking = record.mode {
-                                                state.simulation.insert_sum(record.sum);
+                                            let duration = date - closed.date;
+
+                                            let is_winner_correct = match winner.side {
+                                                Winner::Left => winner.name == closed.left.name,
+                                                Winner::Right => winner.name == closed.right.name,
+                                            };
+
+                                            if is_winner_correct &&
+                                               duration >= 0.0 &&
+                                               duration <= MAX_MATCH_TIME_LIMIT {
+
+                                                // TODO figure out a way to avoid the clone
+                                                let information = information.clone();
+
+                                                match information.bet {
+                                                    Bet::Left(amount) => {
+                                                        closed.left.bet_amount -= amount;
+                                                    },
+                                                    Bet::Right(amount) => {
+                                                        closed.right.bet_amount -= amount;
+                                                    },
+                                                    Bet::None => {},
+                                                }
+
+                                                if closed.left.bet_amount > 0.0 &&
+                                                   closed.right.bet_amount > 0.0 &&
+                                                   (information.left_bettors_illuminati + information.left_bettors_normal) > 0.0 &&
+                                                   (information.right_bettors_illuminati + information.right_bettors_normal) > 0.0 {
+
+                                                    // TODO figure out a way to avoid clone
+                                                    let record = Record {
+                                                        left: Character {
+                                                            name: closed.left.name.clone(),
+                                                            bet_amount: closed.left.bet_amount,
+                                                            win_streak: closed.left.win_streak,
+                                                            illuminati_bettors: information.left_bettors_illuminati,
+                                                            normal_bettors: information.left_bettors_normal,
+                                                        },
+                                                        right: Character {
+                                                            name: closed.right.name.clone(),
+                                                            bet_amount: closed.right.bet_amount,
+                                                            win_streak: closed.right.win_streak,
+                                                            illuminati_bettors: information.right_bettors_illuminati,
+                                                            normal_bettors: information.right_bettors_normal,
+                                                        },
+                                                        winner: winner.side,
+                                                        tier: open.tier.clone(),
+                                                        mode: open.mode.clone(),
+                                                        bet: information.bet.clone(),
+                                                        duration,
+                                                        date,
+                                                        sum: information.sum,
+                                                    };
+
+                                                    if let Mode::Matchmaking = record.mode {
+                                                        state.simulation.insert_sum(record.sum);
+                                                    }
+
+                                                    state.simulation.insert_record(&record);
+
+                                                    // TODO figure out a way to avoid this clone
+                                                    // TODO is this guaranteed to be correctly ordered ?
+                                                    spawn(records_insert(vec![record.clone()]));
+
+                                                    state.records.push(record);
+
+                                                } else {
+                                                    server_log!("Invalid bet data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
+                                                }
+
+                                            } else {
+                                                server_log!("Invalid match data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
                                             }
-
-                                            state.simulation.insert_record(&record);
-
-                                            // TODO figure out a way to avoid this clone
-                                            // TODO is this guaranteed to be correctly ordered ?
-                                            spawn(records_insert(vec![record.clone()]));
-
-                                            state.records.push(record);
-
-                                        } else {
-                                            server_log!("Invalid bet data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
-                                        }
-
-                                    } else {
-                                        server_log!("Invalid match data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
-                                    }
-                                },
-                                None => {
-                                    server_log!("Missing information: {:#?} {:#?} {:#?}", open, closed, winner);
-                                },
-                            },
-                            None => {
-                                server_log!("Missing closed: {:#?} {:#?}", open, winner);
-                            },
+                                        },
+                                        None => {
+                                            server_log!("Missing information: {:#?} {:#?} {:#?}", open, closed, winner);
+                                        },
+                                    },
+                                    None => {
+                                        server_log!("Missing closed: {:#?} {:#?}", open, winner);
+                                    },
+                                }
+                            }
                         },
                         None => {},
                     }
@@ -578,6 +595,7 @@ impl State {
         let (left_bet, right_bet) = match *mode {
             Mode::Matchmaking => self.simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right, date),
             Mode::Tournament => self.simulation.tournament_strategy.as_ref().unwrap().bet_amount(&self.simulation, tier, left, right, date),
+            Mode::Exhibitions => (1.0, 1.0),
         };
 
         self.info_container.left.bet_amount.set(Some(left_bet));

@@ -399,6 +399,9 @@ impl Information {
                             Mode::Matchmaking => {
                                 simulation.sum = record.sum;
                             },
+                            Mode::Exhibitions => {
+                                panic!("Records cannot contain exhibition data");
+                            },
                         }
                     }
 
@@ -852,36 +855,35 @@ impl State {
     fn reset_simulation_mode(&self) {
         let mode = self.simulation_mode.get();
 
-        let strategy = if let Mode::Matchmaking = mode {
-            MATCHMAKING_STRATEGY
-
-        } else {
-            TOURNAMENT_STRATEGY
+        let strategy = match mode {
+            Mode::Matchmaking => MATCHMAKING_STRATEGY,
+            Mode::Tournament => TOURNAMENT_STRATEGY,
+            Mode::Exhibitions => panic!("Invalid exhibitions"),
         };
 
         self.simulation_type.set(Rc::new(SimulationType::BetStrategy(strategy.bet)));
         self.money_type.set_neq(strategy.money);
         self.average_sums.set_neq(strategy.average_sums);
 
-        self.days_shown.set_neq(if let Mode::Matchmaking = mode {
-            Some(DEFAULT_DAYS_SHOWN)
-        } else {
-            None
+        self.days_shown.set_neq(match mode {
+            Mode::Matchmaking => Some(DEFAULT_DAYS_SHOWN),
+            Mode::Tournament => None,
+            Mode::Exhibitions => panic!("Invalid exhibitions"),
         });
 
         self.round_to_magnitude.set_neq(strategy.round_to_magnitude);
         self.scale_by_matches.set_neq(strategy.scale_by_matches);
         self.scale_by_money.set_neq(strategy.scale_by_money);
 
-        self.reset_money.set_neq(if let Mode::Matchmaking = mode {
-            true
-        } else {
-            false
+        self.reset_money.set_neq(match mode {
+            Mode::Matchmaking => true,
+            Mode::Tournament => false,
+            Mode::Exhibitions => panic!("Invalid exhibitions"),
         });
     }
 
     fn average_sums(&self) -> bool {
-        if self.simulation_mode.get() == Mode::Tournament {
+        if self.simulation_mode.get().is_tournament() {
             false
 
         } else {
@@ -934,6 +936,7 @@ impl State {
                         // TODO figure out a way to avoid this clone
                         strategy: strategy.clone(),
                     },
+                    Mode::Exhibitions => panic!("Invalid exhibitions"),
                 },
                 self.days_shown.get(),
             );
@@ -998,6 +1001,7 @@ impl State {
                     extra_data: self.extra_data.get(),
                     strategy,
                 },
+                Mode::Exhibitions => panic!("Invalid exhibitions"),
             },
             self.days_shown.get(),
         );
@@ -1036,7 +1040,7 @@ impl State {
     }
 
     fn is_tournament(&self) -> impl Signal<Item = bool> {
-        self.simulation_mode.signal_ref(|x| *x == Mode::Tournament)
+        self.simulation_mode.signal_ref(|x| x.is_tournament())
     }
 }
 

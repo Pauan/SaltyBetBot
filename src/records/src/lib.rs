@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use salty_bet_bot::{api, percentage, decimal, money, display_odds, Loading, log};
 use algorithm::simulation::{Simulation, Simulator, Strategy, Bet, Elo};
 use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
-use algorithm::record::{Record, Winner, Tier, Mode, Profit};
+use algorithm::record::{Record, Winner, Mode, Profit};
 use futures_signals::signal::{Mutable, SignalExt};
 use lazy_static::lazy_static;
 use dominator::{Dom, stylesheet, events, html, clone, class};
@@ -63,6 +63,9 @@ impl State {
                             Mode::Matchmaking => {
                                 simulation.sum = record.sum;
                             },
+                            Mode::Exhibitions => {
+                                panic!("Invalid exhibitions");
+                            },
                         }
                     }
 
@@ -74,6 +77,7 @@ impl State {
                     let (left_bet, right_bet) = match record.mode {
                         Mode::Matchmaking => simulation.matchmaking_strategy.as_ref().unwrap().bet_amount(&simulation,&record.tier, &record.left.name, &record.right.name, record.date),
                         Mode::Tournament => simulation.tournament_strategy.as_ref().unwrap().bet_amount(&simulation, &record.tier, &record.left.name, &record.right.name, record.date),
+                        Mode::Exhibitions => panic!("Invalid exhibitions"),
                     };
 
                     // TODO code duplication with bin/saltybet
@@ -436,21 +440,11 @@ fn display_records(records: Vec<Record>) -> Dom {
                                 html!("tr", {
                                     .children(&mut [
                                         td(&*CLASS_ALIGN_CENTER, &mut [
-                                            text(match record.mode {
-                                                Mode::Matchmaking => "Matchmaking",
-                                                Mode::Tournament => "Tournament",
-                                            })
+                                            text(&record.mode.to_string())
                                         ]),
 
                                         td(&*CLASS_ALIGN_CENTER, &mut [
-                                            text(match record.tier {
-                                                Tier::New => "NEW",
-                                                Tier::P => "P",
-                                                Tier::B => "B",
-                                                Tier::A => "A",
-                                                Tier::S => "S",
-                                                Tier::X => "X",
-                                            })
+                                            text(&record.tier.to_string())
                                         ]),
 
                                         display_character(

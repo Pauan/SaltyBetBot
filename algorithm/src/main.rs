@@ -114,19 +114,19 @@ fn current_time() -> String {
 fn find_nearest_index(records: &[Record]) -> usize {
     let index = records.len() / 2;
 
-    if records[index].mode == Mode::Matchmaking {
-        index
+    match records[index].mode {
+        Mode::Matchmaking | Mode::Exhibitions => index,
+        Mode::Tournament => {
+            let left_index = records[..index].iter().rposition(|x| !x.mode.is_tournament()).unwrap();
+            let right_index = records[(index + 1)..].iter().position(|x| !x.mode.is_tournament()).unwrap();
 
-    } else {
-        let left_index = records[..index].iter().rposition(|x| x.mode == Mode::Matchmaking).unwrap();
-        let right_index = records[(index + 1)..].iter().position(|x| x.mode == Mode::Matchmaking).unwrap();
+            if (index - left_index) < (right_index - index) {
+                left_index
 
-        if (index - left_index) < (right_index - index) {
-            left_index
-
-        } else {
-            right_index
-        }
+            } else {
+                right_index
+            }
+        },
     }
 }
 
@@ -186,6 +186,9 @@ impl<A, B: Borrow<Record>> Iterator for BoundaryIterator<A> where A: Iterator<It
                         self.index += 1;
                         self.matchmaking = self.index;
                     },
+                    Mode::Exhibitions => {
+                        panic!("Invalid exhibitions");
+                    },
                 },
 
                 None => {
@@ -243,6 +246,9 @@ fn shuffle_records(records: &[Record], mode: Mode) -> Vec<Record> {
         // TODO shuffle this too
         Mode::Tournament => {
             records.to_vec()
+        },
+        Mode::Exhibitions => {
+            panic!("Invalid exhibitions");
         },
     }
 }
