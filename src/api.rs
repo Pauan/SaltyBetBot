@@ -60,7 +60,7 @@ pub enum Message {
     ServerLog(String),
 }
 
-const CHUNK_SIZE: u32 = 10000;
+const CHUNK_SIZE: u32 = 50_000;
 
 pub async fn records_get_all() -> Result<Vec<Record>, JsValue> {
     let mut records = vec![];
@@ -154,4 +154,27 @@ pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>)
     }
 
     added_records
+}
+
+
+/// Returns a Vec of the non-duplicate Records, and a Vec of the duplicate Record keys
+pub fn partition_records(old_records: Vec<(u32, Record)>) -> (Vec<Record>, Vec<u32>) {
+    assert!(old_records.is_sorted_by(|x, y| Some(Record::sort_date(&x.1, &y.1))));
+
+    let mut records = vec![];
+    let mut deleted = vec![];
+
+    for (id, record) in old_records {
+        match sorted_record_index(&records, &record) {
+            Ok(_) => {
+                deleted.push(id);
+            },
+            Err(index) => {
+                // TODO figure out a way to avoid this clone
+                records.insert(index, record);
+            },
+        }
+    }
+
+    (records, deleted)
 }

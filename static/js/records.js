@@ -157,6 +157,13 @@ cachedTextDecoder.decode();
 function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
 }
+function __wbg_adapter_22(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures__invoke1_mut__hbf543a7afe63658a(arg0, arg1, addHeapObject(arg2));
+}
+
+function __wbg_adapter_25(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures__invoke1_mut__hbf543a7afe63658a(arg0, arg1, addHeapObject(arg2));
+}
 
 let stack_pointer = 32;
 
@@ -165,20 +172,12 @@ function addBorrowedObject(obj) {
     heap[--stack_pointer] = obj;
     return stack_pointer;
 }
-function __wbg_adapter_22(arg0, arg1, arg2) {
+function __wbg_adapter_28(arg0, arg1, arg2) {
     try {
-        wasm.wasm_bindgen__convert__closures__invoke1_mut_ref__hea12a4e622dc2f61(arg0, arg1, addBorrowedObject(arg2));
+        wasm.wasm_bindgen__convert__closures__invoke1_mut_ref__h37ede28e5abf0db5(arg0, arg1, addBorrowedObject(arg2));
     } finally {
         heap[stack_pointer++] = undefined;
     }
-}
-
-function __wbg_adapter_25(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures__invoke1_mut__hbf543a7afe63658a(arg0, arg1, addHeapObject(arg2));
-}
-
-function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures__invoke1_mut__hbf543a7afe63658a(arg0, arg1, addHeapObject(arg2));
 }
 
 function getCachedStringFromWasm0(ptr, len) {
@@ -521,7 +520,7 @@ imports.wbg.__widl_instanceof_Window = function(arg0) {
     var ret = getObject(arg0) instanceof Window;
     return ret;
 };
-imports.wbg.__wbindgen_closure_wrapper628 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper427 = function(arg0, arg1, arg2) {
 
     const state = { a: arg0, b: arg1, cnt: 1 };
     const real = (arg0) => {
@@ -540,7 +539,7 @@ imports.wbg.__wbindgen_closure_wrapper628 = function(arg0, arg1, arg2) {
     var ret = real;
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper426 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper613 = function(arg0, arg1, arg2) {
 
     const state = { a: arg0, b: arg1, cnt: 1 };
     const real = (arg0) => {
@@ -559,7 +558,7 @@ imports.wbg.__wbindgen_closure_wrapper426 = function(arg0, arg1, arg2) {
     var ret = real;
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper614 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper628 = function(arg0, arg1, arg2) {
 
     const state = { a: arg0, b: arg1, cnt: 1 };
     const real = (arg0) => {

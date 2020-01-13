@@ -1,9 +1,9 @@
-use super::{closure, WINDOW, MultiSender, poll_receiver};
+use super::{closure, WINDOW, MultiSender, poll_receiver, spawn};
 use std::pin::Pin;
 use std::future::Future;
 use std::task::{Poll, Context};
 use futures_channel::oneshot;
-use web_sys::{IdbDatabase, IdbRequest, IdbVersionChangeEvent, DomException, IdbTransaction, IdbTransactionMode, IdbCursorWithValue, IdbObjectStore, IdbObjectStoreParameters};
+use web_sys::{IdbKeyRange, IdbDatabase, IdbRequest, IdbVersionChangeEvent, DomException, IdbTransaction, IdbTransactionMode, IdbCursorWithValue, IdbObjectStore, IdbObjectStoreParameters};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -185,14 +185,14 @@ impl Future for DbOpen {
 
 
 #[derive(Debug)]
-struct ForEach {
+struct Fold<A> {
     _on_success: Closure<dyn FnMut(&JsValue)>,
     _on_error: Closure<dyn FnMut(&JsValue)>,
-    receiver: oneshot::Receiver<Result<(), JsValue>>,
+    receiver: oneshot::Receiver<Result<A, JsValue>>,
 }
 
-impl Future for ForEach {
-    type Output = Result<(), JsValue>;
+impl<A> Future for Fold<A> {
+    type Output = Result<A, JsValue>;
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -261,6 +261,34 @@ impl Cursor for WriteCursor {
 }
 
 
+#[wasm_bindgen]
+extern "C" {
+    pub type Record;
+
+    // TODO return Option<JsValue> ?
+    #[wasm_bindgen(method, getter)]
+    pub fn key(this: &Record) -> JsValue;
+
+    #[wasm_bindgen(method, getter)]
+    pub fn value(this: &Record) -> JsValue;
+}
+
+impl Record {
+    // TODO make this more efficient
+    pub fn new(key: Option<&JsValue>, value: &JsValue) -> Self {
+        let x = js_sys::Object::new();
+
+        if let Some(key) = key {
+            js_sys::Reflect::set(&x, &JsValue::from(wasm_bindgen::intern("key")), key).unwrap();
+        }
+
+        js_sys::Reflect::set(&x, &JsValue::from(wasm_bindgen::intern("value")), value).unwrap();
+
+        x.unchecked_into()
+    }
+}
+
+
 #[derive(Debug)]
 pub struct Read {
     tx: IdbTransaction,
@@ -271,14 +299,62 @@ impl Read {
         self.tx.object_store(wasm_bindgen::intern(name)).unwrap()
     }
 
-    pub fn get_all(&self, name: &str) -> impl Future<Output = Result<js_sys::Array, JsValue>> {
-        RequestFuture::new(&self.store(name).get_all().unwrap(), move |values| values.dyn_into().unwrap())
+    fn get_range(&self, name: &str, last_key: Option<&JsValue>, limit: Option<u32>) -> impl Future<Output = Result<Vec<Record>, JsValue>> {
+        let start = match last_key {
+            // Gets all of the keys that are greater than start
+            Some(start) => IdbKeyRange::lower_bound_with_open(start, true).unwrap().into(),
+            None => JsValue::UNDEFINED,
+        };
+
+        let store = self.store(name);
+
+        let req = match limit {
+            Some(limit) => store.get_all_with_key_and_limit(&start, limit).unwrap(),
+            None => store.get_all_with_key(&start).unwrap(),
+        };
+
+        RequestFuture::new(&req, move |values| {
+            let values: js_sys::Array = values.unchecked_into();
+            values.iter().map(|value| value.unchecked_into()).collect()
+        })
     }
 
-    fn for_each_raw<A, F, M>(&self, name: &str, mut f: F, mut map: M) -> impl Future<Output = Result<(), JsValue>>
-        where A: Cursor,
-              F: FnMut(&A) + 'static,
-              M: FnMut(IdbCursorWithValue) -> A + 'static {
+    // TODO return a Stream instead ?
+    pub async fn get_all(&self, name: &str) -> Result<Vec<Record>, JsValue> {
+        // TODO make this customizable
+        const CHUNK_LIMIT: u32 = 50_000;
+
+        let mut output = vec![];
+
+        let mut last_key = None;
+
+        loop {
+            let mut values = self.get_range(name, last_key.as_ref(), Some(CHUNK_LIMIT)).await?;
+
+            // TODO is this robust ?
+            if values.len() < (CHUNK_LIMIT as usize) {
+                output.append(&mut values);
+                break;
+
+            } else {
+                assert_eq!(values.len(), CHUNK_LIMIT as usize);
+
+                let last = values.last().unwrap();
+                last_key = Some(last.key());
+
+                output.append(&mut values);
+            }
+        }
+
+        Ok(output)
+    }
+
+    // TODO improve the monomorphism ?
+    fn fold_raw<A, C, F, M>(&self, name: &str, initial: A, mut f: F, mut map: M) -> impl Future<Output = Result<A, JsValue>>
+        where A: 'static,
+              C: Cursor,
+              F: FnMut(A, &C) -> A + 'static,
+              M: FnMut(IdbCursorWithValue) -> C + 'static {
 
         let (sender, receiver) = oneshot::channel();
 
@@ -290,15 +366,19 @@ impl Read {
             let sender = sender.clone();
             let request = request.clone();
 
+            let mut initial = Some(initial);
+
             closure!(move |_event: &JsValue| {
                 let cursor = request.result().unwrap();
 
+                let current = initial.take().unwrap();
+
                 if cursor.is_null() {
-                    sender.send(Ok(()));
+                    sender.send(Ok(current));
 
                 } else {
                     let cursor = map(cursor.dyn_into().unwrap());
-                    f(&cursor);
+                    initial = Some(f(current, &cursor));
                     cursor.next();
                 }
             })
@@ -318,15 +398,18 @@ impl Read {
 
         request.set_onerror(Some(on_error.as_ref().unchecked_ref()));
 
-        ForEach {
+        Fold {
             _on_success: on_success,
             _on_error: on_error,
             receiver,
         }
     }
 
-    pub fn for_each<F>(&self, name: &str, f: F) -> impl Future<Output = Result<(), JsValue>> where F: FnMut(&ReadCursor) + 'static {
-        self.for_each_raw(name, f, move |cursor| ReadCursor { cursor })
+    // TODO remove this
+    pub fn fold<A, F>(&self, name: &str, initial: A, f: F) -> impl Future<Output = Result<A, JsValue>>
+        where A: 'static,
+              F: FnMut(A, &ReadCursor) -> A + 'static {
+        self.fold_raw(name, initial, f, move |cursor| ReadCursor { cursor })
     }
 }
 
@@ -337,11 +420,11 @@ pub struct Write {
 }
 
 impl Write {
-    pub fn insert(&self, name: &str, value: &JsValue) {
-        self.store(name).add(value).unwrap();
+    pub fn insert(&self, name: &str, record: &Record) {
+        self.store(name).add(record).unwrap();
     }
 
-    pub fn insert_many<I>(&self, name: &str, values: I) where I: IntoIterator<Item = JsValue> {
+    pub fn insert_many<I>(&self, name: &str, values: I) where I: IntoIterator<Item = Record> {
         let store = self.store(name);
 
         for value in values {
@@ -349,12 +432,27 @@ impl Write {
         }
     }
 
+    pub fn remove(&self, name: &str, key: &JsValue) {
+        self.store(name).delete(key).unwrap();
+    }
+
+    pub fn remove_many<I>(&self, name: &str, keys: I) where I: IntoIterator<Item = JsValue> {
+        let store = self.store(name);
+
+        for key in keys {
+            store.delete(&key).unwrap();
+        }
+    }
+
     pub fn clear(&self, name: &str) {
         self.store(name).clear().unwrap();
     }
 
-    pub fn for_each<F>(&self, name: &str, f: F) -> impl Future<Output = Result<(), JsValue>> where F: FnMut(&WriteCursor) + 'static {
-        self.for_each_raw(name, f, move |cursor| WriteCursor { cursor: ReadCursor { cursor } })
+    // TODO remove this
+    pub fn fold<A, F>(&self, name: &str, initial: A, f: F) -> impl Future<Output = Result<A, JsValue>>
+        where A: 'static,
+              F: FnMut(A, &WriteCursor) -> A + 'static {
+        self.fold_raw(name, initial, f, move |cursor| WriteCursor { cursor: ReadCursor { cursor } })
     }
 }
 
@@ -369,40 +467,39 @@ impl std::ops::Deref for Write {
 
 
 #[derive(Debug, Clone)]
-pub struct TableOptions<'a> {
-    pub key_path: Option<&'a str>,
+pub struct TableOptions {
     pub auto_increment: bool,
 }
 
 
 #[derive(Debug)]
-pub struct DbUpgrade {
-    db: Db,
+pub struct Upgrade {
+    db: IdbDatabase,
+    write: Write,
 }
 
-impl DbUpgrade {
+impl Upgrade {
     pub fn create_table(&self, name: &str, options: &TableOptions) {
-        self.db.db.create_object_store_with_optional_parameters(
+        self.db.create_object_store_with_optional_parameters(
             wasm_bindgen::intern(name),
             IdbObjectStoreParameters::new()
                 .auto_increment(options.auto_increment)
-                // TODO intern this ?
-                .key_path(options.key_path.map(JsValue::from).as_ref()),
+                .key_path(Some(&JsValue::from(wasm_bindgen::intern("key")))),
         ).unwrap();
     }
 
     pub fn delete_table(&self, name: &str) {
         // TODO intern this ?
-        self.db.db.delete_object_store(name).unwrap();
+        self.db.delete_object_store(name).unwrap();
     }
 }
 
-impl std::ops::Deref for DbUpgrade {
-    type Target = Db;
+impl std::ops::Deref for Upgrade {
+    type Target = Write;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.db
+        &self.write
     }
 }
 
@@ -410,13 +507,15 @@ impl std::ops::Deref for DbUpgrade {
 #[derive(Debug)]
 pub struct Db {
     db: IdbDatabase,
-    close: bool,
 }
 
 impl Db {
     // TODO this should actually be u64
-    pub fn open<F>(name: &str, version: u32, on_upgrade: F) -> impl Future<Output = Result<Self, JsValue>>
-        where F: FnOnce(&DbUpgrade, u32, Option<u32>) + 'static {
+    // TODO handle versionchange event
+    pub fn open<A, F>(name: &str, version: u32, on_upgrade: F) -> impl Future<Output = Result<Self, JsValue>>
+        // TODO remove the 'static from A ?
+        where A: Future<Output = Result<(), JsValue>> + 'static,
+              F: FnOnce(Upgrade, Option<u32>, u32) -> A + 'static {
 
         let (sender, receiver) = oneshot::channel();
 
@@ -433,11 +532,35 @@ impl Db {
             let request = request.clone();
 
             Closure::once(move |event: &IdbVersionChangeEvent| {
+                // TODO are these u32 conversions correct ?
+                let old_version = event.old_version() as u32;
+                let new_version = event.new_version().unwrap() as u32;
+
                 let db = request.result().unwrap().dyn_into().unwrap();
 
-                // TODO are these u32 conversions correct ?
+                let tx = request.transaction().unwrap();
+
+                // TODO test that this always works correctly
+                let complete = TransactionFuture::new(&tx);
+
                 // TODO test this with oldVersion and newVersion
-                on_upgrade(&DbUpgrade { db: Self { db, close: false } }, event.old_version() as u32, event.new_version().map(|x| x as u32));
+                let fut = on_upgrade(
+                    Upgrade { db, write: Write { read: Read { tx } } },
+
+                    if old_version == 0 {
+                        None
+                    } else {
+                        Some(old_version)
+                    },
+
+                    new_version,
+                );
+
+                spawn(async move {
+                    fut.await?;
+                    complete.await?;
+                    Ok(())
+                });
             })
         };
 
@@ -458,7 +581,6 @@ impl Db {
             future: RequestFuture::new_raw(&request, sender, receiver, move |result| {
                 Self {
                     db: result.dyn_into().unwrap(),
-                    close: true,
                 }
             }),
             _onupgradeneeded: onupgradeneeded,
@@ -483,8 +605,11 @@ impl Db {
         // TODO test that this always works correctly
         let complete = TransactionFuture::new(&tx);
 
+        // TODO should this be inside the async ?
+        let fut = f(Read { tx });
+
         async move {
-            let value = f(Read { tx }).await?;
+            let value = fut.await?;
             complete.await?;
             Ok(value)
         }
@@ -499,8 +624,11 @@ impl Db {
         // TODO test that this always works correctly
         let complete = TransactionFuture::new(&tx);
 
+        // TODO should this be inside the async ?
+        let fut = f(Write { read: Read { tx } });
+
         async move {
-            let value = f(Write { read: Read { tx } }).await?;
+            let value = fut.await?;
             complete.await?;
             Ok(value)
         }
@@ -510,8 +638,6 @@ impl Db {
 impl Drop for Db {
     #[inline]
     fn drop(&mut self) {
-        if self.close {
-            self.db.close();
-        }
+        self.db.close();
     }
 }

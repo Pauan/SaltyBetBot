@@ -1,4 +1,6 @@
 #![feature(try_blocks)]
+// TODO super hacky
+#![type_length_limit="1526258"]
 
 use algorithm::record::{Record, deserialize_records};
 use discard::DiscardOnDrop;
@@ -6,7 +8,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::future::Future;
 use salty_bet_bot::{api, spawn, Tab, ServerPort, messages, log, time, reply, reply_result, PortOnMessage, PortOnDisconnect, console_log};
-use salty_bet_bot::indexeddb::{Db, TableOptions};
+use salty_bet_bot::indexeddb::{Db, Write, TableOptions};
+use salty_bet_bot::indexeddb;
 use futures_util::stream::StreamExt;
 use futures_util::future::{try_join, try_join_all};
 use futures_signals::signal::{Mutable, SignalExt};
@@ -64,40 +67,79 @@ extern "C" {
 }*/
 
 
-pub fn get_all_records(db: &Db) -> impl Future<Output = Result<Vec<Record>, JsValue>> {
-    db.read(&["records"], move |tx| {
+pub fn get_all_records(db: &Db) -> impl Future<Output = Result<Vec<(u32, Record)>, JsValue>> {
+    db.read(&["records2"], move |tx| {
         async move {
-            let array = tx.get_all("records").await?;
+            let records = tx.get_all("records2").await?;
 
-            let mut records: Vec<Record> = array.iter()
-                .map(|x| Record::deserialize(&x.as_string().unwrap()))
+            let mut records: Vec<(u32, Record)> = records.into_iter()
+                .map(|x| {
+                    let key = x.key().as_f64().unwrap();
+
+                    // TODO is this check robust ?
+                    let key = if key.round() == key {
+                        key as u32
+
+                    } else {
+                        panic!("Invalid db record key: {:?}", key);
+                    };
+
+                    (
+                        key,
+                        Record::deserialize(&x.value().as_string().unwrap()),
+                    )
+                })
                 .collect();
 
-            records.sort_by(Record::sort_date);
+            records.sort_by(|x, y| Record::sort_date(&x.1, &y.1));
 
             Ok(records)
         }
     })
 }
 
+pub fn remove_records<'a>(db: &'a Db, record_keys: &[u32]) -> impl Future<Output = Result<(), JsValue>> + 'a {
+    let keys: Vec<JsValue> = record_keys.into_iter().map(|x| JsValue::from(*x)).collect();
+
+    async move {
+        if keys.len() > 0 {
+            db.write(&["records2"], move |tx| {
+                async move {
+                    tx.remove_many("records2", keys);
+                    Ok(())
+                }
+            }).await?;
+        }
+
+        Ok(())
+    }
+}
+
 pub fn delete_all_records(db: &Db) -> impl Future<Output = Result<(), JsValue>> {
-    db.write(&["records"], move |tx| {
+    db.write(&["records2"], move |tx| {
         async move {
-            tx.clear("records");
+            tx.clear("records2");
             Ok(())
         }
     })
 }
 
+fn convert_records(records: &[Record]) -> Vec<indexeddb::Record> {
+    records.into_iter().map(|x| {
+        let value = JsValue::from(Record::serialize(x));
+        indexeddb::Record::new(None, &value)
+    }).collect()
+}
+
 pub fn insert_records<'a>(db: &'a Db, records: &[Record]) -> impl Future<Output = Result<(), JsValue>> + 'a {
     // TODO avoid doing anything if the len is 0 ?
-    let records: Vec<JsValue> = records.into_iter().map(|x| JsValue::from(Record::serialize(x))).collect();
+    let records = convert_records(records);
 
     async move {
         if records.len() > 0 {
-            db.write(&["records"], move |tx| {
+            db.write(&["records2"], move |tx| {
                 async move {
-                    tx.insert_many("records", records);
+                    tx.insert_many("records2", records);
                     Ok(())
                 }
             }).await?;
@@ -163,53 +205,6 @@ async fn get_static_records(files: &[&'static str]) -> Result<Vec<Record>, JsVal
     log!("Retrieved {} default records", records.len());
 
     Ok(records)
-}
-
-
-async fn delete_duplicate_records(db: &Db) -> Result<Vec<Record>, JsValue> {
-    let state = time!("Deleting duplicate records", {
-        struct State {
-            records: Vec<Record>,
-            deleted: usize,
-        }
-
-        let state = Rc::new(RefCell::new(State {
-            records: vec![],
-            deleted: 0,
-        }));
-
-        {
-            let state = state.clone();
-
-            db.write(&["records"], move |tx| {
-                tx.for_each("records", move |cursor| {
-                    let mut state = state.borrow_mut();
-
-                    let record = Record::deserialize(&cursor.value().as_string().unwrap());
-
-                    match api::sorted_record_index(&state.records, &record) {
-                        Ok(_) => {
-                            state.deleted += 1;
-                            cursor.delete();
-                        },
-                        Err(index) => {
-                            state.records.insert(index, record);
-                        },
-                    }
-                })
-            }).await?;
-        }
-
-        match Rc::try_unwrap(state) {
-            Ok(state) => state.into_inner(),
-            Err(_) => unreachable!(),
-        }
-    });
-
-    log!("Deleted {} records", state.deleted);
-    log!("Retrieved {} current records", state.records.len());
-
-    Ok(state.records)
 }
 
 
@@ -350,11 +345,64 @@ pub async fn main_js() -> Result<(), JsValue> {
 
 
     let db = time!("Initializing database", {
-        Rc::new(Db::open("", 2, |db, _old, _new| {
-            db.create_table("records", &TableOptions {
-                key_path: None,
-                auto_increment: true,
-            });
+        Rc::new(Db::open("", 3, |tx, old, _new| {
+            async move {
+                tx.create_table("records2", &TableOptions {
+                    auto_increment: true,
+                });
+
+                if let Some(2) = old {
+                    time!("Migrating old records", {
+                        struct DeletedInfo {
+                            records: Vec<Record>,
+                            deleted: usize,
+                        }
+
+                        fn delete_duplicate_records_raw(tx: &Write) -> impl Future<Output = Result<DeletedInfo, JsValue>> {
+                            tx.fold("records", DeletedInfo {
+                                records: vec![],
+                                deleted: 0,
+                            }, move |mut state, cursor| {
+                                let record = Record::deserialize(&cursor.value().as_string().unwrap());
+
+                                match api::sorted_record_index(&state.records, &record) {
+                                    Ok(_) => {
+                                        state.deleted += 1;
+                                        cursor.delete();
+                                    },
+                                    Err(index) => {
+                                        state.records.insert(index, record);
+                                    },
+                                }
+
+                                state
+                            })
+                        }
+
+                        let old_records = tx.get_all("records2").await?;
+
+                        assert_eq!(old_records.len(), 0);
+
+                        let info = delete_duplicate_records_raw(&tx).await?;
+
+                        log!("Deleted {} records", info.deleted);
+
+                        let records = convert_records(&info.records);
+
+                        let len = records.len();
+
+                        if len > 0 {
+                            tx.insert_many("records2", records);
+                        }
+
+                        log!("Migrated {} records", len);
+
+                        tx.delete_table("records");
+                    });
+                }
+
+                Ok(())
+            }
         }).await?)
     });
 
@@ -379,7 +427,12 @@ pub async fn main_js() -> Result<(), JsValue> {
                         match message {
                             api::Message::RecordsNew => reply_result!({
                                 // TODO this shouldn't pause the message queue
-                                let records = get_all_records(&db).await?;
+                                let records: Vec<Record> = {
+                                    let records = get_all_records(&db).await?;
+
+                                    records.into_iter().map(|x| x.1).collect()
+                                };
+
                                 Remote::new(records)
                             }),
                             api::Message::RecordsSlice(id, from, to) => Remote::with(id, |records: &mut Vec<Record>| {
@@ -423,7 +476,13 @@ pub async fn main_js() -> Result<(), JsValue> {
 
 
     {
-        let old_records = delete_duplicate_records(&db);
+        let old_records = async {
+            let old_records = time!("Retrieving current records", { get_all_records(&db).await? });
+
+            log!("Retrieved {} current records", old_records.len());
+
+            Ok(old_records)
+        };
 
         let new_records = get_static_records(&[
             "records/SaltyBet Records 0.json",
@@ -434,13 +493,35 @@ pub async fn main_js() -> Result<(), JsValue> {
 
         let (old_records, new_records) = try_join(old_records, new_records).await?;
 
-        let added_records = time!("Inserting default records", {
-            let added_records = api::get_added_records(old_records, new_records);
-            insert_records(&db, added_records.as_slice()).await?;
-            added_records
-        });
+        // TODO make this more efficient somehow ?
+        let (old_records, deleted_records) = api::partition_records(old_records);
+        let added_records = api::get_added_records(old_records, new_records);
 
-        log!("Inserted {} records", added_records.len());
+        try_join(
+            async {
+                if !deleted_records.is_empty() {
+                    time!("Deleting duplicate records", {
+                        remove_records(&db, &deleted_records).await?;
+                    });
+
+                    log!("Deleted {} records", deleted_records.len());
+                }
+
+                Ok(()) as Result<(), JsValue>
+            },
+
+            async {
+                if !added_records.is_empty() {
+                    time!("Inserting default records", {
+                        insert_records(&db, added_records.as_slice()).await?;
+                    });
+
+                    log!("Inserted {} records", added_records.len());
+                }
+
+                Ok(()) as Result<(), JsValue>
+            },
+        ).await?;
 
         loaded.set(true);
     }
