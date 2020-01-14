@@ -609,17 +609,17 @@ impl IndexedDB {
 
 // TODO move into gloo
 pub struct Debouncer {
-    time: u32,
-    timer: i32,
-    done: Rc<Cell<bool>>,
+    timer: Option<i32>,
     closure: Closure<dyn FnMut()>,
 }
 
 impl Debouncer {
-    fn clear_timeout(&self) {
-        WINDOW.with(|window| {
-            window.clear_timeout_with_handle(self.timer);
-        })
+    fn clear_timeout(&mut self) {
+        if let Some(timer) = self.timer.take() {
+            WINDOW.with(|window| {
+                window.clear_timeout_with_handle(timer);
+            })
+        }
     }
 
     fn set_timeout(time: u32, closure: &Closure<dyn FnMut()>) -> i32 {
@@ -629,39 +629,23 @@ impl Debouncer {
         })
     }
 
-    pub fn new<F>(time: u32, f: F) -> Self where F: FnOnce() + 'static {
-        let done = Rc::new(Cell::new(false));
-
-        let closure = {
-            let done = done.clone();
-
-            Closure::once(move || {
-                done.set(true);
-                f();
-            })
-        };
-
-        let timer = Self::set_timeout(time, &closure);
+    pub fn new<F>(f: F) -> Self where F: FnMut() + 'static {
+        let closure = Closure::wrap(Box::new(f) as Box<dyn FnMut()>);
 
         Self {
-            time,
-            timer,
-            done,
+            timer: None,
             closure,
         }
     }
 
-    pub fn reset(&mut self) {
-        if !self.done.get() {
-            self.clear_timeout();
-            self.timer = Self::set_timeout(self.time, &self.closure);
-        }
+    pub fn reset(&mut self, time: u32) {
+        self.clear_timeout();
+        self.timer = Some(Self::set_timeout(time, &self.closure));
     }
 }
 
 impl Drop for Debouncer {
     fn drop(&mut self) {
-        self.done.set(true);
         self.clear_timeout();
     }
 }

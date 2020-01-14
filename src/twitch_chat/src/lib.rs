@@ -249,10 +249,10 @@ pub fn main_js() {
 
     let port = ClientPort::connect("twitch_chat");
 
-    let mut debounce = {
+    let mut debouncer = {
         let port = port.clone();
 
-        Debouncer::new(REFRESH_TIME, move || {
+        Debouncer::new(move || {
             // This will cause the SaltyBet tab to reload
             port.send_message(&vec![WaifuMessage::ReloadPage]);
 
@@ -263,6 +263,8 @@ pub fn main_js() {
             Timeout::new(RELOAD_DELAY, move || reload_page()).forget();
         })
     };
+
+    debouncer.reset(REFRESH_TIME);
 
     let observer = {
         let port = port.clone();
@@ -279,7 +281,7 @@ pub fn main_js() {
                     None
 
                 } else {
-                    debounce.reset();
+                    debouncer.reset(REFRESH_TIME);
 
                     Some(
                         NodeListIter::new(inserted_nodes)

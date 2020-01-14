@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{server_log, decimal, spawn, wait_until_defined, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, money, display_odds, get_extension_url, reload_page, log, NodeListIter};
+use salty_bet_bot::{server_log, decimal, spawn, wait_until_defined, Debouncer, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, money, display_odds, get_extension_url, reload_page, log, NodeListIter};
 use salty_bet_bot::api::{records_get_all, records_insert, MAX_MATCH_TIME_LIMIT, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
@@ -35,10 +35,28 @@ pub struct Information {
 }
 
 
+fn fallback_bet(_state: &mut State) -> Option<()> {
+    let wager_box = query("#wager").and_then(to_input_element)?;
+
+    let left_button = query("#player1:enabled").and_then(to_input_element)?;
+
+    wager_box.set_value("1");
+
+    click(&left_button);
+
+    Some(())
+}
+
 fn lookup_bet(state: &Rc<RefCell<State>>) {
     fn lookup(state: &mut State) -> Option<()> {
-        if !state.did_bet &&
-           query("#betconfirm").is_none() {
+        if query("#betconfirm").is_none() {
+            if !state.waifu4u_alive {
+                return fallback_bet(state);
+            }
+
+            if state.did_bet {
+                return None;
+            }
 
             if let Some(_) = state.closed {
                 return None;
@@ -338,7 +356,38 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
 pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Stream<Item = Vec<WaifuMessage>> + 'static {
     let mut mode_switch: Option<f64> = None;
 
+    // 20 minutes
+    const WAIFU4U_TIMEOUT: u32 = 1000 * 60 * 20;
+
+    let mut debouncer = {
+        let state = state.clone();
+
+        Debouncer::new(move || {
+            server_log!("WAIFU4u is dead");
+
+            let mut state = state.borrow_mut();
+
+            state.clear_info_container();
+
+            // TODO should it reset all of these ?
+            state.did_bet = false;
+            state.open = None;
+            state.closed = None;
+            mode_switch = None;
+            state.information = None;
+
+            state.waifu4u_alive = false;
+        })
+    };
+
+    debouncer.reset(WAIFU4U_TIMEOUT);
+
     let mut process_messages = move |messages: Vec<WaifuMessage>| {
+        if !messages.is_empty() {
+            state.borrow_mut().waifu4u_alive = true;
+            debouncer.reset(WAIFU4U_TIMEOUT);
+        }
+
         for message in messages {
             match message {
                 // This will only happen if the Twitch chat stops receiving messages for 15 minutes
@@ -557,6 +606,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
 
 pub struct State {
     did_bet: bool,
+    waifu4u_alive: bool,
     open: Option<WaifuBetsOpen>,
     closed: Option<WaifuBetsClosed>,
     information: Option<Information>,
@@ -887,6 +937,7 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), JsValue> {
 
         let state = Rc::new(RefCell::new(State {
             did_bet: false,
+            waifu4u_alive: true,
             open: None,
             closed: None,
             information: None,

@@ -547,7 +547,7 @@ imports.wbg.__wbindgen_closure_wrapper613 = function(arg0, arg1, arg2) {
         const a = state.a;
         state.a = 0;
         try {
-            return __wbg_adapter_22(a, state.b, arg0);
+            return __wbg_adapter_25(a, state.b, arg0);
         } finally {
             if (--state.cnt === 0) wasm.__wbindgen_export_2.get(30)(a, state.b);
             else state.a = a;
@@ -566,7 +566,7 @@ imports.wbg.__wbindgen_closure_wrapper628 = function(arg0, arg1, arg2) {
         const a = state.a;
         state.a = 0;
         try {
-            return __wbg_adapter_25(a, state.b, arg0);
+            return __wbg_adapter_22(a, state.b, arg0);
         } finally {
             if (--state.cnt === 0) wasm.__wbindgen_export_2.get(30)(a, state.b);
             else state.a = a;
