@@ -384,7 +384,13 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
 
     let mut process_messages = move |messages: Vec<WaifuMessage>| {
         if !messages.is_empty() {
-            state.borrow_mut().waifu4u_alive = true;
+            let mut state = state.borrow_mut();
+
+            if !state.waifu4u_alive {
+                state.waifu4u_alive = true;
+                server_log!("WAIFU4u is alive");
+            }
+
             debouncer.reset(WAIFU4U_TIMEOUT);
         }
 
