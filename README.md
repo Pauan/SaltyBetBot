@@ -37,6 +37,8 @@ How to build (for programmers only)
 
 You will need to install [Rust](https://www.rust-lang.org/en-US/install.html), [Node.js](https://nodejs.org/en/download/), and [Yarn](https://yarnpkg.com/en/docs/install#windows-stable).
 
+If you are on Windows, then you also need to install the [Visual Studio build tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16) (make sure to enable the "C++ build tools" option).
+
 Then run these commands to setup things:
 
 ```

@@ -391,7 +391,7 @@ pub struct Messages<A> {
     // TODO use dyn FnMut(String, &JsValue, Function) -> bool
     _listener: DiscardOnDrop<Listener<dyn FnMut(String, JsValue, Function) -> bool>>,
     receiver: UnboundedReceiver<(String, Function)>,
-    _value: PhantomData<A>,
+    _value: PhantomData<fn(String) -> A>,
 }
 
 impl<A> Unpin for Messages<A> {}
