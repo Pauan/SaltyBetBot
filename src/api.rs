@@ -159,8 +159,6 @@ pub fn get_added_records(mut old_records: Vec<Record>, new_records: Vec<Record>)
 
 /// Returns a Vec of the non-duplicate Records, and a Vec of the duplicate Record keys
 pub fn partition_records(old_records: Vec<(u32, Record)>) -> (Vec<Record>, Vec<u32>) {
-    assert!(old_records.is_sorted_by(|x, y| Some(Record::sort_date(&x.1, &y.1))));
-
     let mut records = vec![];
     let mut deleted = vec![];
 
