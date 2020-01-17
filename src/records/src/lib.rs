@@ -41,7 +41,7 @@ struct State {
 
 impl State {
     fn new(records: Vec<Record>) -> Self {
-        let mut simulation: Simulation<CustomStrategy, CustomStrategy> = Simulation::new();
+        let mut simulation: Simulation<CustomStrategy, CustomStrategy> = Simulation::new(vec![]);
 
         simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
         simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
@@ -128,7 +128,7 @@ impl State {
                     }
 
                     // TODO code duplication with bin/chart
-                    simulation.insert_record(&record);
+                    simulation.insert_record(record.clone());
 
                     (record, left, right)
                     /*simulation.calculate(&record, &record.bet);

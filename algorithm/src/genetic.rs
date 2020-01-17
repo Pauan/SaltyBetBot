@@ -1077,7 +1077,7 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
     // TODO figure out a way to avoid the clone and to_vec
     pub fn new<'a>(settings: &SimulationSettings<'a>, creature: A) -> Self {
         let (fitness, successes, failures, record_len, characters_len, max_character_len) = {
-            let mut simulation = Simulation::<A, A>::new();
+            let mut simulation = Simulation::<A, A>::new(vec![]);
 
             // TODO is this correct ?
             simulation.sum = 10_000_000.0;
@@ -1124,7 +1124,7 @@ impl<A> FitnessResult<A> where A: Strategy + Clone {
                 simulation.successes,
                 simulation.failures,
                 simulation.record_len,
-                simulation.characters.len(),
+                simulation.characters_len(),
                 simulation.max_character_len,
             )
         };

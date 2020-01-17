@@ -1,5 +1,5 @@
 use std;
-use std::collections::{ HashMap };
+use std::collections::{ HashMap, HashSet };
 use crate::record::{ Record, Mode, Winner, Tier };
 use crate::genetic::{ Gene, gen_rand_index, rand_is_percent, MUTATION_RATE, choose2 };
 use crate::types::{Lookup, LookupSide, LookupFilter, LookupStatistic};
@@ -806,15 +806,14 @@ impl Elo {
 
 #[derive(Debug, Clone)]
 pub struct CharacterTier {
-    elo: Elo,
-    matches: Vec<Record>,
+    characters: HashMap<String, Character>,
+
 }
 
 impl CharacterTier {
     fn new() -> Self {
         Self {
-            elo: Elo::new(),
-            matches: vec![],
+            characters: HashMap::new(),
         }
     }
 }
@@ -822,14 +821,15 @@ impl CharacterTier {
 
 #[derive(Debug, Clone)]
 pub struct Character {
-    // TODO make this faster, e.g. using BTreeMap or an Array ?
-    tiers: HashMap<Tier, CharacterTier>,
+    elo: Elo,
+    matches: Vec<usize>,
 }
 
 impl Character {
     fn new() -> Self {
         Self {
-            tiers: HashMap::new(),
+            elo: Elo::new(),
+            matches: vec![],
         }
     }
 }
@@ -849,15 +849,18 @@ pub struct Simulation<A, B> where A: Strategy, B: Strategy {
     pub upsets: f64,
     pub max_character_len: usize,
     pub sums: Vec<f64>,
-    pub characters: HashMap<String, Character>,
+    pub records: Vec<Record>,
+
+    // TODO make this faster, e.g. using BTreeMap or an Array ?
+    pub tiers: HashMap<Tier, CharacterTier>,
 
     // TODO is u32 correct ?
     pub bettors_by_hour: [u32; 24],
 }
 
 impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(records: Vec<Record>) -> Self {
+        let mut this = Self {
             matchmaking_strategy: None,
             tournament_strategy: None,
             record_len: 0.0,
@@ -870,22 +873,36 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             upsets: 0.0,
             max_character_len: 0,
             sums: vec![],
-            characters: HashMap::new(),
-
+            records: vec![],
+            tiers: HashMap::new(),
             bettors_by_hour: [0; 24],
+        };
+
+        for (index, record) in records.iter().enumerate() {
+            if let Mode::Matchmaking = record.mode {
+                this.insert_sum(record.sum);
+            }
+
+            this.insert_record_raw(record, index);
         }
+
+        this.records = records;
+
+        this
     }
 
-    fn insert_match(&mut self, name: String, record: Record, won: bool, opponent: &Elo, left: &crate::record::Character, right: &crate::record::Character) {
-        let character = self.characters.entry(name).or_insert_with(Character::new);
+    fn insert_match<F>(&mut self, name: String, record: &Record, index: usize, update: F)
+        where F: FnOnce(&mut Elo) {
 
-        let tier = character.tiers.entry(record.tier).or_insert_with(CharacterTier::new);
+        let tier = self.tiers.entry(record.tier).or_insert_with(CharacterTier::new);
 
-        tier.elo.update(won, opponent, left, right);
+        let character = tier.characters.entry(name).or_insert_with(Character::new);
 
-        tier.matches.push(record);
+        update(&mut character.elo);
 
-        let len = tier.matches.len();
+        character.matches.push(index);
+
+        let len = character.matches.len();
 
         // TODO this is wrong
         if len > self.max_character_len {
@@ -893,8 +910,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
     }
 
-    // TODO figure out a way to remove the clones
-    pub fn insert_record(&mut self, record: &Record) {
+    fn insert_record_raw(&mut self, record: &Record, index: usize) {
         {
             let date = Utc.timestamp_millis(record.date as i64);
             let hour = date.hour() as usize;
@@ -904,6 +920,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         }
 
 
+        // TODO figure out a way to avoid these clones somehow ?
         let left = record.left.name.clone();
         let right = record.right.name.clone();
 
@@ -913,20 +930,20 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             let left_elo = self.elo(&left, record.tier);
             let right_elo = self.elo(&right, record.tier);
 
-            self.insert_match(left, record.clone(),
-                record.winner == Winner::Left,
-                &right_elo,
-                &record.left,
-                &record.right,
-            );
+            self.insert_match(left, &record, index, |elo| {
+                elo.update(record.winner == Winner::Left, &right_elo, &record.left, &record.right)
+            });
 
-            self.insert_match(right, record.clone(),
-                record.winner == Winner::Right,
-                &left_elo,
-                &record.right,
-                &record.left,
-            );
+            self.insert_match(right, &record, index, |elo| {
+                elo.update(record.winner == Winner::Right, &left_elo, &record.right, &record.left)
+            });
         }
+    }
+
+    pub fn insert_record(&mut self, record: Record) {
+        let index = self.records.len();
+        self.insert_record_raw(&record, index);
+        self.records.push(record);
     }
 
     fn sum(&self) -> f64 {
@@ -1088,7 +1105,7 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
             self.calculate(&record, &bet, number_of_bots);
 
             if insert_records {
-                self.insert_record(&record);
+                self.insert_record(record);
             }
         }
 
@@ -1104,18 +1121,24 @@ impl<A, B> Simulation<A, B> where A: Strategy, B: Strategy {
         self.sums.push(sum);
     }
 
-    pub fn insert_records<'a, C: IntoIterator<Item = &'a Record>>(&mut self, records: C) {
-        for record in records {
-            self.insert_record(record);
-        }
-    }
-
     pub fn winrate(&self, name: &str, tier: Tier) -> f64 {
         lookup::wins(self.lookup_character(name, tier), name)
     }
 
     pub fn specific_matches_len(&self, left: &str, right: &str, tier: Tier) -> usize {
         self.lookup_specific_character(left, right, tier).len()
+    }
+
+    pub fn characters_len(&self) -> usize {
+        let mut seen: HashSet<&str> = HashSet::new();
+
+        for tier in self.tiers.values() {
+            for name in tier.characters.keys() {
+                seen.insert(name);
+            }
+        }
+
+        seen.len()
     }
 }
 
@@ -1149,8 +1172,8 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
     }
 
     fn elo(&self, name: &str, tier: Tier) -> Elo {
-        match self.characters.get(name) {
-            Some(x) => match x.tiers.get(&tier)  {
+        match self.tiers.get(&tier) {
+            Some(x) => match x.characters.get(name) {
                 Some(x) => x.elo,
                 None => Elo::new()
             },
@@ -1227,7 +1250,11 @@ impl<A, B> Simulator for Simulation<A, B> where A: Strategy, B: Strategy {
 
     fn lookup_character(&self, name: &str, tier: Tier) -> Vec<&Record> {
         // TODO a bit gross that it returns a Vec and not a &[]
-        self.characters.get(name).and_then(|x| x.tiers.get(&tier).map(|x| x.matches.iter().collect())).unwrap_or(vec![])
+        self.tiers.get(&tier).and_then(|x| {
+            x.characters.get(name).map(|x| {
+                x.matches.iter().map(|index| &self.records[*index]).collect()
+            })
+        }).unwrap_or(vec![])
     }
 
     fn lookup_specific_character(&self, left: &str, right: &str, tier: Tier) -> Vec<&Record> {

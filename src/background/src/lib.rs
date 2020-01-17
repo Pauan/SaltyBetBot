@@ -1,6 +1,4 @@
 #![feature(try_blocks)]
-// TODO super hacky
-#![type_length_limit="1526258"]
 
 use algorithm::record::{Record, deserialize_records};
 use discard::DiscardOnDrop;

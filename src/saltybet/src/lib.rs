@@ -562,13 +562,11 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                                                         state.simulation.insert_sum(record.sum);
                                                     }
 
-                                                    state.simulation.insert_record(&record);
+                                                    // TODO avoid this clone
+                                                    state.simulation.insert_record(record.clone());
 
-                                                    // TODO figure out a way to avoid this clone
                                                     // TODO is this guaranteed to be correctly ordered ?
-                                                    spawn(records_insert(vec![record.clone()]));
-
-                                                    state.records.push(record);
+                                                    spawn(records_insert(vec![record]));
 
                                                 } else {
                                                     server_log!("Invalid bet data: {:#?} {:#?} {:#?} {:#?}", open, closed, information, winner);
@@ -617,7 +615,6 @@ pub struct State {
     closed: Option<WaifuBetsClosed>,
     information: Option<Information>,
     simulation: Simulation<CustomStrategy, CustomStrategy>,
-    records: Vec<Record>,
     info_container: Rc<InfoContainer>,
 }
 
@@ -917,29 +914,27 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), JsValue> {
     let observe = {
         let port = ClientPort::connect("saltybet");
 
-        let records = records_get_all().await?;
-        //let matches = migrate_records(matches);
-
-        log!("Initialized {} records", records.len());
-
-        let mut simulation = Simulation::new();
-
         /*let matchmaking_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/matchmaking_strategy")).unwrap();
         let tournament_strategy: FormulaStrategy = serde_json::from_str(include_str!("../../../strategies/tournament_strategy")).unwrap();
 
         simulation.matchmaking_strategy = Some(matchmaking_strategy);
         simulation.tournament_strategy = Some(tournament_strategy);*/
 
-        simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
-        simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
+        let simulation = {
+            let records = records_get_all().await?;
+            //let matches = migrate_records(matches);
 
-        for record in records.iter() {
-            if let Mode::Matchmaking = record.mode {
-                simulation.insert_sum(record.sum);
-            }
+            let len = records.len();
 
-            simulation.insert_record(record);
-        }
+            let mut simulation = Simulation::new(records);
+
+            log!("Initialized {} records", len);
+
+            simulation.matchmaking_strategy = Some(MATCHMAKING_STRATEGY);
+            simulation.tournament_strategy = Some(TOURNAMENT_STRATEGY);
+
+            simulation
+        };
 
         let state = Rc::new(RefCell::new(State {
             did_bet: false,
@@ -948,7 +943,6 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), JsValue> {
             closed: None,
             information: None,
             simulation: simulation,
-            records: records,
             info_container: container,
         }));
 

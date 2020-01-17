@@ -151,7 +151,7 @@ impl Information {
         }
 
 
-        let mut simulation: Simulation<A, A> = Simulation::new();
+        let mut simulation: Simulation<A, A> = Simulation::new(vec![]);
 
 
         let starting_date = days_shown.map(|days_shown| subtract_days(*CURRENT_DATE, days_shown));
@@ -177,7 +177,7 @@ impl Information {
 
                 if extra_data {
                     for record in records.iter() {
-                        simulation.insert_record(&record);
+                        simulation.insert_record(record.clone());
                     }
                 }
 
@@ -275,7 +275,7 @@ impl Information {
                     }
 
                     if !extra_data {
-                        simulation.insert_record(&record);
+                        simulation.insert_record(record.clone());
                     }
                 }
             },
@@ -287,7 +287,7 @@ impl Information {
 
                 if extra_data {
                     for record in records.iter() {
-                        simulation.insert_record(&record);
+                        simulation.insert_record(record.clone());
                     }
                 }
 
@@ -373,7 +373,7 @@ impl Information {
                     }
 
                     if !extra_data {
-                        simulation.insert_record(&record);
+                        simulation.insert_record(record.clone());
                     }
                 }
             },
@@ -461,7 +461,7 @@ impl Information {
                         simulation.calculate(&record, &record.bet, 1.0);
                     }
 
-                    simulation.insert_record(&record);
+                    simulation.insert_record(record.clone());
                 }
             },
         }
