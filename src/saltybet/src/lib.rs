@@ -15,6 +15,7 @@ use gloo_timers::callback::{Timeout, Interval};
 use web_sys::{Node, Element, NodeList};
 use lazy_static::lazy_static;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 
 const SHOULD_BET: bool = true;
@@ -188,23 +189,41 @@ macro_rules! unwrap_log {
 
 
 fn lookup_information(state: &Rc<RefCell<State>>) {
-    fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> f64 {
-        let mut len = 0.0;
+    fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> (f64, f64, f64) {
+        let mut normal = 0.0;
+        let mut illuminati = 0.0;
+        let mut ignored = 0.0;
 
         for bettor in NodeListIter::new(list) {
-            let bettor = get_text_content(&bettor).unwrap();
+            let bettor = bettor.unchecked_into::<Element>();
+            let bettor_name = bettor.query_selector("strong").unwrap().unwrap();
 
-            if bettor == name {
+            let is_illuminati = bettor_name.class_list().contains("goldtext");
+
+            if get_text_content(&bettor_name).unwrap() == name {
                 assert!(!*matched);
-                assert!(illuminati_check);
+                assert_eq!(illuminati_check, is_illuminati);
                 *matched = true;
+                ignored += 1.0;
 
             } else {
-                len += 1.0;
+                let money = bettor.query_selector(".wager-display").unwrap().unwrap();
+
+                if get_text_content(&money).unwrap() != "$1" {
+                    if is_illuminati {
+                        illuminati += 1.0;
+
+                    } else {
+                        normal += 1.0;
+                    }
+
+                } else {
+                    ignored += 1.0;
+                }
             }
         }
 
-        len
+        (normal, illuminati, ignored)
     }
 
     fn lookup(state: &mut State) -> Option<()> {
@@ -295,11 +314,11 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
         let mut matched_left = false;
         let mut matched_right = false;
 
-        let left_bettors_illuminati = filtered_len(query_all("#bettors1 > p.bettor-line > strong.goldtext"), &name, &mut matched_left, is_illuminati);
-        let right_bettors_illuminati = filtered_len(query_all("#bettors2 > p.bettor-line > strong.goldtext"), &name, &mut matched_right, is_illuminati);
+        let (left_bettors_normal, left_bettors_illuminati, left_bettors_ignored) = filtered_len(query_all("#bettors1 > p.bettor-line"), &name, &mut matched_left, is_illuminati);
+        let (right_bettors_normal, right_bettors_illuminati, right_bettors_ignored) = filtered_len(query_all("#bettors2 > p.bettor-line"), &name, &mut matched_right, is_illuminati);
 
-        let left_bettors_normal = filtered_len(query_all("#bettors1 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_left, !is_illuminati);
-        let right_bettors_normal = filtered_len(query_all("#bettors2 > p.bettor-line > strong:not(.goldtext)"), &name, &mut matched_right, !is_illuminati);
+        assert_eq!(left_bettors_illuminati + left_bettors_normal + left_bettors_ignored, left_count);
+        assert_eq!(right_bettors_illuminati + right_bettors_normal + right_bettors_ignored, right_count);
 
         let left_bet = query("#lastbet > span:first-of-type.redtext")
             .and_then(|x| get_text_content(&x))
@@ -319,8 +338,6 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                     None => {
                         assert!(matched_left);
                         assert!(!matched_right);
-                        assert_eq!(left_bettors_illuminati + left_bettors_normal + 1.0, left_count);
-                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
                         Bet::Left(left)
                     },
                     Some(_) => unreachable!(),
@@ -329,15 +346,11 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
                     Some(right) => {
                         assert!(!matched_left);
                         assert!(matched_right);
-                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
-                        assert_eq!(right_bettors_illuminati + right_bettors_normal + 1.0, right_count);
                         Bet::Right(right)
                     },
                     None => {
                         assert!(!matched_left);
                         assert!(!matched_right);
-                        assert_eq!(left_bettors_illuminati + left_bettors_normal, left_count);
-                        assert_eq!(right_bettors_illuminati + right_bettors_normal, right_count);
                         Bet::None
                     },
                 },
