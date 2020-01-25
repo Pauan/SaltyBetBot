@@ -13,7 +13,7 @@ pub const MATCHMAKING_STRATEGY: CustomStrategy = CustomStrategy {
     scale_by_money: true,
     scale_by_time: None,
     money: MoneyStrategy::Matchmaking { max_bet: FIXED_BET_AMOUNT },
-    bet: BetStrategy::WinnerOdds,
+    bet: BetStrategy::Matchmaking,
 };
 
 /*const MATCHMAKING_STRATEGY: EarningsStrategy = EarningsStrategy {
@@ -56,7 +56,7 @@ impl Permutate for bool {
 
 
 pub const PERCENTAGE_THRESHOLD: f64 = SALT_MINE_AMOUNT * 100.0;
-pub const FIXED_BET_AMOUNT: f64 = 70_000.0;
+pub const FIXED_BET_AMOUNT: f64 = 32_000.0;
 const MINIMUM_MATCHES_MATCHMAKING: f64 = 5.0;   // minimum match data before it starts betting
 const MAXIMUM_MATCHES_MATCHMAKING: f64 = 50.0;  // maximum match data before it reaches the MAXIMUM_BET_PERCENTAGE
 const MAXIMUM_WEIGHT: f64 = 10.0;               // maximum percentage for the weight

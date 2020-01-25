@@ -8,7 +8,7 @@ use chrono::{Utc, TimeZone, Timelike};
 
 
 // Number of people using the bot (including self)
-pub const NUMBER_OF_BOTS: f64 = 5.0;
+pub const NUMBER_OF_BOTS: f64 = 10.0;
 
 // TODO this should take into account the user's real limit
 pub const SALT_MINE_AMOUNT: f64 = 4100.0;
@@ -784,14 +784,16 @@ impl Elo {
         self.upsets = glicko2::new_rating(
             self.upsets,
             &[if won {
-                if left.normal_bettors < right.normal_bettors {
+                if left.average_bet_amount() < right.average_bet_amount() {
+                //if left.normal_bettors < right.normal_bettors {
                 //if (left.bet_amount + FIXED_BET_AMOUNT) < right.bet_amount {
                     glicko2::GameResult::win(opponent.upsets)
                 } else {
                     glicko2::GameResult::draw(opponent.upsets)
                 }
             } else {
-                if left.normal_bettors > right.normal_bettors {
+                if left.average_bet_amount() > right.average_bet_amount() {
+                //if left.normal_bettors > right.normal_bettors {
                 //if left.bet_amount > (right.bet_amount + FIXED_BET_AMOUNT) {
                     glicko2::GameResult::loss(opponent.upsets)
                 } else {

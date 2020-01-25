@@ -152,7 +152,7 @@ pub struct Character {
     pub normal_bettors: f64,
 
     // This includes self, and also anybody who bets $1
-    // TODO default this to something else, like -1 ?
+    // TODO default this to something else, like -1 ? Or maybe use Option ?
     #[serde(default)]
     pub ignored_bettors: f64,
 }
@@ -166,6 +166,10 @@ impl Character {
     fn is_duplicate(&self, other: &Self) -> bool {
         self.name == other.name &&
         self.win_streak == other.win_streak
+    }
+
+    pub fn average_bet_amount(&self) -> f64 {
+        self.bet_amount / self.bettors()
     }
 }
 
