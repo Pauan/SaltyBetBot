@@ -147,8 +147,14 @@ pub struct Character {
     pub name: String,
     pub bet_amount: f64,
     pub win_streak: f64,
+
     pub illuminati_bettors: f64,
     pub normal_bettors: f64,
+
+    // This includes self, and also anybody who bets $1
+    // TODO default this to something else, like -1 ?
+    #[serde(default)]
+    pub ignored_bettors: f64,
 }
 
 impl Character {

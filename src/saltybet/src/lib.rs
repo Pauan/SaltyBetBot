@@ -29,8 +29,13 @@ const MAX_BET_TIME_LIMIT: f64 = 1000.0 * 60.0 * 10.0;
 pub struct Information {
     left_bettors_illuminati: f64,
     right_bettors_illuminati: f64,
+
     left_bettors_normal: f64,
     right_bettors_normal: f64,
+
+    left_bettors_ignored: f64,
+    right_bettors_ignored: f64,
+
     bet: Bet,
     sum: f64,
 }
@@ -333,6 +338,8 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
             right_bettors_illuminati,
             left_bettors_normal,
             right_bettors_normal,
+            left_bettors_ignored,
+            right_bettors_ignored,
             bet: match left_bet {
                 Some(left) => match right_bet {
                     None => {
@@ -554,6 +561,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                                                             win_streak: closed.left.win_streak,
                                                             illuminati_bettors: information.left_bettors_illuminati,
                                                             normal_bettors: information.left_bettors_normal,
+                                                            ignored_bettors: information.left_bettors_ignored,
                                                         },
                                                         right: Character {
                                                             name: closed.right.name.clone(),
@@ -561,6 +569,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                                                             win_streak: closed.right.win_streak,
                                                             illuminati_bettors: information.right_bettors_illuminati,
                                                             normal_bettors: information.right_bettors_normal,
+                                                            ignored_bettors: information.right_bettors_ignored,
                                                         },
                                                         winner: winner.side,
                                                         tier: open.tier.clone(),
