@@ -1,3 +1,24 @@
+FAQ
+===
+
+* **Q**: Why does the bot bet so low? It's only betting $4,100!
+
+   **A**: The bot tries to win upsets, which means that ~87% of the time it will lose. But when it wins, it wins big. This is the optimal way of betting (as proven by years of analysis).
+
+   However, because it is losing so often, if it bet a large amount then it would be very volatile and it would quickly run out of money. So it bets a small amount so that way it will slowly and steadily gain money over time.
+
+   As you gain more money, it will slowly increase the bet amount, until it reaches a maximum of $32,000.
+
+* **Q**: Why does the bot only bet $1 in exhibitions?
+
+   **A**: It's not possible for bots to bet in exhibitions, because there just isn't enough information (the SaltyBet website does not tell the character names or the palettes, it only tells the team names).
+
+   So as a compromise, it bets $1 in order to gain exp, since that's the best it can do.
+
+* **Q**: Why does the bot go all-in in tournaments?
+
+   **A**: During tournaments you get a separate money pool. Even if you lose all of your tournament money, you will not lose any of your matchmaking money. It is impossible to lose money in tournaments, you can only gain money. So the optimal strategy in tournaments is to all-in, because you have nothing to lose.
+
 How to use
 ==========
 
