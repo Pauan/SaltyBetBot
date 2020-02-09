@@ -200,7 +200,7 @@ pub mod lookup {
 
         } else {
             let needed_odds = 1.0 / (wins / losses);
-            (needed_odds * (1.0 + DESIRED_PERCENTAGE_PROFIT))
+            needed_odds * (1.0 + DESIRED_PERCENTAGE_PROFIT)
         }
     }
 

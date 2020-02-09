@@ -282,7 +282,7 @@ rimraf@^3.0.0, rimraf@^3.0.2:
 
 "rollup-plugin-rust@github:Pauan/rollup-plugin-rust":
   version "1.0.0"
-  resolved "https://codeload.github.com/Pauan/rollup-plugin-rust/tar.gz/9f0b114edfdad868b3b4e42ba636dc77bb0f6222"
+  resolved "https://codeload.github.com/Pauan/rollup-plugin-rust/tar.gz/f0da372d3812b54a69e240f9d8693a4890694dcf"
   dependencies:
     glob "^7.1.6"
     rimraf "^3.0.0"
