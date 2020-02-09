@@ -7,7 +7,7 @@ FAQ
 
    However, because it is losing so often, if it bet a large amount then it would be very volatile and it would quickly run out of money. So it bets a small amount so that way it will slowly and steadily gain money over time.
 
-   As you gain more money, it will slowly increase the bet amount, until it reaches a maximum of $32,000.
+   As you gain more money, it will slowly increase the bet amount, until it reaches a maximum of $32,000 per bet.
 
 * **Q**: Why does the bot only bet $1 in exhibitions?
 
