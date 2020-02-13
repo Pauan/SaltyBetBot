@@ -1,4 +1,4 @@
-import rust from "rollup-plugin-rust";
+import rust from "@wasm-tool/rollup-plugin-rust";
 import { terser } from "rollup-plugin-terser";
 
 export default {
@@ -17,8 +17,9 @@ export default {
     },
     plugins: [
         rust({
+            serverPath: "js/",
             importHook: function (path) {
-                return "chrome.runtime.getURL(" + JSON.stringify("js/" + path) + ")";
+                return "chrome.runtime.getURL(" + JSON.stringify(path) + ")";
             },
         }),
         //terser(),
