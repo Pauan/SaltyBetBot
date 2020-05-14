@@ -1,8 +1,8 @@
 use std::rc::Rc;
 use std::cmp::Ordering;
-use salty_bet_bot::{api, percentage, decimal, money, display_odds, Loading, log};
+use salty_bet_bot::{api, percentage, percentage_round, decimal, money, display_odds, Loading, log};
 use algorithm::simulation::{Simulation, Simulator, Strategy, Bet, Elo};
-use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_glicko_outcome};
 use algorithm::record::{Record, Winner, Mode, Profit};
 use futures_signals::signal::{Mutable, SignalExt};
 use lazy_static::lazy_static;
@@ -28,9 +28,9 @@ struct Information {
     normal_bettors: f64,
     winrate: f64,
     needed_odds: f64,
-    simulated_bet: f64,
+    //simulated_bet: f64,
     odds: f64,
-    expected_profit: f64,
+    //expected_profit: f64,
     elo: Elo,
 }
 
@@ -82,7 +82,7 @@ impl State {
 
                     // TODO code duplication with bin/saltybet
                     let (left_odds, right_odds) = average_odds(&simulation, &record.left.name, &record.right.name, record.tier, left_bet, right_bet);
-                    let (left_profit, right_profit) = expected_profits(&simulation, &record.left.name, &record.right.name, record.tier, left_bet, right_bet);
+                    //let (left_profit, right_profit) = expected_profits(&simulation, &record.left.name, &record.right.name, record.tier, left_bet, right_bet);
 
                     let left = Information {
                         // TODO avoid this clone somehow ?
@@ -95,9 +95,9 @@ impl State {
                         bet_amount: record.left.bet_amount + if let Bet::Left(amount) = record.bet { amount } else { 0.0 },
                         winrate: left_winrate,
                         needed_odds: left_needed_odds,
-                        simulated_bet: left_bet,
+                        //simulated_bet: left_bet,
                         odds: left_odds,
-                        expected_profit: left_profit,
+                        //expected_profit: left_profit,
                         elo: simulation.elo(&record.left.name, record.tier),
                     };
 
@@ -112,9 +112,9 @@ impl State {
                         bet_amount: record.right.bet_amount + if let Bet::Right(amount) = record.bet { amount } else { 0.0 },
                         winrate: right_winrate,
                         needed_odds: right_needed_odds,
-                        simulated_bet: right_bet,
+                        //simulated_bet: right_bet,
                         odds: right_odds,
-                        expected_profit: right_profit,
+                        //expected_profit: right_profit,
                         elo: simulation.elo(&record.right.name, record.tier),
                     };
 
@@ -369,6 +369,9 @@ fn display_records(records: Vec<Record>) -> Dom {
 
                             // TODO calculate the illuminati and normal bettors correctly (adding 1 depending on whether it bet or not)
                             fn display_character(this: &Information, other: &Information, class: &str) -> Dom {
+                                let win_chance = expected_glicko_outcome(&this.elo.wins.into(), &other.elo.wins.into());
+                                let upset_chance = expected_glicko_outcome(&this.elo.upsets.into(), &other.elo.upsets.into());
+
                                 td(&*CLASS_ALIGN_LEFT, &mut [
                                     field("Name: ", span(class, &this.name), Ordering::Equal),
                                     field("Bet amount: ", span(&*CLASS_MONEY, &money(this.bet_amount)), this.bet_amount.partial_cmp(&other.bet_amount).unwrap()),
@@ -377,13 +380,15 @@ fn display_records(records: Vec<Record>) -> Dom {
                                     field("Normal bettors: ", text(&this.normal_bettors.to_string()), this.normal_bettors.partial_cmp(&other.normal_bettors).unwrap()),
                                     field("Number of past matches (in general): ", text(&this.matches_len.to_string()), this.matches_len.cmp(&other.matches_len)),
                                     field("Number of past matches (in specific): ", text(&this.specific_matches_len.to_string()), this.specific_matches_len.cmp(&0)),
-                                    field("Winrate: ", text(&format!("{}%", this.winrate * 100.0)), this.winrate.partial_cmp(&other.winrate).unwrap()),
-                                    field("Needed odds: ", text(&display_odds(this.needed_odds)), this.needed_odds.partial_cmp(&this.odds).unwrap()),
+                                    field("Winrate: ", text(&percentage(this.winrate)), this.winrate.partial_cmp(&other.winrate).unwrap()),
+                                    //field("Needed odds: ", text(&display_odds(this.needed_odds)), this.needed_odds.partial_cmp(&this.odds).unwrap()),
                                     field("Average odds: ", text(&display_odds(this.odds)), this.odds.partial_cmp(&this.needed_odds).unwrap()),
-                                    display_elo("Wins ELO: ", this.elo.wins, other.elo.wins),
-                                    display_elo("Upsets ELO: ", this.elo.upsets, other.elo.upsets),
-                                    field("Simulated bet amount: ", span(&*CLASS_MONEY, &money(this.simulated_bet)), this.simulated_bet.partial_cmp(&other.simulated_bet).unwrap()),
-                                    field("Simulated expected profit: ", span(&*CLASS_MONEY, &money(this.expected_profit)), this.expected_profit.partial_cmp(&other.expected_profit).unwrap()),
+                                    display_elo("Win ELO: ", this.elo.wins, other.elo.wins),
+                                    display_elo("Upset ELO: ", this.elo.upsets, other.elo.upsets),
+                                    field("Win chance: ", text(&percentage(win_chance)), win_chance.partial_cmp(&0.5).unwrap()),
+                                    field("Upset chance: ", text(&percentage(upset_chance)), upset_chance.partial_cmp(&0.5).unwrap()),
+                                    //field("Simulated bet amount: ", span(&*CLASS_MONEY, &money(this.simulated_bet)), this.simulated_bet.partial_cmp(&other.simulated_bet).unwrap()),
+                                    //field("Simulated expected profit: ", span(&*CLASS_MONEY, &money(this.expected_profit)), this.expected_profit.partial_cmp(&other.expected_profit).unwrap()),
                                 ])
                             }
 
@@ -497,8 +502,8 @@ fn display_records(records: Vec<Record>) -> Dom {
                                         td(&*CLASS_ALIGN_RIGHT, &mut [
                                             match bet_amount {
                                                 Some(a) => match profit {
-                                                    Profit::Gain(b) => span(&*CLASS_GAIN, &percentage(b / a)),
-                                                    Profit::Loss(b) => span(&*CLASS_LOSS, &percentage(-(b / a))),
+                                                    Profit::Gain(b) => span(&*CLASS_GAIN, &percentage_round(b / a)),
+                                                    Profit::Loss(b) => span(&*CLASS_LOSS, &percentage_round(-(b / a))),
                                                     Profit::None => text(""),
                                                 },
                                                 None => text(""),

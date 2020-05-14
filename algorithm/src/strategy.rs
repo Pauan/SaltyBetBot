@@ -170,6 +170,19 @@ pub fn bettors<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64, 
 }
 
 
+pub fn expected_glicko_outcome(left: &glicko2::GlickoRating, right: &glicko2::GlickoRating) -> f64 {
+    fn g(rd: f64) -> f64 {
+        use std::f64::consts::PI;
+        let q = 10.0f64.ln() / 400.0;
+        (1.0 + (3.0 * (q * q)) * (rd * rd) / (PI * PI)).sqrt().recip()
+    }
+
+    let ld = left.deviation * left.deviation;
+    let rd = right.deviation * right.deviation;
+    (1.0 + 10.0f64.powf(-(g((ld + rd).sqrt()) * ((left.value - right.value) / 400.0)))).recip()
+}
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum MoneyStrategy {
     ExpectedBetWinner,
@@ -245,22 +258,10 @@ impl MoneyStrategy {
                 (amount, amount)
             },
             MoneyStrategy::Matchmaking { max_bet } => {
-                fn expected_winrate(left: &glicko2::GlickoRating, right: &glicko2::GlickoRating) -> f64 {
-                    fn g(rd: f64) -> f64 {
-                        use std::f64::consts::PI;
-                        let q = 10.0f64.ln() / 400.0;
-                        (1.0 + (3.0 * q * q) * (rd * rd) / (PI * PI)).sqrt().recip()
-                    }
-
-                    let ld = left.deviation * left.deviation;
-                    let rd = right.deviation * right.deviation;
-                    (1.0 + 10.0f64.powf(-(g((ld + rd).sqrt()) * ((left.value - right.value) / 400.0)))).recip()
-                }
-
                 let left = simulation.elo(left, tier).upsets;
                 let right = simulation.elo(right, tier).upsets;
 
-                let expected = expected_winrate(&left.into(), &right.into());
+                let expected = expected_glicko_outcome(&left.into(), &right.into());
 
                 let left = expected;
                 let right = 1.0 - expected;

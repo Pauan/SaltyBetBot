@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{server_log, decimal, spawn, wait_until_defined, Debouncer, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, money, display_odds, get_extension_url, reload_page, log, NodeListIter};
+use salty_bet_bot::{server_log, percentage, decimal, spawn, wait_until_defined, Debouncer, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, display_odds, get_extension_url, reload_page, log, NodeListIter};
 use salty_bet_bot::api::{records_get_all, records_insert, MAX_MATCH_TIME_LIMIT, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
-use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors};
+use algorithm::strategy::{MATCHMAKING_STRATEGY, TOURNAMENT_STRATEGY, CustomStrategy, winrates, average_odds, needed_odds, expected_profits, bettors, expected_glicko_outcome};
 use futures_core::Stream;
 use futures_util::stream::StreamExt;
 use futures_signals::map_ref;
@@ -737,22 +737,45 @@ impl InfoSide {
     }
 
     fn render(&self, other: &Self, color: &str) -> Dom {
-        fn info_bar<A, S, O, F>(this: &Mutable<Option<A>>, other: S, mut ord: O, mut f: F) -> Dom
+        lazy_static! {
+            static ref CLASS: String = class! {
+                .style("flex", "1")
+                .style("border-right", "1px solid #6441a5")
+                .style("margin-right", "-1px")
+            };
+
+            static ref CLASS_TEXT: String = class! {
+                .style("display", "flex")
+                .style("align-items", "center")
+                .style("justify-content", "center")
+                .style("height", "50px")
+                .style("padding", "5px")
+                .style("color", "white")
+                .style("font-size", "15px")
+                .style("box-shadow", "hsla(0, 0%, 0%, 0.5) 0px -1px 2px inset")
+                .style("margin-bottom", "5px")
+            };
+
+            static ref INFO_BAR: String = class! {
+                .style("display", "flex")
+                .style("align-items", "center")
+                .style("padding", "0px 7px")
+                .style("color", "white")
+            };
+
+            static ref SEPARATOR: String = class! {
+                .style("border-top", "1px solid #6441a5")
+                .style("margin", "5px 0px")
+            };
+        }
+
+        fn info_bar<A, S, O, F>(name: &'static str, this: &Mutable<Option<A>>, other: S, mut ord: O, mut f: F) -> Dom
             where A: Copy + 'static,
                   S: Signal<Item = Option<A>> + 'static,
                   O: FnMut(&A, &A) -> Option<Ordering> + 'static,
                   F: FnMut(A) -> String + 'static {
-            lazy_static! {
-                static ref CLASS: String = class! {
-                    .style("display", "flex")
-                    .style("align-items", "center")
-                    .style("padding", "0px 7px")
-                    .style("color", "white")
-                };
-            }
-
             html!("div", {
-                .class(&*CLASS)
+                .class(&*INFO_BAR)
 
                 .style_signal("color", map_ref! {
                     let this = this.signal(),
@@ -773,42 +796,69 @@ impl InfoSide {
                 })
 
                 .text_signal(this.signal().map(move |x| {
-                    // TODO use RefFn
-                    x.map(|x| f(x)).unwrap_or_else(|| "".to_string())
+                    match x {
+                        Some(x) => format!("{}: {}", name, f(x)),
+                        None => format!("{}:", name),
+                    }
                 }))
             })
         }
 
-        fn info_bar_elo<S, F>(this: &Mutable<Option<Elo>>, other: S, f: F, name: &'static str) -> Dom
+        fn info_bar_elo<S, F>(name: &'static str, this: &Mutable<Option<Elo>>, other: S, f: F) -> Dom
             where S: Signal<Item = Option<Elo>> + 'static,
                   F: Fn(&Elo) -> glicko2::Glicko2Rating + Copy + 'static {
-            info_bar(this, other,
+            info_bar(name, this, other,
                 move |x, y| f(x).value.partial_cmp(&f(y).value),
                 move |x| {
                     let x: glicko2::GlickoRating = f(&x).into();
-                    format!("{}: {} (\u{00B1} {})", name, decimal(x.value), decimal(x.deviation))
+                    format!("{} (\u{00B1} {})", decimal(x.value), decimal(x.deviation))
                 }
             )
         }
 
-        lazy_static! {
-            static ref CLASS: String = class! {
-                .style("flex", "1")
-                .style("border-right", "1px solid #6441a5")
-                .style("margin-right", "-1px")
-            };
+        fn info_bar_chance<F>(name: &'static str, this: &Mutable<Option<Elo>>, other: &Mutable<Option<Elo>>, f: F) -> Dom
+            where F: Fn(&Elo, &Elo) -> f64 + Copy + 'static {
 
-            static ref CLASS_TEXT: String = class! {
-                .style("display", "flex")
-                .style("align-items", "center")
-                .style("justify-content", "center")
-                .style("height", "50px")
-                .style("padding", "5px")
-                .style("color", "white")
-                .style("font-size", "15px")
-                .style("box-shadow", "hsla(0, 0%, 0%, 0.5) 0px -1px 2px inset")
-                .style("margin-bottom", "2px")
-            };
+            html!("div", {
+                .class(&*INFO_BAR)
+
+                .style_signal("color", map_ref! {
+                    let this = this.signal(),
+                    let other = other.signal() => move {
+                        let cmp = this.and_then(|this| {
+                            other.and_then(|other| {
+                                f(&this, &other).partial_cmp(&0.5)
+                            })
+                        }).unwrap_or(Ordering::Equal);
+
+                        // TODO different color if it's None ?
+                        match cmp {
+                            Ordering::Equal => "white",
+                            Ordering::Less => "lightcoral",
+                            Ordering::Greater => "limegreen",
+                        }
+                    }
+                })
+
+                .text_signal(map_ref! {
+                    let this = this.signal(),
+                    let other = other.signal() => move {
+                        this.and_then(|this| {
+                            other.map(|other| {
+                                format!("{}: {}%", name, f(&this, &other) * 100.0)
+                            })
+                        }).unwrap_or_else(|| {
+                            format!("{}:", name)
+                        })
+                    }
+                })
+            })
+        }
+
+        fn separator() -> Dom {
+            html!("div", {
+                .class(&*SEPARATOR)
+            })
         }
 
         html!("div", {
@@ -823,40 +873,53 @@ impl InfoSide {
                     }))
                 }),
 
-                info_bar(&self.matches_len, other.matches_len.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Number of past matches (in general): {}", x)
+                info_bar("Number of past matches (in general)", &self.matches_len, other.matches_len.signal(), PartialOrd::partial_cmp, |x| {
+                    x.to_string()
                 }),
 
-                info_bar(&self.specific_matches_len, always(Some(0)), PartialOrd::partial_cmp, |x| {
-                    format!("Number of past matches (in specific): {}", x)
+                info_bar("Number of past matches (in specific)", &self.specific_matches_len, always(Some(0)), PartialOrd::partial_cmp, |x| {
+                    x.to_string()
                 }),
 
-                info_bar(&self.bettors, other.bettors.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Bettors: {}%", (-x) * 100.0)
+                separator(),
+
+                info_bar("Bettors", &self.bettors, other.bettors.signal(), PartialOrd::partial_cmp, |x| {
+                    percentage(-x)
                 }),
 
-                info_bar(&self.winrate, other.winrate.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Winrate: {}%", x * 100.0)
+                info_bar("Winrate", &self.winrate, other.winrate.signal(), PartialOrd::partial_cmp, |x| {
+                    percentage(x)
                 }),
 
-                info_bar(&self.needed_odds, self.odds.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Needed odds: {}", display_odds(x))
+                /*info_bar("Needed odds", &self.needed_odds, self.odds.signal(), PartialOrd::partial_cmp, |x| {
+                    display_odds(x)
+                }),*/
+
+                info_bar("Average odds", &self.odds, self.needed_odds.signal(), PartialOrd::partial_cmp, |x| {
+                    display_odds(x)
                 }),
 
-                info_bar(&self.odds, self.needed_odds.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Average odds: {}", display_odds(x))
+                separator(),
+
+                info_bar_elo("Win ELO", &self.elo, other.elo.signal(), |x| x.wins),
+                info_bar_elo("Upset ELO", &self.elo, other.elo.signal(), |x| x.upsets),
+
+                separator(),
+
+                info_bar_chance("Win chance", &self.elo, &other.elo, |x, y| expected_glicko_outcome(&x.wins.into(), &y.wins.into())),
+                info_bar_chance("Upset chance", &self.elo, &other.elo, |x, y| expected_glicko_outcome(&x.upsets.into(), &y.upsets.into())),
+
+                /*separator(),
+
+                info_bar("Simulated bet amount", &self.bet_amount, other.bet_amount.signal(), PartialOrd::partial_cmp, |x| {
+                    money(x)
                 }),
 
-                info_bar_elo(&self.elo, other.elo.signal(), |x| x.wins, "Wins ELO"),
-                info_bar_elo(&self.elo, other.elo.signal(), |x| x.upsets, "Upsets ELO"),
+                info_bar("Simulated expected profit", &self.expected_profit, other.expected_profit.signal(), PartialOrd::partial_cmp, |x| {
+                    money(x)
+                }),*/
 
-                info_bar(&self.bet_amount, other.bet_amount.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Simulated bet amount: {}", money(x))
-                }),
-
-                info_bar(&self.expected_profit, other.expected_profit.signal(), PartialOrd::partial_cmp, |x| {
-                    format!("Simulated expected profit: {}", money(x))
-                }),
+                separator(),
             ])
         })
     }

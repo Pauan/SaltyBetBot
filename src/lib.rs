@@ -1109,10 +1109,14 @@ pub fn add_days(date: f64, days: u32) -> f64 {
 }
 
 
-pub fn percentage(p: f64) -> String {
+pub fn percentage_round(p: f64) -> String {
     // Rounds to 2 digits
     // https://stackoverflow.com/a/28656825/449477
     format!("{:.2}%", p * 100.0)
+}
+
+pub fn percentage(p: f64) -> String {
+    format!("{}%", p * 100.0)
 }
 
 pub fn money(m: f64) -> String {
