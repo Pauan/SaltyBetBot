@@ -1,7 +1,7 @@
 use crate::random;
 use crate::record::{Tier, Record};
 use crate::genetic::NeuralNetwork;
-use crate::simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT};
+use crate::simulation::{Bet, Simulator, Strategy, lookup, SALT_MINE_AMOUNT, TOURNAMENT_BALANCE, NUMBER_OF_BOTS};
 
 
 //const MATCHMAKING_STRATEGY: RandomStrategy = RandomStrategy::Left;
@@ -154,7 +154,7 @@ pub fn winrates<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64,
 }
 
 pub fn average_odds<A>(simulation: &A, left: &str, right: &str, tier: Tier, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, tier, left_bet, right_bet, |records, name, bet| lookup::odds(records.into_iter(), name, bet))
+    weighted(simulation, left, right, tier, left_bet, right_bet, |records, name, bet| lookup::odds(records.into_iter(), name, bet * NUMBER_OF_BOTS))
 }
 
 pub fn needed_odds<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64, f64) where A: Simulator {
@@ -162,7 +162,7 @@ pub fn needed_odds<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f
 }
 
 pub fn expected_profits<A>(simulation: &A, left: &str, right: &str, tier: Tier, left_bet: f64, right_bet: f64) -> (f64, f64) where A: Simulator {
-    weighted(simulation, left, right, tier, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet))
+    weighted(simulation, left, right, tier, left_bet, right_bet, |records, name, bet| lookup::earnings(records, name, bet * NUMBER_OF_BOTS))
 }
 
 pub fn bettors<A>(simulation: &A, left: &str, right: &str, tier: Tier) -> (f64, f64) where A: Simulator {
@@ -248,6 +248,26 @@ impl MoneyStrategy {
             MoneyStrategy::Fixed(x) => (*x, *x),
             MoneyStrategy::AllIn => (current_money, current_money),
             MoneyStrategy::Tournament => {
+                /*let left = simulation.elo(left, tier).wins;
+                let right = simulation.elo(right, tier).wins;
+
+                let left_winrate = expected_glicko_outcome(&left.into(), &right.into());
+                let right_winrate = 1.0 - left_winrate;
+
+                left_winrate / right_winrate
+
+                TOURNAMENT_BALANCE
+
+                if expected > 0.5 {
+                    (1.0, 0.0)
+
+                } else if expected < 0.5 {
+                    (0.0, 1.0)
+
+                } else {
+                    (0.0, 0.0)
+                }*/
+
                 let bet = range_inclusive(normalize(current_money, 100_000.0, 60_000.0), 1.0 / 4.0, 1.0) * current_money;
                 (bet, bet)
             },
@@ -346,15 +366,15 @@ impl BetStrategy {
             BetStrategy::BetDifference => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::bet(records, name, bet)),
             BetStrategy::BetDifferenceWinner => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::winner_bet(records, name, bet)),
             BetStrategy::Odds => average_odds(simulation, left, right, *tier, left_bet, right_bet),
-            BetStrategy::OddsDifference => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet)),
-            BetStrategy::WinnerOdds => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet)),
-            BetStrategy::Upsets => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet)),
+            BetStrategy::OddsDifference => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::odds_difference(&records, name, bet * NUMBER_OF_BOTS)),
+            BetStrategy::WinnerOdds => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::winner_odds(records, name, bet * NUMBER_OF_BOTS)),
+            BetStrategy::Upsets => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::upsets(records, name, bet * NUMBER_OF_BOTS)),
             BetStrategy::Bettors => bettors(simulation, left, right, *tier),
             BetStrategy::BettorsRatio => weighted(simulation, left, right, *tier, 0.0, 0.0, |records, name, _bet| lookup::bettors_ratio(records, name)),
             BetStrategy::IlluminatiBettors => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::illuminati_bettors(records, name)),
             BetStrategy::NormalBettors => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::normal_bettors(records, name)),
             BetStrategy::BetAmount => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::bet_amount(records, name)),
-            BetStrategy::BetPercentage => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::bet_percentage(records, name, bet)),
+            BetStrategy::BetPercentage => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, bet| lookup::bet_percentage(records, name, bet * NUMBER_OF_BOTS)),
             BetStrategy::Wins => winrates(simulation, left, right, *tier),
             BetStrategy::Losses => weighted(simulation, left, right, *tier, left_bet, right_bet, |records, name, _bet| lookup::losses(records, name)),
             BetStrategy::Left => (1.0, 0.0),
@@ -467,7 +487,22 @@ impl BetStrategy {
                 //(left.value, right.value)
             },
             BetStrategy::Tournament => {
-                let (left_winrate, right_winrate) = winrates(simulation, left, right, *tier);
+                let left = simulation.elo(left, *tier).wins;
+                let right = simulation.elo(right, *tier).wins;
+
+                let expected = expected_glicko_outcome(&left.into(), &right.into());
+
+                if expected > 0.5 {
+                    (1.0, 0.0)
+
+                } else if expected < 0.5 {
+                    (0.0, 1.0)
+
+                } else {
+                    (0.0, 0.0)
+                }
+
+                /*let (left_winrate, right_winrate) = winrates(simulation, left, right, *tier);
 
                 assert_not_nan(left_winrate);
                 assert_not_nan(right_winrate);
@@ -486,7 +521,7 @@ impl BetStrategy {
 
                 } else {
                     (0.0, 0.0)
-                }
+                }*/
             },
             BetStrategy::Genetic(strategy) => {
                 let (left, right) = strategy.choose(simulation, tier, left, right, left_bet, right_bet);

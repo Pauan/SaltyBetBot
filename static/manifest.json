@@ -18,12 +18,10 @@
   },
   "content_scripts": [{
     "matches": [
-      "http://www.saltybet.com/",
-      "https://www.saltybet.com/",
-      "http://mugen.saltybet.com/",
-      "https://mugen.saltybet.com/",
-      "http://live.saltybet.com/",
-      "https://live.saltybet.com/"
+      "*://saltybet.com/",
+      "*://www.saltybet.com/",
+      "*://mugen.saltybet.com/",
+      "*://live.saltybet.com/"
     ],
     "js": [
       "saltybet.js"
@@ -32,7 +30,7 @@
     "all_frames": false
   }, {
     "matches": [
-      "https://*.twitch.tv/embed/saltybet/chat?darkpopout"
+      "*://*.twitch.tv/embed/saltybet/chat*"
     ],
     "js": [
       "twitch_chat.js"
