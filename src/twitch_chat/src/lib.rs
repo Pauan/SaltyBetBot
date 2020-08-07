@@ -213,8 +213,12 @@ fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
     let node: Element = node.dyn_into().unwrap();
 
     // This removes the Twitch badges
-    // TODO quite hacky, make this more robust
-    node.remove_child(&node.first_child().unwrap()).unwrap();
+    for node in NodeListIter::new(node.query_selector_all("img.chat-badge").unwrap()) {
+        node.parent_node()
+            .unwrap()
+            .remove_child(&node)
+            .unwrap();
+    }
 
     // Hack to replace emotes with their text version, needed because sometimes fighters have emotes in their name
     // TODO can this be made better somehow ?

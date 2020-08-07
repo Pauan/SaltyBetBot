@@ -215,16 +215,16 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     real.original = state;
     return real;
 }
-function __wbg_adapter_22(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures__invoke1_mut__h16b4e8e694f4fff3(arg0, arg1, addHeapObject(arg2));
+function __wbg_adapter_22(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures__invoke0_mut__h102863394cbc8540(arg0, arg1);
 }
 
-function __wbg_adapter_25(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures__invoke2_mut__h382718319fa75f0d(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wbg_adapter_25(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures__invoke1_mut__h2f5c8597c05d45a7(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wbg_adapter_28(arg0, arg1) {
-    wasm.wasm_bindgen__convert__closures__invoke0_mut__h2bb1b06680864bf6(arg0, arg1);
+function __wbg_adapter_28(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures__invoke2_mut__h3001fc61e292c98d(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 function getCachedStringFromWasm0(ptr, len) {
@@ -293,17 +293,6 @@ async function init(input) {
         var ret = getObject(arg0) instanceof Element;
         return ret;
     };
-    imports.wbg.__wbg_firstChild_cc345cf09851e11c = function(arg0) {
-        var ret = getObject(arg0).firstChild;
-        return isLikeNone(ret) ? 0 : addHeapObject(ret);
-    };
-    imports.wbg.__wbg_removeChild_d8035999cf171601 = handleError(function(arg0, arg1) {
-        var ret = getObject(arg0).removeChild(getObject(arg1));
-        return addHeapObject(ret);
-    });
-    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
-        takeObject(arg0);
-    };
     imports.wbg.__wbg_querySelectorAll_3fbedc20d6e3441c = handleError(function(arg0, arg1, arg2) {
         var v0 = getCachedStringFromWasm0(arg1, arg2);
         var ret = getObject(arg0).querySelectorAll(v0);
@@ -317,13 +306,20 @@ async function init(input) {
         var ret = getObject(arg0)[arg1 >>> 0];
         return isLikeNone(ret) ? 0 : addHeapObject(ret);
     };
-    imports.wbg.__wbg_instanceof_HtmlImageElement_e55a63f2097dbe2c = function(arg0) {
-        var ret = getObject(arg0) instanceof HTMLImageElement;
-        return ret;
-    };
     imports.wbg.__wbg_parentNode_3b2b0c389a4d6045 = function(arg0) {
         var ret = getObject(arg0).parentNode;
         return isLikeNone(ret) ? 0 : addHeapObject(ret);
+    };
+    imports.wbg.__wbg_removeChild_d8035999cf171601 = handleError(function(arg0, arg1) {
+        var ret = getObject(arg0).removeChild(getObject(arg1));
+        return addHeapObject(ret);
+    });
+    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
+        takeObject(arg0);
+    };
+    imports.wbg.__wbg_instanceof_HtmlImageElement_e55a63f2097dbe2c = function(arg0) {
+        var ret = getObject(arg0) instanceof HTMLImageElement;
+        return ret;
     };
     imports.wbg.__wbg_alt_6c026bdf0f248c73 = function(arg0, arg1) {
         var ret = getObject(arg1).alt;
@@ -589,15 +585,15 @@ imports.wbg.__wbg_resolve_708df7651c8929b8 = function(arg0) {
     var ret = Promise.resolve(getObject(arg0));
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper115 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper120 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_28);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper96 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper118 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_22);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper118 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper98 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_25);
     return addHeapObject(ret);
 };
@@ -614,5 +610,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(chrome.runtime.getURL("js/twitch-chat.wasm")).catch(console.error);
+init(new URL('assets/twitch-chat-ecb18cb1.wasm', import.meta.url).href).catch(console.error);
 //# sourceMappingURL=twitch_chat.js.map
