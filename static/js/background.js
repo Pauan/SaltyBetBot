@@ -257,33 +257,33 @@ function __wbg_adapter_26(arg0, arg1, arg2) {
     }
 }
 
-function __wbg_adapter_29(arg0, arg1, arg2, arg3, arg4) {
-    var ptr0 = passStringToWasm0(arg2, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len0 = WASM_VECTOR_LEN;
-    var ret = wasm.wasm_bindgen__convert__closures__invoke3_mut__h1490e21fe70bb1a9(arg0, arg1, ptr0, len0, addHeapObject(arg3), addHeapObject(arg4));
-    return ret !== 0;
-}
-
-function __wbg_adapter_32(arg0, arg1) {
-    wasm.wasm_bindgen__convert__closures__invoke0_mut__h3615d8d8f987eb2d(arg0, arg1);
-}
-
-function __wbg_adapter_35(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_29(arg0, arg1, arg2, arg3) {
     var ptr0 = passStringToWasm0(arg2, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
     wasm.wasm_bindgen__convert__closures__invoke2_mut__h8ab3fd5bc463744f(arg0, arg1, ptr0, len0, addHeapObject(arg3));
 }
 
-function __wbg_adapter_38(arg0, arg1, arg2) {
+function __wbg_adapter_32(arg0, arg1, arg2) {
     wasm.wasm_bindgen__convert__closures__invoke1_mut__h0ae5db750b0008c3(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wbg_adapter_41(arg0, arg1, arg2) {
+function __wbg_adapter_35(arg0, arg1, arg2) {
     try {
         wasm.wasm_bindgen__convert__closures__invoke1_mut_ref__h4d0312afc97f5da3(arg0, arg1, addBorrowedObject(arg2));
     } finally {
         heap[stack_pointer++] = undefined;
     }
+}
+
+function __wbg_adapter_38(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures__invoke0_mut__h3615d8d8f987eb2d(arg0, arg1);
+}
+
+function __wbg_adapter_41(arg0, arg1, arg2, arg3, arg4) {
+    var ptr0 = passStringToWasm0(arg2, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len0 = WASM_VECTOR_LEN;
+    var ret = wasm.wasm_bindgen__convert__closures__invoke3_mut__h1490e21fe70bb1a9(arg0, arg1, ptr0, len0, addHeapObject(arg3), addHeapObject(arg4));
+    return ret !== 0;
 }
 
 function getCachedStringFromWasm0(ptr, len) {
@@ -703,28 +703,28 @@ imports.wbg.__wbg_resolve_708df7651c8929b8 = function(arg0) {
     var ret = Promise.resolve(getObject(arg0));
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper330 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_35);
-    return addHeapObject(ret);
-};
-imports.wbg.__wbindgen_closure_wrapper369 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_29);
-    return addHeapObject(ret);
-};
-imports.wbg.__wbindgen_closure_wrapper329 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper994 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_32);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper994 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper374 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_35);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper329 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_38);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper374 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper363 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_26);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper363 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper369 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_41);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper330 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_29);
     return addHeapObject(ret);
 };
 
@@ -740,5 +740,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(new URL('assets/background-af8ed48f.wasm', import.meta.url).href).catch(console.error);
+init(new URL('assets/background-cfe9e3a4.wasm', import.meta.url).href).catch(console.error);
 //# sourceMappingURL=background.js.map

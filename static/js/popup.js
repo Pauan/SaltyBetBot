@@ -280,15 +280,15 @@ function __wbg_adapter_25(arg0, arg1, arg2) {
 }
 
 function __wbg_adapter_28(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures__invoke1_mut__h2f5c8597c05d45a7(arg0, arg1, addHeapObject(arg2));
-}
-
-function __wbg_adapter_31(arg0, arg1, arg2) {
     try {
         wasm.wasm_bindgen__convert__closures__invoke1_mut_ref__h3ce9c88eb1294225(arg0, arg1, addBorrowedObject(arg2));
     } finally {
         heap[stack_pointer++] = undefined;
     }
+}
+
+function __wbg_adapter_31(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures__invoke1_mut__h2f5c8597c05d45a7(arg0, arg1, addHeapObject(arg2));
 }
 
 function getCachedStringFromWasm0(ptr, len) {
@@ -684,20 +684,20 @@ imports.wbg.__wbg_instanceof_Window_17fdb5cd280d476d = function(arg0) {
     var ret = getObject(arg0) instanceof Window;
     return ret;
 };
+imports.wbg.__wbindgen_closure_wrapper801 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_28);
+    return addHeapObject(ret);
+};
 imports.wbg.__wbindgen_closure_wrapper800 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_22);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper926 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_31);
     return addHeapObject(ret);
 };
 imports.wbg.__wbindgen_closure_wrapper810 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_25);
-    return addHeapObject(ret);
-};
-imports.wbg.__wbindgen_closure_wrapper801 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_22);
-    return addHeapObject(ret);
-};
-imports.wbg.__wbindgen_closure_wrapper926 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_28);
     return addHeapObject(ret);
 };
 
@@ -713,5 +713,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(new URL('assets/popup-f7f293ad.wasm', import.meta.url).href).catch(console.error);
+init(chrome.runtime.getURL("js/assets/popup-57c34caa.wasm")).catch(console.error);
 //# sourceMappingURL=popup.js.map

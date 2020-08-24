@@ -585,16 +585,16 @@ imports.wbg.__wbg_resolve_708df7651c8929b8 = function(arg0) {
     var ret = Promise.resolve(getObject(arg0));
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper120 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_28);
-    return addHeapObject(ret);
-};
 imports.wbg.__wbindgen_closure_wrapper118 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_22);
     return addHeapObject(ret);
 };
 imports.wbg.__wbindgen_closure_wrapper98 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_25);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper120 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 32, __wbg_adapter_28);
     return addHeapObject(ret);
 };
 
@@ -610,5 +610,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(new URL('assets/twitch-chat-ecb18cb1.wasm', import.meta.url).href).catch(console.error);
+init(new URL('assets/twitch-chat-fdc4b37e.wasm', import.meta.url).href).catch(console.error);
 //# sourceMappingURL=twitch_chat.js.map

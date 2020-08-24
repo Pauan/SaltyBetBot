@@ -739,20 +739,20 @@ imports.wbg.__wbg_value_c8fa22fd1a96b1fc = function(arg0, arg1) {
     getInt32Memory0()[arg0 / 4 + 1] = len0;
     getInt32Memory0()[arg0 / 4 + 0] = ptr0;
 };
-imports.wbg.__wbindgen_closure_wrapper260 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 24, __wbg_adapter_29);
-    return addHeapObject(ret);
-};
-imports.wbg.__wbindgen_closure_wrapper645 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 24, __wbg_adapter_32);
-    return addHeapObject(ret);
-};
 imports.wbg.__wbindgen_closure_wrapper1187 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 24, __wbg_adapter_26);
     return addHeapObject(ret);
 };
+imports.wbg.__wbindgen_closure_wrapper260 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 24, __wbg_adapter_29);
+    return addHeapObject(ret);
+};
 imports.wbg.__wbindgen_closure_wrapper258 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 24, __wbg_adapter_35);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper111 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 24, __wbg_adapter_32);
     return addHeapObject(ret);
 };
 
@@ -768,5 +768,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(new URL('assets/chart-43971164.wasm', import.meta.url).href).catch(console.error);
+init(new URL('assets/chart-2641553c.wasm', import.meta.url).href).catch(console.error);
 //# sourceMappingURL=chart.js.map

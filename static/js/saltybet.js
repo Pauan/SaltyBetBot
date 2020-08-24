@@ -239,18 +239,18 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     real.original = state;
     return real;
 }
-function __wbg_adapter_24(arg0, arg1) {
-    wasm.wasm_bindgen__convert__closures__invoke0_mut__h0bcf5a06187b0b75(arg0, arg1);
-}
-
-function __wbg_adapter_27(arg0, arg1, arg2) {
+function __wbg_adapter_24(arg0, arg1, arg2) {
     wasm.wasm_bindgen__convert__closures__invoke1_mut__h2f5c8597c05d45a7(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wbg_adapter_30(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_27(arg0, arg1, arg2, arg3) {
     var ptr0 = passStringToWasm0(arg2, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     var len0 = WASM_VECTOR_LEN;
     wasm.wasm_bindgen__convert__closures__invoke2_mut__h440b75a8ed39e002(arg0, arg1, ptr0, len0, addHeapObject(arg3));
+}
+
+function __wbg_adapter_30(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures__invoke0_mut__h0bcf5a06187b0b75(arg0, arg1);
 }
 
 let stack_pointer = 32;
@@ -749,20 +749,20 @@ imports.wbg.__wbg_setProperty_74426e9bb01e1cae = handleError(function(arg0, arg1
     var v2 = getCachedStringFromWasm0(arg5, arg6);
     getObject(arg0).setProperty(v0, v1, v2);
 });
+imports.wbg.__wbindgen_closure_wrapper1008 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_27);
+    return addHeapObject(ret);
+};
 imports.wbg.__wbindgen_closure_wrapper126 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_33);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper1008 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_30);
-    return addHeapObject(ret);
-};
 imports.wbg.__wbindgen_closure_wrapper1117 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_27);
+    var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_24);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper109 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_24);
+imports.wbg.__wbindgen_closure_wrapper835 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 44, __wbg_adapter_30);
     return addHeapObject(ret);
 };
 
@@ -778,5 +778,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(new URL('assets/saltybet-acdb635b.wasm', import.meta.url).href).catch(console.error);
+init(new URL('assets/saltybet-97b27127.wasm', import.meta.url).href).catch(console.error);
 //# sourceMappingURL=saltybet.js.map
