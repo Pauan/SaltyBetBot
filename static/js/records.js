@@ -517,12 +517,12 @@ imports.wbg.__wbg_setProperty_eb2aa739ebbea3e1 = handleError(function(arg0, arg1
     var v2 = getCachedStringFromWasm0(arg5, arg6);
     getObject(arg0).setProperty(v0, v1, v2);
 });
-imports.wbg.__wbindgen_closure_wrapper834 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 39, __wbg_adapter_20);
-    return addHeapObject(ret);
-};
 imports.wbg.__wbindgen_closure_wrapper938 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 39, __wbg_adapter_23);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper834 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 39, __wbg_adapter_20);
     return addHeapObject(ret);
 };
 

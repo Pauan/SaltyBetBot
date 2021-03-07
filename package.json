@@ -3,7 +3,8 @@
   "name": "saltybetbot",
   "version": "0.1.0",
   "scripts": {
-    "build": "rimraf static/js && rollup --config"
+    "build": "rimraf static/js && rollup --config",
+    "records": "cd bin/process-records && cargo run --release"
   },
   "devDependencies": {
     "@wasm-tool/rollup-plugin-rust": "^1.0.0",
