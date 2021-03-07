@@ -687,20 +687,20 @@ imports.wbg.__wbg_instanceof_Window_e8f84259147dce74 = function(arg0) {
     var ret = getObject(arg0) instanceof Window;
     return ret;
 };
-imports.wbg.__wbindgen_closure_wrapper800 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper799 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_26);
-    return addHeapObject(ret);
-};
-imports.wbg.__wbindgen_closure_wrapper815 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_20);
     return addHeapObject(ret);
 };
 imports.wbg.__wbindgen_closure_wrapper931 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_29);
     return addHeapObject(ret);
 };
-imports.wbg.__wbindgen_closure_wrapper799 = function(arg0, arg1, arg2) {
+imports.wbg.__wbindgen_closure_wrapper800 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_23);
+    return addHeapObject(ret);
+};
+imports.wbg.__wbindgen_closure_wrapper815 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_20);
     return addHeapObject(ret);
 };
 
@@ -716,5 +716,5 @@ wasm.__wbindgen_start();
 return wasm;
 }
 
-init(new URL('assets/popup-c5acd865.wasm', import.meta.url).href).catch(console.error);
+init(new URL('assets/popup.wasm', import.meta.url).href).catch(console.error);
 //# sourceMappingURL=popup.js.map

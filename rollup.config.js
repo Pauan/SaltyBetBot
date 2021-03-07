@@ -14,6 +14,7 @@ export default {
         dir: "static/js",
         format: "esm",
         sourcemap: true,
+        assetFileNames: "assets/[name][extname]",
     },
     plugins: [
         rust({

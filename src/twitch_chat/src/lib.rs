@@ -206,19 +206,26 @@ fn parse_message(input: &str, date: f64) -> Option<WaifuMessage> {
 }
 
 
+fn remove_nodes(node: &Element, selector: &str) {
+    for node in NodeListIter::new(node.query_selector_all(selector).unwrap()) {
+        node.parent_node()
+            .unwrap()
+            .remove_child(&node)
+            .unwrap();
+    }
+}
+
 fn get_waifu_message(node: Node, date: f64) -> Option<WaifuMessage> {
     // This is to avoid mutating the DOM of the chat
     let node = node.clone_node_with_deep(true).unwrap();
 
     let node: Element = node.dyn_into().unwrap();
 
+    // This removes the timestamps
+    remove_nodes(&node, ".chat-line__timestamp");
+
     // This removes the Twitch badges
-    for node in NodeListIter::new(node.query_selector_all("img.chat-badge").unwrap()) {
-        node.parent_node()
-            .unwrap()
-            .remove_child(&node)
-            .unwrap();
-    }
+    remove_nodes(&node, "img.chat-badge");
 
     // Hack to replace emotes with their text version, needed because sometimes fighters have emotes in their name
     // TODO can this be made better somehow ?
