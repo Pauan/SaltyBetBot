@@ -9,6 +9,8 @@ FAQ
 
    As you gain more money, it will slowly increase the bet amount, until it reaches a maximum of $32,000 per bet.
 
+   In addition, if the match outcome is uncertain, then it will bet low, in order to prevent losing too much money.
+
 * **Q**: Why does the bot only bet $1 in exhibitions?
 
    **A**: It's not possible for bots to bet in exhibitions, because there just isn't enough information (the SaltyBet website does not tell the character names or the palettes, it only tells the team names).
