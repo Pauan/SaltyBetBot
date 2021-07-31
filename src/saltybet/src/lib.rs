@@ -151,14 +151,20 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
 
                 match bet {
                     Bet::Left(amount) => {
-                        if !amount.is_nan() {
+                        if amount.is_nan() {
+                            server_log!("Invalid bet: {:#?} {} {:#?}", current_balance, in_tournament, open);
+
+                        } else {
                             wager_box.set_value(&amount.to_string());
                             click(&left_button);
                             return Some(());
                         }
                     },
                     Bet::Right(amount) => {
-                        if !amount.is_nan() {
+                        if amount.is_nan() {
+                            server_log!("Invalid bet: {:#?} {} {:#?}", current_balance, in_tournament, open);
+
+                        } else {
                             wager_box.set_value(&amount.to_string());
                             click(&right_button);
                             return Some(());
@@ -168,9 +174,10 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
                         return Some(());
                     },
                 }
-            }
 
-            server_log!("Invalid state: {:#?} {:#?} {:#?} {:#?} {:#?}", current_balance, open, left_name, right_name, in_tournament);
+            } else {
+                server_log!("Invalid state: {:#?} {:#?} {:#?} {:#?} {:#?}", current_balance, open, left_name, right_name, in_tournament);
+            }
         }
 
         None

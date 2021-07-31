@@ -489,6 +489,7 @@ pub async fn main_js() -> Result<(), JsValue> {
             "records/SaltyBet Records 3.json",
             "records/SaltyBet Records 4.json",
             "records/SaltyBet Records 5.json",
+            "records/SaltyBet Records 6.json",
         ]);
 
         let (old_records, new_records) = try_join(old_records, new_records).await?;
