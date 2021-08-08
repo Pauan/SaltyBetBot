@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 algorithm = { path = "../../algorithm" }
 salty_bet_bot = { path = "../.." }
 lazy_static = "1.0.0"
+discard = "1.0.0"
 dominator = "0.5.0"
 glicko2 = "0.3.0"
 gloo-timers = "0.2.0"

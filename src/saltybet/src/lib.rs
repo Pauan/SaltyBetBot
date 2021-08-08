@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::cell::RefCell;
-use salty_bet_bot::{server_log, percentage, decimal, spawn, wait_until_defined, Debouncer, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, display_odds, get_extension_url, reload_page, log, NodeListIter};
+use salty_bet_bot::{server_log, percentage, decimal, spawn, wait_until_defined, Debouncer, parse_f64, parse_money, parse_name, ClientPort, get_text_content, to_input_element, get_value, click, query, query_all, display_odds, get_extension_url, reload_page, log, NodeListIter, MutationObserver};
 use salty_bet_bot::api::{records_get_all, records_insert, MAX_MATCH_TIME_LIMIT, WaifuMessage, WaifuBetsOpen, WaifuBetsClosed};
 use algorithm::record::{Record, Character, Winner, Mode, Tier};
 use algorithm::simulation::{Bet, Simulation, Simulator, Strategy, Elo};
@@ -11,11 +11,12 @@ use futures_util::stream::StreamExt;
 use futures_signals::map_ref;
 use futures_signals::signal::{always, Mutable, Signal, SignalExt};
 use dominator::{Dom, HIGHEST_ZINDEX, clone, stylesheet, html, events, class};
-use gloo_timers::callback::{Timeout, Interval};
-use web_sys::{Node, Element, NodeList};
+use gloo_timers::callback::Timeout;
+use web_sys::{Node, Element, NodeList, MutationObserverInit};
 use lazy_static::lazy_static;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use discard::DiscardOnDrop;
 
 
 const SHOULD_BET: bool = true;
@@ -41,20 +42,33 @@ pub struct Information {
 }
 
 
-fn fallback_bet(_state: &mut State) -> Option<()> {
-    let wager_box = query("#wager").and_then(to_input_element)?;
-
-    let left_button = query("#player1:enabled").and_then(to_input_element)?;
-
-    wager_box.set_value("1");
-
-    click(&left_button);
-
-    Some(())
+macro_rules! unwrap_log {
+    ($e:expr, $($message:tt)+) => {
+        match $e {
+            Some(x) => x,
+            None => {
+                server_log!($($message)+);
+                return None;
+            },
+        }
+    }
 }
 
-fn lookup_bet(state: &Rc<RefCell<State>>) {
-    fn lookup(state: &mut State) -> Option<()> {
+
+fn on_change(state: &Rc<RefCell<State>>) {
+    fn fallback_bet(_state: &mut State) -> Option<()> {
+        let wager_box = query("#wager").and_then(to_input_element)?;
+
+        let left_button = query("#player1:enabled").and_then(to_input_element)?;
+
+        wager_box.set_value("1");
+
+        click(&left_button);
+
+        Some(())
+    }
+
+    fn try_bet(state: &mut State) -> Option<()> {
         if query("#betconfirm").is_none() {
             if !state.waifu4u_alive {
                 return fallback_bet(state);
@@ -183,24 +197,6 @@ fn lookup_bet(state: &Rc<RefCell<State>>) {
         None
     }
 
-    lookup(&mut state.borrow_mut());
-}
-
-
-macro_rules! unwrap_log {
-    ($e:expr, $($message:tt)+) => {
-        match $e {
-            Some(x) => x,
-            None => {
-                server_log!($($message)+);
-                return None;
-            },
-        }
-    }
-}
-
-
-fn lookup_information(state: &Rc<RefCell<State>>) {
     fn filtered_len(list: NodeList, name: &str, matched: &mut bool, illuminati_check: bool) -> (f64, f64, f64) {
         let mut normal = 0.0;
         let mut illuminati = 0.0;
@@ -238,7 +234,7 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
         (normal, illuminati, ignored)
     }
 
-    fn lookup(state: &mut State) -> Option<()> {
+    fn try_information(state: &mut State) -> Option<()> {
         if let Some(_) = state.information {
             return None;
         }
@@ -375,14 +371,15 @@ fn lookup_information(state: &Rc<RefCell<State>>) {
         Some(())
     }
 
-    lookup(&mut state.borrow_mut());
+    let mut state = state.borrow_mut();
+
+    try_information(&mut state);
+    try_bet(&mut state);
 }
 
 
 // TODO timer which prints an error message if it's been >5 hours since a successful match recording
 pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A: Stream<Item = Vec<WaifuMessage>> + 'static {
-    let mut mode_switch: Option<f64> = None;
-
     // 20 minutes
     const WAIFU4U_TIMEOUT: u32 = 1000 * 60 * 20;
 
@@ -400,7 +397,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
             state.did_bet = false;
             state.open = None;
             state.closed = None;
-            mode_switch = None;
+            state.mode_switch = None;
             state.information = None;
 
             state.waifu4u_alive = false;
@@ -437,14 +434,14 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                     state.did_bet = false;
                     state.open = Some(open);
                     state.closed = None;
-                    mode_switch = None;
+                    state.mode_switch = None;
                     state.information = None;
                 },
 
                 WaifuMessage::BetsClosed(closed) => {
                     let mut state = state.borrow_mut();
 
-                    mode_switch = None;
+                    state.mode_switch = None;
                     state.information = None;
 
                     match state.open {
@@ -492,12 +489,12 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                             if !open.mode.is_exhibitions() {
                                 match state.closed {
                                     Some(_) => {
-                                        if mode_switch.is_none() {
-                                            mode_switch = Some(date);
+                                        if state.mode_switch.is_none() {
+                                            state.mode_switch = Some(date);
                                             continue;
 
                                         } else {
-                                            server_log!("Duplicate mode switch: {:#?} {:#?} {:#?}", open, mode_switch, message);
+                                            server_log!("Duplicate mode switch: {:#?} {:#?} {:#?}", open, state.mode_switch, message);
                                         }
                                     },
                                     None => {
@@ -513,7 +510,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
 
                     state.open = None;
                     state.closed = None;
-                    mode_switch = None;
+                    state.mode_switch = None;
                 },
 
                 WaifuMessage::Winner(winner) => {
@@ -526,7 +523,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                                 match state.closed {
                                     Some(ref mut closed) => match state.information {
                                         Some(ref information) => {
-                                            let date = match mode_switch {
+                                            let date = match state.mode_switch {
                                                 Some(date) => date,
                                                 None => winner.date,
                                             };
@@ -624,7 +621,7 @@ pub async fn observe_changes<A>(state: Rc<RefCell<State>>, messages: A) where A:
                     state.open = None;
                     state.closed = None;
                     state.information = None;
-                    mode_switch = None;
+                    state.mode_switch = None;
                 },
             }
         }
@@ -643,6 +640,7 @@ pub struct State {
     open: Option<WaifuBetsOpen>,
     closed: Option<WaifuBetsClosed>,
     information: Option<Information>,
+    mode_switch: Option<f64>,
     simulation: Simulation<CustomStrategy, CustomStrategy>,
     info_container: Rc<InfoContainer>,
 }
@@ -1033,26 +1031,29 @@ async fn initialize_state(container: Rc<InfoContainer>) -> Result<(), JsValue> {
             waifu4u_alive: true,
             open: None,
             closed: None,
+            mode_switch: None,
             information: None,
             simulation: simulation,
             info_container: container,
         }));
 
-        {
-            let state = state.clone();
+        wait_until_defined(|| query("#lastbet"), clone!(state => move |element: Element| {
+            let mut debouncer = Debouncer::new(move || {
+                on_change(&state);
+            });
 
-            Interval::new(1000, move || {
-                lookup_bet(&state);
-            }).forget();
-        }
+            debouncer.reset(10_000);
 
-        {
-            let state = state.clone();
+            let observer = MutationObserver::new(move |_| {
+                debouncer.reset(10_000);
+            });
 
-            Interval::new(10_000, move || {
-                lookup_information(&state);
-            }).forget();
-        }
+            observer.observe(&element, MutationObserverInit::new().child_list(true));
+
+            DiscardOnDrop::leak(observer);
+
+            log!("Information observer initialized");
+        }));
 
         observe_changes(state, port.messages())
     };

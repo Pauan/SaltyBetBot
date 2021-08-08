@@ -642,6 +642,11 @@ impl Debouncer {
         self.clear_timeout();
         self.timer = Some(Self::set_timeout(time, &self.closure));
     }
+
+    pub fn run_now(&mut self) {
+        self.clear_timeout();
+        self.closure.as_ref().unchecked_ref::<Function>().call0(&JsValue::UNDEFINED).unwrap();
+    }
 }
 
 impl Drop for Debouncer {
