@@ -11,6 +11,10 @@ FAQ
 
    In addition, if the match outcome is uncertain, then it will bet low, in order to prevent losing too much money.
 
+* **Q**: Why does the bot bet so much money? I keep losing all my money!
+
+   **A**: When your money is low, it is better to bet high. That's because even if you lose everything, you're close to bailout. As you gain more money, the bot will automatically bet less.
+
 * **Q**: Why does the bot only bet $1 in exhibitions?
 
    **A**: It's not possible for bots to bet in exhibitions, because there just isn't enough information (the SaltyBet website does not tell the character names or the palettes, it only tells the team names).
@@ -20,6 +24,10 @@ FAQ
 * **Q**: Why does the bot go all-in in tournaments?
 
    **A**: During tournaments you get a separate money pool. Even if you lose all of your tournament money, you will not lose any of your matchmaking money. It is impossible to lose money in tournaments, you can only gain money. So the optimal strategy in tournaments is to all-in, because you have nothing to lose.
+
+* **Q**: Help! The bot stopped betting!
+
+   **A**: [A recent change in Chrome](https://developer.chrome.com/blog/timer-throttling-in-chrome-88/) causes the bot to break if the SaltyBet tab isn't active. You can  fix this by keeping the SaltyBet tab active, ***or*** you can go to `chrome://flags` and then disable "Throttle Javascript timers in background".
 
 How to use
 ==========
